@@ -34,11 +34,11 @@ const App = () => (
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/penjualan" element={<Penjualan />} />
-                <Route path="/produksi" element={<Produksi />} />
                 <Route path="/stok" element={<StokGudang />} />
                 <Route path="/absensi" element={<Absensi />} />
                 <Route path="/laporan" element={<Laporan />} />
                 <Route element={<ProtectedRoute adminOnly />}>
+                  <Route path="/produksi" element={<Produksi />} />
                   <Route path="/keuangan" element={<Keuangan />} />
                   <Route path="/master" element={<MasterData />} />
                 </Route>

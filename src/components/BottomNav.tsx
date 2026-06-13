@@ -105,12 +105,14 @@ export function BottomNav({ isAdmin = false }: Props) {
           {items.map((item) => {
             const hasSub = !!item.subItems;
             const filteredSubItems = getFilteredSubItems(item.subItems);
-            const isActive = hasSub
-              ? filteredSubItems.some((sub) => location.pathname === sub.url)
-              : location.pathname === item.url;
+            
+            // If it has sub-items but only one of them is accessible for the current user,
+            // we treat it as a direct link, rather than showing a dropdown.
+            const treatAsDirectLink = !hasSub || filteredSubItems.length === 1;
 
-            if (hasSub) {
+            if (!treatAsDirectLink) {
               const isDropdownOpen = activeDropdown === item.title;
+              const isActive = filteredSubItems.some((sub) => location.pathname === sub.url);
               return (
                 <li key={item.title} className="flex-1 min-w-[64px]">
                   <button
@@ -136,10 +138,18 @@ export function BottomNav({ isAdmin = false }: Props) {
               );
             }
 
+            const targetUrl = hasSub ? filteredSubItems[0].url : item.url!;
+            let displayTitle = item.title;
+            if (item.title === "Logistik" && hasSub && filteredSubItems.length === 1) {
+              displayTitle = "Stok";
+            } else if (item.title === "Laporan" && hasSub && filteredSubItems.length === 1) {
+              displayTitle = "Laporan";
+            }
+
             return (
               <li key={item.title} className="flex-1 min-w-[64px]">
                 <NavLink
-                  to={item.url!}
+                  to={targetUrl}
                   end
                   className={({ isActive }) =>
                     `flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-all ${
@@ -156,7 +166,7 @@ export function BottomNav({ isAdmin = false }: Props) {
                       >
                         <item.icon className="h-5 w-5" />
                       </div>
-                      <span>{item.title}</span>
+                      <span>{displayTitle}</span>
                     </>
                   )}
                 </NavLink>

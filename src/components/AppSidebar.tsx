@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 const allItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, admin: false },
   { title: "Penjualan", url: "/penjualan", icon: ShoppingCart, admin: false },
-  { title: "Produksi", url: "/produksi", icon: Factory, admin: false },
+  { title: "Produksi", url: "/produksi", icon: Factory, admin: true },
   { title: "Stok Gudang", url: "/stok", icon: Warehouse, admin: false },
   { title: "Absensi", url: "/absensi", icon: UserCheck, admin: false },
   { title: "Laporan", url: "/laporan", icon: FileBarChart, admin: false },
@@ -24,7 +24,14 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const items = allItems.filter((i) => isAdmin || !i.admin);
+  const items = allItems
+    .filter((i) => isAdmin || !i.admin)
+    .map((i) => {
+      if (i.url === "/stok" && !isAdmin) {
+        return { ...i, title: "Permohonan Stok" };
+      }
+      return i;
+    });
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi } from "./types";
+import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus } from "./types";
 import { SEED_OUTLETS, SEED_PRODUK, SEED_PENJUALAN, SEED_PRODUKSI, SEED_JURNAL, SEED_COA, SEED_BAHAN, SEED_KARYAWAN } from "./seed";
 
 const KEY = "buba-healthy-data-v3";
@@ -15,7 +15,37 @@ interface DB {
   stokMov: StokMovement[];
   karyawan: Karyawan[];
   absensi: Absensi[];
+  permohonanStok: PermohonanStok[];
 }
+
+const seedPermohonan = (): PermohonanStok[] => {
+  const o = SEED_OUTLETS[0];
+  const p1 = SEED_PRODUK[0];
+  const p2 = SEED_PRODUK[1];
+  if (!o || !p1) return [];
+  return [
+    {
+      id: "req-1",
+      tanggal: "2026-06-12",
+      tanggalKirim: "2026-06-13",
+      outletId: o.id,
+      produkId: p1.id,
+      qty: 30,
+      status: "Pending",
+      catatan: "Mohon dikirim pagi sebelum jam 7"
+    },
+    {
+      id: "req-2",
+      tanggal: "2026-06-11",
+      tanggalKirim: "2026-06-12",
+      outletId: o.id,
+      produkId: p2?.id || p1.id,
+      qty: 25,
+      status: "Disetujui",
+      catatan: "Stok untuk hari Jumat"
+    }
+  ];
+};
 
 const initial = (): DB => ({
   outlets: SEED_OUTLETS,
@@ -28,6 +58,7 @@ const initial = (): DB => ({
   stokMov: [],
   karyawan: SEED_KARYAWAN,
   absensi: [],
+  permohonanStok: seedPermohonan(),
 });
 
 let state: DB = load();
@@ -36,7 +67,14 @@ const listeners = new Set<() => void>();
 function load(): DB {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...initial(), ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...initial(),
+        ...parsed,
+        permohonanStok: parsed.permohonanStok || initial().permohonanStok
+      };
+    }
   } catch {}
   return initial();
 }
@@ -111,6 +149,29 @@ export const db = {
   // === Absensi ===
   addAbsensi(a: Omit<Absensi, "id">) { state = { ...state, absensi: [...state.absensi, { ...a, id: uid() }] }; persist(); },
   deleteAbsensi(id: string) { state = { ...state, absensi: state.absensi.filter((x) => x.id !== id) }; persist(); },
+
+  // === Permohonan Stok ===
+  addPermohonanStok(p: Omit<PermohonanStok, "id" | "status">) {
+    state = {
+      ...state,
+      permohonanStok: [...(state.permohonanStok || []), { ...p, status: "Pending", id: uid() }]
+    };
+    persist();
+  },
+  updatePermohonanStokStatus(id: string, status: PermohonanStokStatus) {
+    state = {
+      ...state,
+      permohonanStok: (state.permohonanStok || []).map((x) => (x.id === id ? { ...x, status } : x))
+    };
+    persist();
+  },
+  deletePermohonanStok(id: string) {
+    state = {
+      ...state,
+      permohonanStok: (state.permohonanStok || []).filter((x) => x.id !== id)
+    };
+    persist();
+  },
 
   reset() { state = initial(); persist(); },
 };

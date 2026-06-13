@@ -110,3 +110,17 @@ export interface Absensi {
   status: StatusAbsen;
   catatan?: string;
 }
+
+// === Permohonan Stok ===
+export type PermohonanStokStatus = "Pending" | "Disetujui" | "Ditolak";
+
+export interface PermohonanStok {
+  id: string;
+  tanggal: string;
+  tanggalKirim: string;
+  outletId: string;
+  produkId: string;
+  qty: number;
+  status: PermohonanStokStatus;
+  catatan?: string;
+}

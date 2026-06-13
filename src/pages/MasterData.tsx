@@ -14,6 +14,9 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
 
 import { db, useDB } from "@/lib/store";
 import { rupiah } from "@/lib/format";
@@ -25,11 +28,12 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 
 export default function MasterData() {
-  const { outlets = [], produk = [], coa = [] } = useDB();
+  const { outlets = [], produk = [], coa = [], karyawan = [] } = useDB();
 
   const outletPg = usePagination(outlets, 10);
   const produkPg = usePagination(produk, 10);
   const coaPg = usePagination(coa, 10);
+  const karyawanPg = usePagination(karyawan, 10);
 
   const [oNama, setONama] = useState("");
   const [oLokasi, setOLokasi] = useState("");
@@ -37,6 +41,14 @@ export default function MasterData() {
   const [pNama, setPNama] = useState("");
   const [pHarga, setPHarga] = useState(0);
   const [pSatuan, setPSatuan] = useState("cup");
+
+  // Karyawan form state
+  const [kNama, setKNama] = useState("");
+  const [kPosisi, setKPosisi] = useState("Kasir");
+  const [kOutletId, setKOutletId] = useState(outlets[0]?.id ?? "");
+  const [kGajiPokok, setKGajiPokok] = useState(17500);
+  const [kBonusOmset, setKBonusOmset] = useState(0);
+  const [kBonusUlasan, setKBonusUlasan] = useState(0);
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
@@ -46,7 +58,7 @@ export default function MasterData() {
         <div>
           <h1 className="text-3xl font-bold text-gradient">Master Data</h1>
           <p className="text-muted-foreground">
-            Kelola outlet, produk, dan COA
+            Kelola outlet, produk, COA, dan karyawan
           </p>
         </div>
 
@@ -69,6 +81,7 @@ export default function MasterData() {
           <TabsTrigger value="outlet">Outlet ({outlets.length})</TabsTrigger>
           <TabsTrigger value="produk">Produk ({produk.length})</TabsTrigger>
           <TabsTrigger value="coa">COA ({coa.length})</TabsTrigger>
+          <TabsTrigger value="karyawan">Karyawan ({karyawan.length})</TabsTrigger>
         </TabsList>
 
         {/* ================= OUTLET ================= */}
@@ -297,12 +310,165 @@ export default function MasterData() {
           </Card>
         </TabsContent>
 
+        {/* ================= KARYAWAN ================= */}
+        <TabsContent value="karyawan">
+          <div className="grid gap-6 lg:grid-cols-3">
+
+            {/* FORM */}
+            <div className="min-w-0">
+              <Card>
+                <CardHeader><CardTitle>Tambah Karyawan</CardTitle></CardHeader>
+                <CardContent>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!kNama) return toast.error("Nama karyawan diperlukan");
+                      db.addKaryawan({
+                        nama: kNama,
+                        posisi: kPosisi,
+                        outletId: kOutletId || undefined,
+                        gajiPokok: kGajiPokok,
+                        bonusOmset: kBonusOmset,
+                        bonusUlasan: kBonusUlasan
+                      });
+                      setKNama("");
+                      setKGajiPokok(17500);
+                      setKBonusOmset(0);
+                      setKBonusUlasan(0);
+                      toast.success("Karyawan berhasil ditambahkan");
+                    }}
+                    className="space-y-3"
+                  >
+                    <div>
+                      <Label>Nama Karyawan</Label>
+                      <Input value={kNama} onChange={(e) => setKNama(e.target.value)} placeholder="Contoh: Budi" />
+                    </div>
+
+                    <div>
+                      <Label>Posisi / Jabatan</Label>
+                      <Select value={kPosisi} onValueChange={setKPosisi}>
+                        <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Kasir">Kasir</SelectItem>
+                          <SelectItem value="Produksi">Produksi</SelectItem>
+                          <SelectItem value="Helper">Helper</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Outlet Penugasan</Label>
+                      <Select value={kOutletId} onValueChange={setKOutletId}>
+                        <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Tanpa Outlet (Pusat)</SelectItem>
+                          {outlets.map((o) => (
+                            <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Gaji Pokok (per Hari)</Label>
+                      <Input type="number" value={kGajiPokok} onChange={(e) => setKGajiPokok(Number(e.target.value))} />
+                    </div>
+
+                    <div>
+                      <Label>Bonus Pencapaian Omset (Bulanan)</Label>
+                      <Input type="number" value={kBonusOmset} onChange={(e) => setKBonusOmset(Number(e.target.value))} />
+                    </div>
+
+                    <div>
+                      <Label>Bonus Ulasan Bintang 5 (Bulanan)</Label>
+                      <Input type="number" value={kBonusUlasan} onChange={(e) => setKBonusUlasan(Number(e.target.value))} />
+                    </div>
+
+                    <Button className="w-full">
+                      <Plus className="mr-2 h-4 w-4" />Tambah
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* TABLE */}
+            <div className="min-w-0 lg:col-span-2">
+              <Card>
+                <CardHeader><CardTitle>Daftar Karyawan</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="w-full overflow-hidden rounded-xl border">
+                    <div className="w-full overflow-x-auto">
+                      <Table className="w-full text-sm">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nama</TableHead>
+                            <TableHead>Posisi</TableHead>
+                            <TableHead>Outlet</TableHead>
+                            <TableHead className="text-right">Gaji Pokok</TableHead>
+                            <TableHead className="text-right">Bonus Omset</TableHead>
+                            <TableHead className="text-right">Bonus Ulasan</TableHead>
+                            <TableHead className="text-center">Aksi</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {karyawanPg.paged.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                                Belum ada karyawan terdaftar
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {karyawanPg.paged.map((k) => {
+                            const o = outlets.find((x) => x.id === k.outletId);
+                            return (
+                              <TableRow key={k.id}>
+                                <TableCell className="font-medium">{k.nama}</TableCell>
+                                <TableCell>{k.posisi}</TableCell>
+                                <TableCell className="text-muted-foreground">{o?.nama ?? "Pusat"}</TableCell>
+                                <TableCell className="text-right">{rupiah(k.gajiPokok)}</TableCell>
+                                <TableCell className="text-right text-success">{rupiah(k.bonusOmset)}</TableCell>
+                                <TableCell className="text-right text-success">{rupiah(k.bonusUlasan)}</TableCell>
+                                <TableCell className="text-center">
+                                  <div className="flex justify-center gap-1">
+                                    <EditKaryawanDialog karyawan={k} outlets={outlets} />
+                                    <Button size="icon" variant="ghost" onClick={() => {
+                                      if (confirm(`Hapus karyawan ${k.nama}?`)) {
+                                        db.deleteKaryawan(k.id);
+                                        toast.success("Karyawan dihapus");
+                                      }
+                                    }}>
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                  <TablePagination 
+                    page={karyawanPg.page}
+                    totalPages={karyawanPg.totalPages}
+                    total={karyawanPg.total}
+                    pageSize={karyawanPg.pageSize}
+                    onChange={karyawanPg.setPage}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+          </div>
+        </TabsContent>
+
       </Tabs>
     </div>
   );
 }
 
-/* ================= EDIT ================= */
+/* ================= EDIT DIALOGS ================= */
 
 function EditOutletDialog({ outlet }) {
   const [open, setOpen] = useState(false);
@@ -328,11 +494,17 @@ function EditOutletDialog({ outlet }) {
             }}
             className="space-y-3"
           >
-            <Input value={nama} onChange={(e) => setNama(e.target.value)} />
-            <Input value={lokasi} onChange={(e) => setLokasi(e.target.value)} />
+            <div>
+              <Label>Nama Outlet</Label>
+              <Input value={nama} onChange={(e) => setNama(e.target.value)} />
+            </div>
+            <div>
+              <Label>Lokasi</Label>
+              <Input value={lokasi} onChange={(e) => setLokasi(e.target.value)} />
+            </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
               <Button type="submit">Simpan</Button>
             </DialogFooter>
           </form>
@@ -367,12 +539,112 @@ function EditProdukDialog({ produk }) {
             }}
             className="space-y-3"
           >
-            <Input value={nama} onChange={(e) => setNama(e.target.value)} />
-            <Input type="number" value={harga} onChange={(e) => setHarga(Number(e.target.value))} />
-            <Input value={satuan} onChange={(e) => setSatuan(e.target.value)} />
+            <div>
+              <Label>Nama Produk</Label>
+              <Input value={nama} onChange={(e) => setNama(e.target.value)} />
+            </div>
+            <div>
+              <Label>Harga</Label>
+              <Input type="number" value={harga} onChange={(e) => setHarga(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Satuan</Label>
+              <Input value={satuan} onChange={(e) => setSatuan(e.target.value)} />
+            </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button type="submit">Simpan</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function EditKaryawanDialog({ karyawan, outlets }) {
+  const [open, setOpen] = useState(false);
+  const [nama, setNama] = useState(karyawan.nama);
+  const [posisi, setPosisi] = useState(karyawan.posisi);
+  const [outletId, setOutletId] = useState(karyawan.outletId ?? "");
+  const [gajiPokok, setGajiPokok] = useState(karyawan.gajiPokok);
+  const [bonusOmset, setBonusOmset] = useState(karyawan.bonusOmset ?? 0);
+  const [bonusUlasan, setBonusUlasan] = useState(karyawan.bonusUlasan ?? 0);
+
+  return (
+    <>
+      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
+        <Pencil className="h-4 w-4 text-primary" />
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Data Karyawan</DialogTitle></DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              db.updateKaryawan(karyawan.id, {
+                nama,
+                posisi,
+                outletId: outletId || undefined,
+                gajiPokok,
+                bonusOmset,
+                bonusUlasan
+              });
+              toast.success("Data karyawan diperbarui");
+              setOpen(false);
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <Label>Nama Karyawan</Label>
+              <Input value={nama} onChange={(e) => setNama(e.target.value)} />
+            </div>
+
+            <div>
+              <Label>Posisi / Jabatan</Label>
+              <Select value={posisi} onValueChange={setPosisi}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Kasir">Kasir</SelectItem>
+                  <SelectItem value="Produksi">Produksi</SelectItem>
+                  <SelectItem value="Helper">Helper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Outlet Penugasan</Label>
+              <Select value={outletId} onValueChange={setOutletId}>
+                <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Tanpa Outlet (Pusat)</SelectItem>
+                  {outlets.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Gaji Pokok (per Hari)</Label>
+              <Input type="number" value={gajiPokok} onChange={(e) => setGajiPokok(Number(e.target.value))} />
+            </div>
+
+            <div>
+              <Label>Bonus Pencapaian Omset (Bulanan)</Label>
+              <Input type="number" value={bonusOmset} onChange={(e) => setBonusOmset(Number(e.target.value))} />
+            </div>
+
+            <div>
+              <Label>Bonus Ulasan Bintang 5 (Bulanan)</Label>
+              <Input type="number" value={bonusUlasan} onChange={(e) => setBonusUlasan(Number(e.target.value))} />
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
               <Button type="submit">Simpan</Button>
             </DialogFooter>
           </form>

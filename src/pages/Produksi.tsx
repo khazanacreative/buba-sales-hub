@@ -7,17 +7,134 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { db, useDB } from "@/lib/store";
-import { todayISO, DateRange, inRange } from "@/lib/format";
-import { Plus, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ImportExcelButton } from "@/components/ImportExcelButton";
 import { ExportButtons } from "@/components/ExportButtons";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// === SUBCOMPONENT: ADMIN VIEW FOR APPROVING REQUESTS ===
+function AdminPermohonanStok({ dbState }: { dbState: any }) {
+  const { permohonanStok, outlets, produk } = dbState;
+
+  const sortedRequests = useMemo(() => {
+    return [...(permohonanStok || [])].sort((a: any, b: any) => {
+      if (a.status === "Pending" && b.status !== "Pending") return -1;
+      if (a.status !== "Pending" && b.status === "Pending") return 1;
+      return b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id);
+    });
+  }, [permohonanStok]);
+
+  const { paged, page, setPage, totalPages, total, pageSize } = usePagination(sortedRequests, 10);
+
+  return (
+    <Card className="glass border-0 shadow-card">
+      <CardHeader>
+        <CardTitle>Daftar Permohonan Stok Outlet</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-2xl border overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Outlet</TableHead>
+                  <TableHead>Tgl Request</TableHead>
+                  <TableHead>Tgl Kirim</TableHead>
+                  <TableHead>Produk</TableHead>
+                  <TableHead className="text-right">Jumlah</TableHead>
+                  <TableHead>Catatan</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[180px] text-center">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedRequests.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      Belum ada permohonan stok dari outlet
+                    </TableCell>
+                  </TableRow>
+                )}
+                {paged.map((r: any) => {
+                  const outlet = outlets.find((o: any) => o.id === r.outletId);
+                  const prod = produk.find((p: any) => p.id === r.produkId);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="whitespace-nowrap font-semibold">{outlet?.nama ?? "-"}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{r.tanggal}</TableCell>
+                      <TableCell className="whitespace-nowrap">{r.tanggalKirim}</TableCell>
+                      <TableCell className="whitespace-nowrap">{prod?.nama ?? "-"}</TableCell>
+                      <TableCell className="text-right font-semibold">{r.qty} cup</TableCell>
+                      <TableCell className="max-w-[200px] truncate" title={r.catatan}>{r.catatan || "-"}</TableCell>
+                      <TableCell>
+                        {r.status === "Pending" && (
+                          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+                            <Clock className="h-3 w-3" /> Pending
+                          </Badge>
+                        )}
+                        {r.status === "Disetujui" && (
+                          <Badge className="bg-success text-success-foreground gap-1">
+                            <Check className="h-3 w-3" /> Disetujui
+                          </Badge>
+                        )}
+                        {r.status === "Ditolak" && (
+                          <Badge variant="destructive" className="gap-1">
+                            <X className="h-3 w-3" /> Ditolak
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {r.status === "Pending" ? (
+                          <div className="flex justify-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 border-success/35 text-success hover:bg-success/10 hover:text-success hover:border-success/60 font-semibold"
+                              onClick={() => {
+                                db.updatePermohonanStokStatus(r.id, "Disetujui");
+                                toast.success(`Permohonan stok dari ${outlet?.nama} disetujui`);
+                              }}
+                            >
+                              <Check className="h-3.5 w-3.5 mr-1" /> Setujui
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 border-destructive/35 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/60 font-semibold"
+                              onClick={() => {
+                                db.updatePermohonanStokStatus(r.id, "Ditolak");
+                                toast.error(`Permohonan stok dari ${outlet?.nama} ditolak`);
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" /> Tolak
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+        <TablePagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} />
+      </CardContent>
+    </Card>
+  );
+}
+
+// === MAIN COMPONENT ===
 export default function Produksi() {
-  const { produk, produksi, penjualan, bahan } = useDB();
+  const dbState = useDB();
+  const { produk, produksi, penjualan, bahan, permohonanStok } = dbState;
   const [tanggal, setTanggal] = useState(todayISO());
   const [produkId, setProdukId] = useState(produk[0]?.id ?? "");
   const [qtyRencana, setQtyRencana] = useState(50);
@@ -57,6 +174,10 @@ export default function Produksi() {
     [produksi, range]
   );
 
+  const pendingCount = useMemo(() => {
+    return (permohonanStok || []).filter((r: any) => r.status === "Pending").length;
+  }, [permohonanStok]);
+
   const onImport = (rows: any[]) => {
     const items = rows
       .map((r) => {
@@ -81,78 +202,97 @@ export default function Produksi() {
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-end gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gradient">Produksi MPASI</h1>
-          <p className="text-sm text-muted-foreground">Rencana produksi harian dan perbandingan dengan penjualan</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gradient">Produksi & Permohonan</h1>
+          <p className="text-sm text-muted-foreground">Rencana produksi harian dan persetujuan stok untuk outlet</p>
         </div>
-        <ImportExcelButton onData={onImport} />
       </div>
 
-      <Card className="glass border-0 shadow-card">
-        <CardHeader><CardTitle>Input Rencana Produksi</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 lg:items-end">
-            <div className="space-y-2">
-              <Label>Tanggal</Label>
-              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Produk</Label>
-              <Select value={produkId} onValueChange={setProdukId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {produk.map((p) => <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Qty Rencana</Label>
-              <Input type="number" min={1} value={qtyRencana} onChange={(e) => setQtyRencana(Number(e.target.value))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Qty Realisasi</Label>
-              <Input type="number" min={0} value={qtyRealisasi} onChange={(e) => setQtyRealisasi(Number(e.target.value))} />
-            </div>
-            <Button type="submit" className="gradient-primary text-primary-foreground hover-lift">
-              <Plus className="mr-1 h-4 w-4" />Simpan
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="produksi" className="w-full">
+        <TabsList className="grid w-full max-w-[420px] grid-cols-2 mb-6 bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger value="produksi" className="rounded-lg font-semibold">Produksi MPASI</TabsTrigger>
+          <TabsTrigger value="permohonan" className="rounded-lg font-semibold relative">
+            Permohonan Outlet
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white shadow animate-pulse">
+                {pendingCount}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      <Card className="glass border-0 shadow-card">
-        <CardHeader>
-          <CardTitle>Riwayat Produksi & Status Stok</CardTitle>
-          <div className="flex flex-wrap gap-2 pt-2 items-center">
-            <DateRangeFilter value={range} onChange={setRange} />
-            <div className="w-full sm:w-auto sm:ml-auto">
-              <ExportButtons
-                filename="produksi"
-                title="Riwayat Produksi"
-                headers={["Tanggal", "Produk", "Rencana", "Realisasi", "Terjual", "Sisa"]}
-                rows={filtered.map((p) => {
-                  const terjual = penjualan.filter((s) => s.tanggal === p.tanggal && s.produkId === p.produkId).reduce((s, x) => s + x.qty, 0);
-                  return [
-                    p.tanggal,
-                    produk.find((x) => x.id === p.produkId)?.nama ?? "-",
-                    p.qtyRencana,
-                    p.qtyRealisasi,
-                    terjual,
-                    p.qtyRealisasi - terjual,
-                  ];
-                })}
-              />
-            </div>
+        <TabsContent value="produksi" className="space-y-6 mt-0">
+          <div className="flex flex-wrap justify-end gap-2">
+            <ImportExcelButton onData={onImport} />
           </div>
-        </CardHeader>
-        <CardContent>
-          <RiwayatProduksiTable filtered={filtered} produk={produk} penjualan={penjualan} />
-        </CardContent>
-      </Card>
+
+          <Card className="glass border-0 shadow-card">
+            <CardHeader><CardTitle>Input Rencana Produksi</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={submit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 lg:items-end">
+                <div className="space-y-2">
+                  <Label>Tanggal</Label>
+                  <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Produk</Label>
+                  <Select value={produkId} onValueChange={setProdukId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {produk.map((p) => <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Rencana (porsi)</Label>
+                  <Input type="number" min={1} value={qtyRencana} onChange={(e) => setQtyRencana(Number(e.target.value))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Realisasi (porsi)</Label>
+                  <Input type="number" min={0} value={qtyRealisasi} onChange={(e) => setQtyRealisasi(Number(e.target.value))} />
+                </div>
+                <Button type="submit" className="gradient-primary text-primary-foreground hover-lift">
+                  <Plus className="mr-1 h-4 w-4" />Simpan
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card className="glass border-0 shadow-card">
+            <CardHeader>
+              <CardTitle>Riwayat Produksi</CardTitle>
+              <div className="flex flex-wrap gap-2 pt-2 items-center">
+                <DateRangeFilter value={range} onChange={setRange} />
+                <div className="w-full sm:w-auto sm:ml-auto">
+                  <ExportButtons
+                    filename="produksi"
+                    title="Riwayat Produksi"
+                    headers={["Tanggal", "Produk", "Rencana", "Realisasi"]}
+                    rows={filtered.map((p) => [
+                      p.tanggal,
+                      produk.find((x) => x.id === p.produkId)?.nama ?? "-",
+                      p.qtyRencana,
+                      p.qtyRealisasi,
+                    ])}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ProduksiTable filtered={filtered} produk={produk} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="permohonan" className="mt-0">
+          <AdminPermohonanStok dbState={dbState} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
-function RiwayatProduksiTable({ filtered, produk, penjualan }: any) {
+// === SUBCOMPONENT: TABLE FOR RENDER ===
+function ProduksiTable({ filtered, produk }: any) {
   const { paged, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
   return (
     <div className="rounded-2xl border overflow-hidden max-w-full">
@@ -162,34 +302,29 @@ function RiwayatProduksiTable({ filtered, produk, penjualan }: any) {
             <TableRow>
               <TableHead>Tgl</TableHead>
               <TableHead>Produk</TableHead>
-              <TableHead className="text-right">Rencana</TableHead>
-              <TableHead className="text-right">Realisasi</TableHead>
-              <TableHead className="text-right">Terjual</TableHead>
+              <TableHead className="text-right">Rencana (porsi)</TableHead>
+              <TableHead className="text-right">Realisasi (porsi)</TableHead>
               <TableHead>Status</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Belum ada data sesuai filter</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Belum ada produksi</TableCell></TableRow>
             )}
             {paged.map((p: any) => {
-              const terjual = penjualan.filter((s: any) => s.tanggal === p.tanggal && s.produkId === p.produkId).reduce((s: number, x: any) => s + x.qty, 0);
-              const sisa = p.qtyRealisasi - terjual;
-              const kurang = p.qtyRealisasi < p.qtyRencana || sisa < 0;
+              const pr = produk.find((x: any) => x.id === p.produkId);
+              const ok = p.qtyRealisasi >= p.qtyRencana;
               return (
                 <TableRow key={p.id}>
                   <TableCell className="whitespace-nowrap">{p.tanggal}</TableCell>
-                  <TableCell className="whitespace-nowrap">{produk.find((x: any) => x.id === p.produkId)?.nama ?? "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap font-medium">{pr?.nama ?? "-"}</TableCell>
                   <TableCell className="text-right">{p.qtyRencana}</TableCell>
-                  <TableCell className="text-right">{p.qtyRealisasi}</TableCell>
-                  <TableCell className="text-right">{terjual}</TableCell>
+                  <TableCell className="text-right font-semibold">{p.qtyRealisasi}</TableCell>
                   <TableCell>
-                    {kurang ? (
-                      <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />Kurang</Badge>
-                    ) : (
-                      <Badge className="bg-success text-success-foreground gap-1"><CheckCircle2 className="h-3 w-3" />Cukup</Badge>
-                    )}
+                    {ok
+                      ? <Badge className="bg-success text-success-foreground gap-1"><CheckCircle2 className="h-3 w-3" />Tercapai</Badge>
+                      : <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10 gap-1"><AlertTriangle className="h-3 w-3" />Kurang</Badge>}
                   </TableCell>
                   <TableCell>
                     <Button size="icon" variant="ghost" onClick={() => db.deleteProduksi(p.id)}>

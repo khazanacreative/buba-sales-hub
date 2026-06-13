@@ -16,6 +16,7 @@ import Keuangan from "./pages/Keuangan";
 import MasterData from "./pages/MasterData";
 import StokGudang from "./pages/StokGudang";
 import Absensi from "./pages/Absensi";
+import SlipGaji from "./pages/SlipGaji";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
                 <Route path="/stok" element={<StokGudang />} />
                 <Route path="/absensi" element={<Absensi />} />
                 <Route path="/laporan" element={<Laporan />} />
+                <Route path="/slip-gaji" element={<SlipGaji />} />
                 <Route element={<ProtectedRoute adminOnly />}>
                   <Route path="/produksi" element={<Produksi />} />
                   <Route path="/keuangan" element={<Keuangan />} />

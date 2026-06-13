@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, Factory, FileBarChart, BookOpen, Settings, ChevronsLeft, ChevronsRight, Warehouse, UserCheck } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Factory, FileBarChart, BookOpen, Settings, ChevronsLeft, ChevronsRight, Warehouse, UserCheck, FileText } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import logo from "@/assets/logo.jpg";
 import {
@@ -8,30 +8,30 @@ import {
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
-const allItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard, admin: false },
-  { title: "Penjualan", url: "/penjualan", icon: ShoppingCart, admin: false },
-  { title: "Produksi", url: "/produksi", icon: Factory, admin: true },
-  { title: "Stok Gudang", url: "/stok", icon: Warehouse, admin: false },
-  { title: "Absensi", url: "/absensi", icon: UserCheck, admin: false },
-  { title: "Laporan", url: "/laporan", icon: FileBarChart, admin: false },
-  { title: "Keuangan", url: "/keuangan", icon: BookOpen, admin: true },
-  { title: "Master Data", url: "/master", icon: Settings, admin: true },
-];
-
 export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const items = allItems
-    .filter((i) => isAdmin || !i.admin)
-    .map((i) => {
-      if (i.url === "/stok" && !isAdmin) {
-        return { ...i, title: "Permohonan Stok" };
-      }
-      return i;
-    });
+
+  const items = isAdmin
+    ? [
+        { title: "Stok Gudang", url: "/stok", icon: Warehouse },
+        { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Absensi", url: "/absensi", icon: UserCheck },
+        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        { title: "Produksi", url: "/produksi", icon: Factory },
+        { title: "Laporan", url: "/laporan", icon: FileBarChart },
+        { title: "Keuangan", url: "/keuangan", icon: BookOpen },
+        { title: "Master Data", url: "/master", icon: Settings },
+      ]
+    : [
+        { title: "Home", url: "/", icon: LayoutDashboard },
+        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        { title: "Absensi", url: "/absensi", icon: UserCheck },
+        { title: "Slip Gaji", url: "/slip-gaji", icon: FileText },
+        { title: "Logistik", url: "/stok", icon: Warehouse },
+      ];
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">

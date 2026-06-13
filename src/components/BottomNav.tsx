@@ -1,28 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp, FileText } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-
-const items = [
-  { title: "Home", url: "/", icon: LayoutDashboard },
-  { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
-  {
-    title: "Logistik",
-    icon: Warehouse,
-    subItems: [
-      { title: "Stok Gudang", url: "/stok" },
-      { title: "Produksi", url: "/produksi", admin: true },
-    ]
-  },
-  {
-    title: "Laporan",
-    icon: FileBarChart,
-    subItems: [
-      { title: "Laporan Utama", url: "/laporan" },
-      { title: "Keuangan", url: "/keuangan", admin: true },
-    ]
-  },
-  { title: "Absensi", url: "/absensi", icon: UserCheck },
-];
 
 interface Props {
   isAdmin?: boolean;
@@ -33,6 +11,36 @@ export function BottomNav({ isAdmin = false }: Props) {
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const items = isAdmin
+    ? [
+        {
+          title: "Logistik",
+          icon: Warehouse,
+          subItems: [
+            { title: "Stok Gudang", url: "/stok" },
+            { title: "Produksi", url: "/produksi", admin: true },
+          ]
+        },
+        { title: "Home", url: "/", icon: LayoutDashboard },
+        { title: "Absensi", url: "/absensi", icon: UserCheck },
+        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        {
+          title: "Laporan",
+          icon: FileBarChart,
+          subItems: [
+            { title: "Laporan Utama", url: "/laporan" },
+            { title: "Keuangan", url: "/keuangan", admin: true },
+          ]
+        },
+      ]
+    : [
+        { title: "Home", url: "/", icon: LayoutDashboard },
+        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        { title: "Absensi", url: "/absensi", icon: UserCheck },
+        { title: "Slip Gaji", url: "/slip-gaji", icon: FileText },
+        { title: "Logistik", url: "/stok", icon: Warehouse },
+      ];
 
   // Close dropdown when clicking outside
   useEffect(() => {

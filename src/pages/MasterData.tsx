@@ -45,7 +45,7 @@ export default function MasterData() {
   // Karyawan form state
   const [kNama, setKNama] = useState("");
   const [kPosisi, setKPosisi] = useState("Kasir");
-  const [kOutletId, setKOutletId] = useState(outlets[0]?.id ?? "");
+  const [kOutletId, setKOutletId] = useState(outlets[0]?.id ?? "none");
   const [kGajiPokok, setKGajiPokok] = useState(17500);
   const [kBonusOmset, setKBonusOmset] = useState(0);
   const [kBonusUlasan, setKBonusUlasan] = useState(0);
@@ -326,7 +326,7 @@ export default function MasterData() {
                       db.addKaryawan({
                         nama: kNama,
                         posisi: kPosisi,
-                        outletId: kOutletId || undefined,
+                        outletId: kOutletId === "none" ? undefined : kOutletId,
                         gajiPokok: kGajiPokok,
                         bonusOmset: kBonusOmset,
                         bonusUlasan: kBonusUlasan
@@ -361,7 +361,7 @@ export default function MasterData() {
                       <Select value={kOutletId} onValueChange={setKOutletId}>
                         <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Tanpa Outlet (Pusat)</SelectItem>
+                          <SelectItem value="none">Tanpa Outlet (Pusat)</SelectItem>
                           {outlets.map((o) => (
                             <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
                           ))}
@@ -567,7 +567,7 @@ function EditKaryawanDialog({ karyawan, outlets }) {
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState(karyawan.nama);
   const [posisi, setPosisi] = useState(karyawan.posisi);
-  const [outletId, setOutletId] = useState(karyawan.outletId ?? "");
+  const [outletId, setOutletId] = useState(karyawan.outletId ?? "none");
   const [gajiPokok, setGajiPokok] = useState(karyawan.gajiPokok);
   const [bonusOmset, setBonusOmset] = useState(karyawan.bonusOmset ?? 0);
   const [bonusUlasan, setBonusUlasan] = useState(karyawan.bonusUlasan ?? 0);
@@ -588,7 +588,7 @@ function EditKaryawanDialog({ karyawan, outlets }) {
               db.updateKaryawan(karyawan.id, {
                 nama,
                 posisi,
-                outletId: outletId || undefined,
+                outletId: outletId === "none" ? undefined : outletId,
                 gajiPokok,
                 bonusOmset,
                 bonusUlasan
@@ -620,7 +620,7 @@ function EditKaryawanDialog({ karyawan, outlets }) {
               <Select value={outletId} onValueChange={setOutletId}>
                 <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tanpa Outlet (Pusat)</SelectItem>
+                  <SelectItem value="none">Tanpa Outlet (Pusat)</SelectItem>
                   {outlets.map((o) => (
                     <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
                   ))}

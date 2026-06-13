@@ -18,7 +18,7 @@ import { useAuth } from "@/lib/auth";
 
 // === SUBCOMPONENT: OUTLET VIEW FOR REQUESTING STOCK ===
 function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
-  const { produk, permohonanStok } = dbState;
+  const { produk = [], permohonanStok = [] } = dbState;
   const tomorrow = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -203,7 +203,7 @@ export default function StokGudang() {
   }
 
   // Admin original states and computations
-  const { bahan, stokMov, produksi, produk } = dbState;
+  const { bahan = [], stokMov = [], produksi = [], produk = [] } = dbState;
   const [tanggal, setTanggal] = useState(todayISO());
   const [bahanId, setBahanId] = useState(bahan[0]?.id ?? "");
   const [tipe, setTipe] = useState<"IN" | "OUT">("IN");
@@ -227,6 +227,7 @@ export default function StokGudang() {
 
   const totalNilai = bahan.reduce((s, b) => s + (saldoMap[b.id] || 0) * b.hargaBeli, 0);
   const lowStock = bahan.filter((b) => (saldoMap[b.id] || 0) <= b.stokMin);
+  const bahanPg = usePagination(bahan, 10);
 
   const filteredMov = useMemo(
     () => [...stokMov].filter((m) => inRange(m.tanggal, range)).sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
@@ -330,7 +331,14 @@ export default function StokGudang() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bahan.map((b) => {
+                  {bahanPg.paged.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        Belum ada saldo bahan baku
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {bahanPg.paged.map((b) => {
                     const saldo = saldoMap[b.id] || 0;
                     const low = saldo <= b.stokMin;
                     return (
@@ -353,6 +361,13 @@ export default function StokGudang() {
               </Table>
             </div>
           </div>
+          <TablePagination 
+            page={bahanPg.page} 
+            totalPages={bahanPg.totalPages} 
+            total={bahanPg.total} 
+            pageSize={bahanPg.pageSize} 
+            onChange={bahanPg.setPage} 
+          />
         </CardContent>
       </Card>
 

@@ -69,10 +69,19 @@ function load(): DB {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      const init = initial();
       return {
-        ...initial(),
-        ...parsed,
-        permohonanStok: parsed.permohonanStok || initial().permohonanStok
+        outlets: parsed.outlets || init.outlets,
+        produk: parsed.produk || init.produk,
+        penjualan: parsed.penjualan || init.penjualan,
+        produksi: parsed.produksi || init.produksi,
+        jurnal: parsed.jurnal || init.jurnal,
+        coa: parsed.coa || init.coa,
+        bahan: parsed.bahan || init.bahan,
+        stokMov: parsed.stokMov || init.stokMov,
+        karyawan: parsed.karyawan || init.karyawan,
+        absensi: parsed.absensi || init.absensi,
+        permohonanStok: parsed.permohonanStok || init.permohonanStok
       };
     }
   } catch {}

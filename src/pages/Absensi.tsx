@@ -22,7 +22,7 @@ const STATUSES: StatusAbsen[] = ["Hadir", "Izin", "Sakit", "Alpha"];
 export default function Absensi() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const { karyawan, absensi, outlets } = useDB();
+  const { karyawan = [], absensi = [], outlets = [] } = useDB();
 
   const visibleKaryawan = useMemo(
     () => (isAdmin ? karyawan : karyawan.filter((k) => k.outletId === user?.outletId)),
@@ -64,6 +64,7 @@ export default function Absensi() {
 
   const totalHadir = rekap.reduce((s, r) => s + r.hadir, 0);
   const totalGajiAll = rekap.reduce((s, r) => s + r.totalGaji, 0);
+  const rekapPg = usePagination(rekap, 10);
 
   return (
     <div className="space-y-6">
@@ -187,7 +188,14 @@ export default function Absensi() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rekap.map((r) => (
+                  {rekapPg.paged.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
+                        Belum ada data rekap gaji
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rekapPg.paged.map((r) => (
                     <TableRow key={r.k.id}>
                       <TableCell className="whitespace-nowrap">{r.k.nama}</TableCell>
                       <TableCell>{r.k.posisi}</TableCell>
@@ -203,6 +211,13 @@ export default function Absensi() {
               </Table>
             </div>
           </div>
+          <TablePagination 
+            page={rekapPg.page} 
+            totalPages={rekapPg.totalPages} 
+            total={rekapPg.total} 
+            pageSize={rekapPg.pageSize} 
+            onChange={rekapPg.setPage} 
+          />
         </CardContent>
       </Card>
     </div>

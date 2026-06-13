@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Buba Healthy V2
 
-TODO: Document your project here
+Project documentation.

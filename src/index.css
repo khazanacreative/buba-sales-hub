@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Buba Healthy Design System - Fresh, natural, MPASI brand */
+@layer base {
+  :root {
+    --background: 80 33% 97%;
+    --foreground: 145 40% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 145 40% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 145 40% 12%;
+
+    /* Buba green */
+    --primary: 142 72% 26%;
+    --primary-foreground: 80 33% 97%;
+    --primary-glow: 95 70% 45%;
+
+    --secondary: 95 55% 92%;
+    --secondary-foreground: 142 72% 20%;
+
+    --muted: 80 25% 94%;
+    --muted-foreground: 145 15% 40%;
+
+    --accent: 95 70% 45%;
+    --accent-foreground: 145 40% 12%;
+
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --success: 142 72% 35%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 95 25% 86%;
+    --input: 95 25% 88%;
+    --ring: 142 72% 26%;
+
+    --radius: 0.75rem;
+
+    --gradient-primary: linear-gradient(135deg, hsl(142 72% 26%), hsl(95 70% 45%));
+    --gradient-soft: linear-gradient(135deg, hsl(95 55% 95%), hsl(80 33% 97%));
+    --shadow-soft: 0 4px 20px -8px hsl(142 72% 26% / 0.15);
+    --shadow-card: 0 2px 12px -4px hsl(142 40% 20% / 0.08);
+
+    --sidebar-background: 142 72% 24%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 95 75% 50%;
+    --sidebar-primary-foreground: 145 50% 12%;
+    --sidebar-accent: 95 70% 45%;
+    --sidebar-accent-foreground: 145 50% 12%;
+    --sidebar-border: 142 60% 18%;
+    --sidebar-ring: 95 75% 50%;
+  }
+
+  .dark {
+    --background: 145 30% 8%;
+    --foreground: 80 33% 95%;
+    --card: 145 30% 11%;
+    --card-foreground: 80 33% 95%;
+    --popover: 145 30% 11%;
+    --popover-foreground: 80 33% 95%;
+    --primary: 95 70% 45%;
+    --primary-foreground: 145 40% 8%;
+    --secondary: 145 20% 18%;
+    --secondary-foreground: 80 33% 95%;
+    --muted: 145 20% 16%;
+    --muted-foreground: 95 15% 65%;
+    --accent: 95 70% 45%;
+    --accent-foreground: 145 40% 8%;
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 145 20% 20%;
+    --input: 145 20% 20%;
+    --ring: 95 70% 45%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; font-feature-settings: "cv02","cv03","cv04","cv11"; }
+}
+
+@layer utilities {
+  .gradient-primary { background: var(--gradient-primary); }
+  .gradient-soft { background: var(--gradient-soft); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .shadow-card { box-shadow: var(--shadow-card); }
+
+  /* Morph UI utilities */
+  .glass {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid hsl(var(--border) / 0.6);
+  }
+  .glass-strong {
+    background: hsl(var(--card) / 0.85);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid hsl(var(--border) / 0.7);
+  }
+  .hover-lift {
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 220ms;
+  }
+  .hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 40px -18px hsl(var(--primary) / 0.35);
+  }
+  .ambient-bg {
+    background:
+      radial-gradient(60% 50% at 10% 0%, hsl(var(--primary) / 0.10), transparent 70%),
+      radial-gradient(50% 40% at 100% 10%, hsl(var(--accent) / 0.12), transparent 70%),
+      radial-gradient(40% 40% at 50% 100%, hsl(var(--primary-glow) / 0.10), transparent 70%),
+      hsl(var(--background));
+  }
+  .text-gradient {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }

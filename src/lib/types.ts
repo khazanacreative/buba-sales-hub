@@ -1,0 +1,112 @@
+export interface Outlet {
+  id: string;
+  nama: string;
+  lokasi: string;
+}
+
+export interface Produk {
+  id: string;
+  nama: string;
+  harga: number;
+  satuan: string;
+}
+
+export interface Penjualan {
+  id: string;
+  tanggal: string;
+  outletId: string;
+  produkId: string;
+  qty: number;
+  harga: number;
+  total: number;
+}
+
+export interface Produksi {
+  id: string;
+  tanggal: string;
+  produkId: string;
+  qtyRencana: number;
+  qtyRealisasi: number;
+}
+
+export type AkunKategori =
+  | 'Aset'
+  | 'Kewajiban'
+  | 'Ekuitas'
+  | 'Pendapatan'
+  | 'Beban';
+
+export interface Jurnal {
+  id: string;
+  tanggal: string;
+  ref?: string;
+  keterangan: string;
+  kodeAkun?: string;
+  akun: string;
+  tipe: 'Debit' | 'Kredit';
+  jumlah: number;
+  kategori: AkunKategori;
+}
+
+export interface AkunCOA {
+  kode: string;
+  nama: string;
+  tipe: string;
+  kategori: AkunKategori;
+}
+
+export type Role = 'admin' | 'outlet';
+
+export interface UserAccount {
+  username: string;
+  password: string;
+  nama: string;
+  role: Role;
+  outletId?: string;
+}
+
+// === Stok Gudang ===
+export interface BahanBaku {
+  id: string;
+  kode: string;
+  nama: string;
+  satuan: string;
+  stokMin: number;
+  stokAwal: number;
+  hargaBeli: number;
+}
+
+export type StokMovementType = 'IN' | 'OUT';
+
+export interface StokMovement {
+  id: string;
+  tanggal: string;
+  bahanId: string;
+  tipe: StokMovementType;
+  qty: number;
+  keterangan?: string;
+  produksiId?: string; // when OUT triggered by produksi
+}
+
+// === Absensi ===
+export interface Karyawan {
+  id: string;
+  nama: string;
+  posisi: string;
+  outletId?: string;
+  gajiPokok: number; // per hari
+  bonusOmset?: number;
+  bonusUlasan?: number;
+}
+
+export type StatusAbsen = 'Hadir' | 'Izin' | 'Sakit' | 'Alpha';
+
+export interface Absensi {
+  id: string;
+  tanggal: string;
+  karyawanId: string;
+  jamMasuk?: string; // "HH:mm"
+  jamPulang?: string;
+  status: StatusAbsen;
+  catatan?: string;
+}

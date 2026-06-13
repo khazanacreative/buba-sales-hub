@@ -10,7 +10,7 @@ const items = [
     icon: Warehouse,
     subItems: [
       { title: "Stok Gudang", url: "/stok" },
-      { title: "Produksi", url: "/produksi" },
+      { title: "Produksi", url: "/produksi", admin: true },
     ]
   },
   {

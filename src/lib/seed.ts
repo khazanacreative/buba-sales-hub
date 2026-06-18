@@ -1,116 +1,130 @@
-import seedJson from "./seedData.json";
-import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, AkunKategori, UserAccount, BahanBaku, Karyawan } from "./types";
+import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, UserAccount, BahanBaku, Karyawan } from "./types";
 
-const slug = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
-export const SEED_OUTLETS: Outlet[] = (seedJson.outlets as { nama: string; lokasi: string }[]).map((o) => ({
-  id: `o-${slug(o.nama)}`,
-  nama: o.nama,
-  lokasi: o.lokasi,
-}));
-
-export const SEED_PRODUK: Produk[] = (seedJson.produks as { nama: string; harga: number }[]).map((p) => ({
-  id: `p-${slug(p.nama)}`,
-  nama: p.nama,
-  harga: p.harga,
-  satuan: "cup",
-}));
-
-const outletByName = new Map(SEED_OUTLETS.map((o) => [o.nama, o.id]));
-const produkByName = new Map(SEED_PRODUK.map((p) => [p.nama, p]));
-
-export const SEED_PENJUALAN: Penjualan[] = (seedJson.penjualan as any[])
-  .map((p, i) => {
-    const prod = produkByName.get(p.produk);
-    const outletId = outletByName.get(p.outlet);
-    if (!prod || !outletId) return null;
-    return {
-      id: `s-${i}`,
-      tanggal: p.tgl,
-      outletId,
-      produkId: prod.id,
-      qty: p.qty,
-      harga: p.harga ?? prod.harga,
-      total: (p.harga ?? prod.harga) * p.qty,
-    } as Penjualan;
-  })
-  .filter(Boolean) as Penjualan[];
-
-export const SEED_PRODUKSI: Produksi[] = (seedJson.produksi as any[])
-  .map((p, i) => {
-    const prod = produkByName.get(p.produk);
-    if (!prod) return null;
-    return {
-      id: `pr-${i}`,
-      tanggal: p.tgl,
-      produkId: prod.id,
-      qtyRencana: p.plan,
-      qtyRealisasi: Math.max(0, p.plan - Math.floor(Math.random() * 15)),
-    } as Produksi;
-  })
-  .filter(Boolean) as Produksi[];
-
-const KATEGORI_MAP: Record<string, AkunKategori> = {
-  Kas: "Aset", Bank: "Aset", "Akun Piutang": "Aset", Persediaan: "Aset",
-  "Aktiva Lancar Lainnya": "Aset", "Aktiva Tetap": "Aset",
-  "Akun Akumulasi Penyusutan": "Aset", "Aktiva Lainnya": "Aset",
-  "Akun Hutang": "Kewajiban", "Kewajiban Lancar Lainnya": "Kewajiban",
-  "Hutang Jangka Panjang": "Kewajiban",
-  Modal: "Ekuitas", Ekuitas: "Ekuitas",
-  Pendapatan: "Pendapatan", "Pendapatan Lainnya": "Pendapatan",
-  HPP: "Beban", Beban: "Beban", "Biaya Operasional": "Beban",
-};
-const guessKategori = (tipe: string): AkunKategori => {
-  if (KATEGORI_MAP[tipe]) return KATEGORI_MAP[tipe];
-  const t = tipe.toLowerCase();
-  if (t.includes("hutang") || t.includes("kewajiban")) return "Kewajiban";
-  if (t.includes("modal") || t.includes("ekuitas") || t.includes("laba")) return "Ekuitas";
-  if (t.includes("pendapatan")) return "Pendapatan";
-  if (t.includes("hpp") || t.includes("beban") || t.includes("biaya") || t === "oh") return "Beban";
-  return "Aset";
-};
-
-export const SEED_COA: AkunCOA[] = (seedJson.coa as any[]).map((a) => ({
-  kode: a.kode,
-  nama: a.nama,
-  tipe: a.tipe,
-  kategori: guessKategori(a.tipe),
-}));
-
-const coaByKode = new Map(SEED_COA.map((a) => [a.kode, a]));
-
-export const SEED_JURNAL: Jurnal[] = (seedJson.jurnal as any[]).map((j, i) => {
-  const akun = coaByKode.get(String(j.kode));
-  const kategori: AkunKategori = akun?.kategori ?? guessKategori(j.nama_akun ?? "");
-  const isDebit = (j.debet ?? 0) > 0;
-  return {
-    id: `j-${i}`,
-    tanggal: j.tanggal,
-    ref: j.ref,
-    keterangan: j.keterangan,
-    kodeAkun: String(j.kode),
-    akun: j.nama_akun,
-    tipe: isDebit ? "Debit" : "Kredit",
-    jumlah: isDebit ? j.debet : j.kredit,
-    kategori,
-  };
-});
-
-// === Mock Users ===
-export const SEED_USERS: UserAccount[] = [
-  { username: "admin", password: "admin123", nama: "Administrator", role: "admin" },
-  ...SEED_OUTLETS.map((o) => ({
-    username: slug(o.nama),
-    password: "buba123",
-    nama: o.nama,
-    role: "outlet" as const,
-    outletId: o.id,
-  })),
+export const SEED_OUTLETS: Outlet[] = [
+  { id: "o-buba-healthy-taman", nama: "Buba Healthy Taman", lokasi: "Taman Kencana No. 5" },
+  { id: "o-buba-healthy-menganti", nama: "Buba Healthy Menganti", lokasi: "Raya Menganti No. 12" },
+  { id: "o-buba-healthy-wiyung", nama: "Buba Healthy Wiyung", lokasi: "Wiyung Indah Blok A-3" }
 ];
 
-// === Bahan Baku (Stok Gudang) ===
-const RAW_BAHAN: { kode: string; nama: string; satuan: string; stokMin: number; stokAwal: number; hargaBeli: number }[] = [
+export const SEED_PRODUK: Produk[] = [
+  { id: "p-bubur-bayi-organik", nama: "Bubur Bayi Organik", harga: 15000, satuan: "cup" },
+  { id: "p-puding-susu-kambing", nama: "Puding Susu Kambing", harga: 12000, satuan: "cup" },
+  { id: "p-oatmeal-buah-segar", nama: "Oatmeal Buah Segar", harga: 16000, satuan: "cup" }
+];
+
+export const SEED_COA: AkunCOA[] = [
+  { kode: "110000", nama: "Kas Rupiah", tipe: "Kas", kategori: "Aset" },
+  { kode: "111000", nama: "Kas Kecil", tipe: "Kas", kategori: "Aset" },
+  { kode: "120000", nama: "Bank", tipe: "Bank", kategori: "Aset" },
+  { kode: "130000", nama: "Piutang Karyawan", tipe: "Akun Piutang", kategori: "Aset" },
+  { kode: "131000", nama: "Piutang usaha", tipe: "Akun Piutang", kategori: "Aset" },
+  { kode: "140000", nama: "Persediaan", tipe: "Persediaan", kategori: "Aset" },
+  { kode: "150000", nama: "Aktiva Lancar Lainnya", tipe: "Aktiva Lancar Lainnya", kategori: "Aset" },
+  { kode: "160000", nama: "Aktiva Tetap", tipe: "Aktiva Tetap", kategori: "Aset" },
+  { kode: "170000", nama: "Akumulasi Penyusutan", tipe: "Akun Akumulasi Penyusutan", kategori: "Aset" },
+  { kode: "180000", nama: "Biaya Dibayar Dimuka", tipe: "Biaya Dibayar Dimuka", kategori: "Aset" },
+  { kode: "190000", nama: "Uang Muka Biaya", tipe: "Aktiva Lancar Lainnya", kategori: "Aset" },
+  { kode: "210000", nama: "Hutang Usaha", tipe: "Akun Hutang", kategori: "Kewajiban" },
+  { kode: "220000", nama: "Hutang Bank", tipe: "Hutang Jangka Panjang", kategori: "Kewajiban" },
+  { kode: "310000", nama: "Modal Awal", tipe: "Modal", kategori: "Ekuitas" },
+  { kode: "320000", nama: "Prive", tipe: "Modal", kategori: "Ekuitas" },
+  { kode: "330000", nama: "Laba Ditahan", tipe: "Modal", kategori: "Ekuitas" },
+  { kode: "340000", nama: "Laba Periode Berjalan", tipe: "Modal", kategori: "Ekuitas" },
+  { kode: "410000", nama: "Pendapatan Utama", tipe: "Pendapatan", kategori: "Pendapatan" },
+  { kode: "411000", nama: "Pendapatan Penunjang", tipe: "Pendapatan", kategori: "Pendapatan" },
+  { kode: "412000", nama: "Pendapatan Lainnya", tipe: "Pendapatan", kategori: "Pendapatan" },
+  { kode: "440000", nama: "Bunga Bank", tipe: "Pendapatan Lainnya", kategori: "Pendapatan" },
+  { kode: "510000", nama: "Operasional", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510001", nama: "Pulse Pusat", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510002", nama: "Perlengkapan", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510003", nama: "PLN/Token", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510004", nama: "PDAM", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510005", nama: "Iuran Warga", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510006", nama: "LPG", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510007", nama: "Iuran Karcis", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510008", nama: "ATK", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510009", nama: "Titip Rombong", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510010", nama: "WIFI/Telepon", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510011", nama: "BBM", tipe: "Biaya Lainnya", kategori: "Beban" },
+  { kode: "510012", nama: "BPJS", tipe: "Biaya Lainnya", kategori: "Beban" },
+  { kode: "510013", nama: "Air Minum", tipe: "Biaya Lainnya", kategori: "Beban" },
+  { kode: "510014", nama: "Laundry", tipe: "Biaya Lainnya", kategori: "Beban" },
+  { kode: "510015", nama: "Alat Kebersihan", tipe: "Biaya Lainnya", kategori: "Beban" },
+  { kode: "510016", nama: "Konsumsi", tipe: "Biaya Lainnya", kategori: "Beban" },
+  { kode: "510017", nama: "Sewa Outlet", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510018", nama: "Admin Bank", tipe: "Biaya Lainnya", kategori: "Beban" },
+  { kode: "510019", nama: "Ongkos", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510020", nama: "Pemeliharaan & Perbaikan", tipe: "Biaya", kategori: "Beban" },
+  { kode: "510021", nama: "Biaya Penyusutan", tipe: "Biaya", kategori: "Beban" },
+  { kode: "520000", nama: "BEBAN SUMBER DAYA MANUSIA", tipe: "Biaya", kategori: "Beban" },
+  { kode: "520001", nama: "GAJI", tipe: "Biaya", kategori: "Beban" },
+  { kode: "520002", nama: "THR", tipe: "Biaya", kategori: "Beban" },
+  { kode: "521000", nama: "Pelatihan", tipe: "Biaya", kategori: "Beban" },
+  { kode: "521001", nama: "Bonus Penjualan (SDM)", tipe: "Biaya", kategori: "Beban" },
+  { kode: "521002", nama: "Akomodasi (SDM)", tipe: "Biaya", kategori: "Beban" },
+  { kode: "521003", nama: "Biaya Training", tipe: "Biaya", kategori: "Beban" },
+  { kode: "530000", nama: "BEBAN MARKETING", tipe: "Biaya", kategori: "Beban" },
+  { kode: "530001", nama: "Bonus Penjualan (Mkt)", tipe: "Biaya", kategori: "Beban" },
+  { kode: "531000", nama: "Komisi", tipe: "Biaya", kategori: "Beban" },
+  { kode: "531001", nama: "Referensi / Agen", tipe: "Biaya", kategori: "Beban" },
+  { kode: "531002", nama: "Bundling", tipe: "Biaya", kategori: "Beban" },
+  { kode: "532000", nama: "Biaya Iklan - Offline", tipe: "Biaya", kategori: "Beban" },
+  { kode: "532001", nama: "Biaya Promosi", tipe: "Biaya", kategori: "Beban" },
+  { kode: "532002", nama: "IG - FB Ads", tipe: "Biaya", kategori: "Beban" },
+  { kode: "532003", nama: "Domain/Hosting", tipe: "Biaya", kategori: "Beban" },
+  { kode: "540000", nama: "HPP", tipe: "HPP", kategori: "Beban" },
+  { kode: "541000", nama: "HPP Bahan Utama", tipe: "HPP", kategori: "Beban" },
+  { kode: "542000", nama: "HPP Pendukung", tipe: "HPP", kategori: "Beban" },
+  { kode: "543000", nama: "OH", tipe: "HPP", kategori: "Beban" },
+  { kode: "544000", nama: "OH - Kehilangan Kas", tipe: "Biaya", kategori: "Beban" },
+  { kode: "551000", nama: "Sedekah", tipe: "Biaya", kategori: "Beban" },
+  { kode: "551001", nama: "DANSOS", tipe: "Biaya", kategori: "Beban" },
+  { kode: "551002", nama: "Konsumsi (Sedekah)", tipe: "Biaya", kategori: "Beban" },
+  { kode: "552000", nama: "Infaq", tipe: "Biaya", kategori: "Beban" },
+  { kode: "552001", nama: "Masjid", tipe: "Biaya", kategori: "Beban" },
+  { kode: "552002", nama: "BAITUL MAL", tipe: "Biaya", kategori: "Beban" },
+  { kode: "553000", nama: "Zakat", tipe: "Biaya", kategori: "Beban" },
+  { kode: "554000", nama: "Wakaf", tipe: "Biaya", kategori: "Beban" },
+  { kode: "560000", nama: "EKSPANSI", tipe: "Biaya", kategori: "Beban" },
+  { kode: "561000", nama: "Pembelian Barang", tipe: "Biaya", kategori: "Beban" },
+  { kode: "562000", nama: "Akomodasi (Ekspansi)", tipe: "Biaya", kategori: "Beban" },
+  { kode: "563000", nama: "Biaya Sewa (Ekspansi)", tipe: "Biaya", kategori: "Beban" },
+  { kode: "570000", nama: "BEBAN LAIN-LAIN", tipe: "Biaya", kategori: "Beban" },
+  { kode: "571000", nama: "Darurat", tipe: "Biaya", kategori: "Beban" },
+  { kode: "572000", nama: "Pemeliharaan & Perbaikan (Lain)", tipe: "Biaya", kategori: "Beban" },
+  { kode: "573000", nama: "Biaya Kesehatan", tipe: "Biaya", kategori: "Beban" },
+  { kode: "580000", nama: "BEBAN PAJAK", tipe: "Biaya", kategori: "Beban" },
+  { kode: "581000", nama: "PPH 21", tipe: "Biaya", kategori: "Beban" },
+  { kode: "582000", nama: "E-Billing", tipe: "Biaya", kategori: "Beban" },
+  { kode: "583000", nama: "SPT Tahunan/PPh 23", tipe: "Biaya", kategori: "Beban" },
+  { kode: "584000", nama: "Pajak Bunga Bank", tipe: "Biaya", kategori: "Beban" }
+];
+
+export const SEED_JURNAL: Jurnal[] = [
+  { id: "sa-1", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Kas Rupiah", kodeAkun: "110000", akun: "Kas Rupiah", tipe: "Debit", jumlah: 500, kategori: "Aset" },
+  { id: "sa-2", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Kas Kecil", kodeAkun: "111000", akun: "Kas Kecil", tipe: "Debit", jumlah: 630600, kategori: "Aset" },
+  { id: "sa-3", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Bank", kodeAkun: "120000", akun: "Bank", tipe: "Debit", jumlah: 6460100, kategori: "Aset" },
+  { id: "sa-4", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Piutang usaha", kodeAkun: "131000", akun: "Piutang usaha", tipe: "Debit", jumlah: 49758000, kategori: "Aset" },
+  { id: "sa-5", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Persediaan", kodeAkun: "140000", akun: "Persediaan", tipe: "Debit", jumlah: 7942586, kategori: "Aset" },
+  { id: "sa-6", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Aktiva Lancar Lainnya", kodeAkun: "150000", akun: "Aktiva Lancar Lainnya", tipe: "Debit", jumlah: 6749500, kategori: "Aset" },
+  { id: "sa-7", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Aktiva Tetap", kodeAkun: "160000", akun: "Aktiva Tetap", tipe: "Debit", jumlah: 82613000, kategori: "Aset" },
+  { id: "sa-8", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Uang Muka Biaya", kodeAkun: "190000", akun: "Uang Muka Biaya", tipe: "Debit", jumlah: 10500000, kategori: "Aset" },
+  { id: "sa-9", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Hutang Usaha", kodeAkun: "210000", akun: "Hutang Usaha", tipe: "Kredit", jumlah: 75083000, kategori: "Kewajiban" },
+  { id: "sa-10", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Modal Awal", kodeAkun: "310000", akun: "Modal Awal", tipe: "Kredit", jumlah: 77970539, kategori: "Ekuitas" },
+  { id: "sa-11", tanggal: "2026-06-01", ref: "SA", keterangan: "Saldo Awal - Laba Periode Berjalan", kodeAkun: "340000", akun: "Laba Periode Berjalan", tipe: "Kredit", jumlah: 11600747, kategori: "Ekuitas" }
+];
+
+export const SEED_PENJUALAN: Penjualan[] = [];
+export const SEED_PRODUKSI: Produksi[] = [];
+
+export const SEED_USERS: UserAccount[] = [
+  { username: "admin", password: "admin123", nama: "Administrator", role: "admin" },
+  { username: "buba-healthy-taman", password: "buba123", nama: "Buba Healthy Taman", role: "outlet", outletId: "o-buba-healthy-taman" },
+  { username: "buba-healthy-menganti", password: "buba123", nama: "Buba Healthy Menganti", role: "outlet", outletId: "o-buba-healthy-menganti" },
+  { username: "buba-healthy-wiyung", password: "buba123", nama: "Buba Healthy Wiyung", role: "outlet", outletId: "o-buba-healthy-wiyung" }
+];
+
+const RAW_BAHAN = [
   { kode: "BRS01", nama: "BERAS", satuan: "Pack", stokMin: 15, stokAwal: 150, hargaBeli: 15500 },
   { kode: "DG01", nama: "DAGING", satuan: "sachet", stokMin: 3, stokAwal: 3, hargaBeli: 12000 },
   { kode: "AY01", nama: "AYAM", satuan: "sachet", stokMin: 3, stokAwal: 24, hargaBeli: 9000 },
@@ -132,20 +146,16 @@ const RAW_BAHAN: { kode: string; nama: string; satuan: string; stokMin: number; 
   { kode: "TS01", nama: "TISU", satuan: "pcs", stokMin: 5, stokAwal: 7, hargaBeli: 6500 },
   { kode: "KRS01", nama: "KRESEK", satuan: "PACK", stokMin: 5, stokAwal: 37, hargaBeli: 4000 },
   { kode: "BL01", nama: "BALON + Stik", satuan: "biji", stokMin: 10, stokAwal: 0, hargaBeli: 1200 },
-  { kode: "PLAS01", nama: "PLASTIK SELER", satuan: "pcs", stokMin: 1, stokAwal: 0, hargaBeli: 66000 },
+  { kode: "PLAS01", nama: "PLASTIK SELER", satuan: "pcs", stokMin: 1, stokAwal: 0, hargaBeli: 66000 }
 ];
+
+const slug = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
 export const SEED_BAHAN: BahanBaku[] = RAW_BAHAN.map((b) => ({ ...b, id: `b-${slug(b.kode)}` }));
 
-// === Karyawan (1-2 per outlet sebagai contoh) ===
-const POSISI = ["Kasir", "Produksi", "Helper"];
-export const SEED_KARYAWAN: Karyawan[] = SEED_OUTLETS.flatMap((o, i) => ([
-  {
-    id: `k-${o.id}-1`,
-    nama: `Staff ${o.nama} A`,
-    posisi: POSISI[i % POSISI.length],
-    outletId: o.id,
-    gajiPokok: 17500,
-    bonusOmset: 100000,
-    bonusUlasan: 30000,
-  },
-]));
+export const SEED_KARYAWAN: Karyawan[] = [
+  { id: "k-o-buba-healthy-taman-1", nama: "Staff Taman A", posisi: "Kasir", outletId: "o-buba-healthy-taman", gajiPokok: 17500, bonusOmset: 100000, bonusUlasan: 30000 },
+  { id: "k-o-buba-healthy-menganti-1", nama: "Staff Menganti A", posisi: "Produksi", outletId: "o-buba-healthy-menganti", gajiPokok: 17500, bonusOmset: 100000, bonusUlasan: 30000 },
+  { id: "k-o-buba-healthy-wiyung-1", nama: "Staff Wiyung A", posisi: "Helper", outletId: "o-buba-healthy-wiyung", gajiPokok: 17500, bonusOmset: 100000, bonusUlasan: 30000 }
+];

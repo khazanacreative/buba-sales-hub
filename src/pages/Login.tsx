@@ -10,7 +10,7 @@ import { LogIn, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import logo from "@/assets/logo.jpg";
 
 export default function Login() {
-  const { login, user, users } = useAuth();
+  const { login, user } = useAuth();
   const nav = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -27,11 +27,6 @@ export default function Login() {
     } else {
       toast.error("Username atau password salah");
     }
-  };
-
-  const fillDemo = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
   };
 
   return (
@@ -95,37 +90,6 @@ export default function Login() {
                 <LogIn className="mr-2 h-4 w-4" /> Masuk
               </Button>
             </form>
-
-            <div className="mt-6 pt-5 border-t">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                Akun demo
-              </div>
-              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                <button
-                  type="button"
-                  onClick={() => fillDemo("admin", "admin123")}
-                  className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition"
-                >
-                  admin
-                </button>
-                {users
-                  .filter((u) => u.role === "outlet")
-                  .map((u) => (
-                    <button
-                      key={u.username}
-                      type="button"
-                      onClick={() => fillDemo(u.username, u.password)}
-                      className="text-xs px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/70 transition"
-                    >
-                      {u.username}
-                    </button>
-                  ))}
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-2">
-                Password admin: <code className="bg-muted px-1 rounded">admin123</code> · outlet:{" "}
-                <code className="bg-muted px-1 rounded">buba123</code>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

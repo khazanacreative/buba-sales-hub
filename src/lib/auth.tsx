@@ -36,7 +36,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase.from("users").select("*");
         if (data && !error) {
-          setUsers(data);
+          const mapped = data.map((u: any) => ({
+            username: u.username,
+            password: u.password,
+            nama: u.nama,
+            role: u.role,
+            outletId: u.outlet_id
+          }));
+          setUsers(mapped);
         }
       } catch (err) {
         console.error("Error loading users from Supabase:", err);
@@ -55,7 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (data && !error) {
-        setUser(data);
+        const mappedUser: UserAccount = {
+          username: data.username,
+          password: data.password,
+          nama: data.nama,
+          role: data.role,
+          outletId: data.outlet_id
+        };
+        setUser(mappedUser);
         return true;
       }
     } catch (err) {

@@ -18,9 +18,10 @@ export default function Login() {
 
   if (user) return <Navigate to="/" replace />;
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(username.trim(), password)) {
+    const success = await login(username.trim(), password);
+    if (success) {
       toast.success("Login berhasil");
       nav("/", { replace: true });
     } else {

@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { SEED_USERS } from "./seed";
 import { UserAccount } from "./types";
+import { supabase } from "./supabaseClient";
 
 const KEY = "buba-auth-v1";
 
 interface AuthCtx {
   user: UserAccount | null;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   users: UserAccount[];
 }
@@ -23,24 +23,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const [users, setUsers] = useState<UserAccount[]>([]);
+
   useEffect(() => {
     if (user) localStorage.setItem(KEY, JSON.stringify(user));
     else localStorage.removeItem(KEY);
   }, [user]);
 
-  const login = (username: string, password: string) => {
-    const u = SEED_USERS.find(
-      (x) => x.username.toLowerCase() === username.toLowerCase() && x.password === password
-    );
-    if (u) {
-      setUser(u);
-      return true;
+  // Load all users for login helper
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const { data, error } = await supabase.from("users").select("*");
+        if (data && !error) {
+          setUsers(data);
+        }
+      } catch (err) {
+        console.error("Error loading users from Supabase:", err);
+      }
+    }
+    fetchUsers();
+  }, []);
+
+  const login = async (username: string, password: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("username", username.toLowerCase())
+        .eq("password", password)
+        .maybeSingle();
+
+      if (data && !error) {
+        setUser(data);
+        return true;
+      }
+    } catch (err) {
+      console.error("Login request failed:", err);
     }
     return false;
   };
+
   const logout = () => setUser(null);
 
-  return <Ctx.Provider value={{ user, login, logout, users: SEED_USERS }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, login, logout, users }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

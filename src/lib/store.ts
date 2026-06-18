@@ -1,8 +1,7 @@
 import { useSyncExternalStore } from "react";
+import { supabase } from "./supabaseClient";
 import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus } from "./types";
-import { SEED_OUTLETS, SEED_PRODUK, SEED_PENJUALAN, SEED_PRODUKSI, SEED_JURNAL, SEED_COA, SEED_BAHAN, SEED_KARYAWAN } from "./seed";
-
-const KEY = "buba-healthy-data-v3";
+import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN } from "./seed";
 
 interface DB {
   outlets: Outlet[];
@@ -18,171 +17,474 @@ interface DB {
   permohonanStok: PermohonanStok[];
 }
 
-const seedPermohonan = (): PermohonanStok[] => {
-  const o = SEED_OUTLETS[0];
-  const p1 = SEED_PRODUK[0];
-  const p2 = SEED_PRODUK[1];
-  if (!o || !p1) return [];
-  return [
-    {
-      id: "req-1",
-      tanggal: "2026-06-12",
-      tanggalKirim: "2026-06-13",
-      outletId: o.id,
-      produkId: p1.id,
-      qty: 30,
-      status: "Pending",
-      catatan: "Mohon dikirim pagi sebelum jam 7"
-    },
-    {
-      id: "req-2",
-      tanggal: "2026-06-11",
-      tanggalKirim: "2026-06-12",
-      outletId: o.id,
-      produkId: p2?.id || p1.id,
-      qty: 25,
-      status: "Disetujui",
-      catatan: "Stok untuk hari Jumat"
-    }
-  ];
-};
-
 const initial = (): DB => ({
   outlets: SEED_OUTLETS,
   produk: SEED_PRODUK,
-  penjualan: SEED_PENJUALAN,
-  produksi: SEED_PRODUKSI,
-  jurnal: SEED_JURNAL,
+  penjualan: [],
+  produksi: [],
+  jurnal: [],
   coa: SEED_COA,
   bahan: SEED_BAHAN,
   stokMov: [],
   karyawan: SEED_KARYAWAN,
   absensi: [],
-  permohonanStok: seedPermohonan(),
+  permohonanStok: [],
 });
 
-let state: DB = load();
+let state: DB = initial();
 const listeners = new Set<() => void>();
 
-function load(): DB {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const init = initial();
-      return {
-        outlets: parsed.outlets || init.outlets,
-        produk: parsed.produk || init.produk,
-        penjualan: parsed.penjualan || init.penjualan,
-        produksi: parsed.produksi || init.produksi,
-        jurnal: parsed.jurnal || init.jurnal,
-        coa: parsed.coa || init.coa,
-        bahan: parsed.bahan || init.bahan,
-        stokMov: parsed.stokMov || init.stokMov,
-        karyawan: parsed.karyawan || init.karyawan,
-        absensi: parsed.absensi || init.absensi,
-        permohonanStok: parsed.permohonanStok || init.permohonanStok
-      };
-    }
-  } catch {}
-  return initial();
-}
-function persist() {
-  localStorage.setItem(KEY, JSON.stringify(state));
+function notify() {
   listeners.forEach((l) => l());
 }
+
 function subscribe(l: () => void) {
   listeners.add(l);
   return () => listeners.delete(l);
 }
+
 const getSnapshot = () => state;
 
 export function useDB(): DB {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
+// Fetch all tables from Supabase and update state cache
+export async function fetchFromSupabase() {
+  try {
+    const [
+      outletsRes,
+      produkRes,
+      penjualanRes,
+      produksiRes,
+      jurnalRes,
+      coaRes,
+      bahanRes,
+      stokMovRes,
+      karyawanRes,
+      absensiRes,
+      permohonanRes
+    ] = await Promise.all([
+      supabase.from("outlets").select("*"),
+      supabase.from("produk").select("*"),
+      supabase.from("penjualan").select("*"),
+      supabase.from("produksi").select("*"),
+      supabase.from("jurnal").select("*"),
+      supabase.from("coa").select("*"),
+      supabase.from("bahan_baku").select("*"),
+      supabase.from("stok_movement").select("*"),
+      supabase.from("karyawan").select("*"),
+      supabase.from("absensi").select("*"),
+      supabase.from("permohonan_stok").select("*")
+    ]);
+
+    state = {
+      outlets: outletsRes.data || [],
+      produk: produkRes.data || [],
+      penjualan: penjualanRes.data || [],
+      produksi: (produksiRes.data || []).map((p: any) => ({
+        id: p.id,
+        tanggal: p.tanggal,
+        produkId: p.produk_id,
+        qtyRencana: p.qty_rencana,
+        qtyRealisasi: p.qty_realisasi
+      })),
+      jurnal: (jurnalRes.data || []).map((j: any) => ({
+        id: j.id,
+        tanggal: j.tanggal,
+        ref: j.ref,
+        keterangan: j.keterangan,
+        kodeAkun: j.kode_akun,
+        akun: j.akun,
+        tipe: j.tipe,
+        jumlah: Number(j.jumlah),
+        kategori: j.kategori
+      })),
+      coa: coaRes.data || [],
+      bahan: (bahanRes.data || []).map((b: any) => ({
+        id: b.id,
+        kode: b.kode,
+        nama: b.nama,
+        satuan: b.satuan,
+        stokMin: b.stok_min,
+        stokAwal: b.stok_awal,
+        hargaBeli: Number(b.harga_beli)
+      })),
+      stokMov: (stokMovRes.data || []).map((m: any) => ({
+        id: m.id,
+        tanggal: m.tanggal,
+        bahanId: m.bahan_id,
+        tipe: m.tipe,
+        qty: m.qty,
+        keterangan: m.keterangan,
+        produksiId: m.produksi_id
+      })),
+      karyawan: (karyawanRes.data || []).map((k: any) => ({
+        id: k.id,
+        nama: k.nama,
+        posisi: k.posisi,
+        outletId: k.outlet_id,
+        gajiPokok: Number(k.gaji_pokok),
+        bonusOmset: Number(k.bonus_omset),
+        bonusUlasan: Number(k.bonus_ulasan)
+      })),
+      absensi: (absensiRes.data || []).map((a: any) => ({
+        id: a.id,
+        tanggal: a.tanggal,
+        karyawanId: a.karyawan_id,
+        jamMasuk: a.jam_masuk,
+        jamPulang: a.jam_pulang,
+        status: a.status,
+        catatan: a.catatan
+      })),
+      permohonanStok: (permohonanRes.data || []).map((p: any) => ({
+        id: p.id,
+        tanggal: p.tanggal,
+        tanggalKirim: p.tanggal_kirim,
+        outletId: p.outlet_id,
+        produkId: p.produk_id,
+        qty: p.qty,
+        status: p.status,
+        catatan: p.catatan
+      }))
+    };
+    notify();
+  } catch (err) {
+    console.error("Failed to fetch data from Supabase:", err);
+  }
+}
+
+// Initial fetch when module loads
+fetchFromSupabase();
+
+// Setup Supabase Real-time listener for database sync
+supabase
+  .channel("db-realtime-channel")
+  .on("postgres_changes", { event: "*", schema: "public" }, () => {
+    fetchFromSupabase();
+  })
+  .subscribe();
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 export const db = {
-  addOutlet(o: Omit<Outlet, "id">) { state = { ...state, outlets: [...state.outlets, { ...o, id: uid() }] }; persist(); },
-  updateOutlet(id: string, o: Partial<Outlet>) { state = { ...state, outlets: state.outlets.map((x) => (x.id === id ? { ...x, ...o } : x)) }; persist(); },
-  deleteOutlet(id: string) { state = { ...state, outlets: state.outlets.filter((x) => x.id !== id) }; persist(); },
+  async addOutlet(o: Omit<Outlet, "id">) {
+    const id = uid();
+    await supabase.from("outlets").insert([{ ...o, id }]);
+    fetchFromSupabase();
+  },
+  async updateOutlet(id: string, o: Partial<Outlet>) {
+    await supabase.from("outlets").update(o).eq("id", id);
+    fetchFromSupabase();
+  },
+  async deleteOutlet(id: string) {
+    await supabase.from("outlets").delete().eq("id", id);
+    fetchFromSupabase();
+  },
 
-  addProduk(p: Omit<Produk, "id">) { state = { ...state, produk: [...state.produk, { ...p, id: uid() }] }; persist(); },
-  updateProduk(id: string, p: Partial<Produk>) { state = { ...state, produk: state.produk.map((x) => (x.id === id ? { ...x, ...p } : x)) }; persist(); },
-  deleteProduk(id: string) { state = { ...state, produk: state.produk.filter((x) => x.id !== id) }; persist(); },
+  async addProduk(p: Omit<Produk, "id">) {
+    const id = uid();
+    await supabase.from("produk").insert([{ ...p, id }]);
+    fetchFromSupabase();
+  },
+  async updateProduk(id: string, p: Partial<Produk>) {
+    await supabase.from("produk").update(p).eq("id", id);
+    fetchFromSupabase();
+  },
+  async deleteProduk(id: string) {
+    await supabase.from("produk").delete().eq("id", id);
+    fetchFromSupabase();
+  },
 
-  addPenjualan(p: Omit<Penjualan, "id" | "total">) {
+  async addPenjualan(p: Omit<Penjualan, "id" | "total">) {
     const total = p.qty * p.harga;
-    state = { ...state, penjualan: [...state.penjualan, { ...p, total, id: uid() }] };
-    persist();
+    const id = uid();
+    await supabase.from("penjualan").insert([{
+      id,
+      tanggal: p.tanggal,
+      outlet_id: p.outletId,
+      produk_id: p.produkId,
+      qty: p.qty,
+      harga: p.harga,
+      total
+    }]);
+    fetchFromSupabase();
   },
-  addPenjualanBulk(items: Omit<Penjualan, "id" | "total">[]) {
-    const newItems = items.map((p) => ({ ...p, total: p.qty * p.harga, id: uid() }));
-    state = { ...state, penjualan: [...state.penjualan, ...newItems] };
-    persist();
+  async addPenjualanBulk(items: Omit<Penjualan, "id" | "total">[]) {
+    const records = items.map((p) => ({
+      id: uid(),
+      tanggal: p.tanggal,
+      outlet_id: p.outletId,
+      produk_id: p.produkId,
+      qty: p.qty,
+      harga: p.harga,
+      total: p.qty * p.harga
+    }));
+    await supabase.from("penjualan").insert(records);
+    fetchFromSupabase();
   },
-  deletePenjualan(id: string) { state = { ...state, penjualan: state.penjualan.filter((x) => x.id !== id) }; persist(); },
-
-  addProduksi(p: Omit<Produksi, "id">) { state = { ...state, produksi: [...state.produksi, { ...p, id: uid() }] }; persist(); },
-  addProduksiBulk(items: Omit<Produksi, "id">[]) {
-    const newItems = items.map((p) => ({ ...p, id: uid() }));
-    state = { ...state, produksi: [...state.produksi, ...newItems] };
-    persist();
-  },
-  updateProduksi(id: string, p: Partial<Produksi>) { state = { ...state, produksi: state.produksi.map((x) => (x.id === id ? { ...x, ...p } : x)) }; persist(); },
-  deleteProduksi(id: string) { state = { ...state, produksi: state.produksi.filter((x) => x.id !== id) }; persist(); },
-
-  addJurnal(j: Omit<Jurnal, "id">) { state = { ...state, jurnal: [...state.jurnal, { ...j, id: uid() }] }; persist(); },
-  addJurnalBulk(items: Omit<Jurnal, "id">[]) {
-    const newItems = items.map((j) => ({ ...j, id: uid() }));
-    state = { ...state, jurnal: [...state.jurnal, ...newItems] };
-    persist();
-  },
-  deleteJurnal(id: string) { state = { ...state, jurnal: state.jurnal.filter((x) => x.id !== id) }; persist(); },
-
-  // === Bahan Baku ===
-  addBahan(b: Omit<BahanBaku, "id">) { state = { ...state, bahan: [...state.bahan, { ...b, id: uid() }] }; persist(); },
-  updateBahan(id: string, b: Partial<BahanBaku>) { state = { ...state, bahan: state.bahan.map((x) => (x.id === id ? { ...x, ...b } : x)) }; persist(); },
-  deleteBahan(id: string) { state = { ...state, bahan: state.bahan.filter((x) => x.id !== id) }; persist(); },
-
-  // === Stok Movement ===
-  addStokMov(m: Omit<StokMovement, "id">) { state = { ...state, stokMov: [...state.stokMov, { ...m, id: uid() }] }; persist(); },
-  deleteStokMov(id: string) { state = { ...state, stokMov: state.stokMov.filter((x) => x.id !== id) }; persist(); },
-
-  // === Karyawan ===
-  addKaryawan(k: Omit<Karyawan, "id">) { state = { ...state, karyawan: [...state.karyawan, { ...k, id: uid() }] }; persist(); },
-  updateKaryawan(id: string, k: Partial<Karyawan>) { state = { ...state, karyawan: state.karyawan.map((x) => (x.id === id ? { ...x, ...k } : x)) }; persist(); },
-  deleteKaryawan(id: string) { state = { ...state, karyawan: state.karyawan.filter((x) => x.id !== id) }; persist(); },
-
-  // === Absensi ===
-  addAbsensi(a: Omit<Absensi, "id">) { state = { ...state, absensi: [...state.absensi, { ...a, id: uid() }] }; persist(); },
-  deleteAbsensi(id: string) { state = { ...state, absensi: state.absensi.filter((x) => x.id !== id) }; persist(); },
-
-  // === Permohonan Stok ===
-  addPermohonanStok(p: Omit<PermohonanStok, "id" | "status">) {
-    state = {
-      ...state,
-      permohonanStok: [...(state.permohonanStok || []), { ...p, status: "Pending", id: uid() }]
-    };
-    persist();
-  },
-  updatePermohonanStokStatus(id: string, status: PermohonanStokStatus) {
-    state = {
-      ...state,
-      permohonanStok: (state.permohonanStok || []).map((x) => (x.id === id ? { ...x, status } : x))
-    };
-    persist();
-  },
-  deletePermohonanStok(id: string) {
-    state = {
-      ...state,
-      permohonanStok: (state.permohonanStok || []).filter((x) => x.id !== id)
-    };
-    persist();
+  async deletePenjualan(id: string) {
+    await supabase.from("penjualan").delete().eq("id", id);
+    fetchFromSupabase();
   },
 
-  reset() { state = initial(); persist(); },
+  async addProduksi(p: Omit<Produksi, "id">) {
+    const id = uid();
+    await supabase.from("produksi").insert([{
+      id,
+      tanggal: p.tanggal,
+      produk_id: p.produkId,
+      qty_rencana: p.qtyRencana,
+      qty_realisasi: p.qtyRealisasi
+    }]);
+    fetchFromSupabase();
+  },
+  async addProduksiBulk(items: Omit<Produksi, "id">[]) {
+    const records = items.map((p) => ({
+      id: uid(),
+      tanggal: p.tanggal,
+      produk_id: p.produkId,
+      qty_rencana: p.qtyRencana,
+      qty_realisasi: p.qtyRealisasi
+    }));
+    await supabase.from("produksi").insert(records);
+    fetchFromSupabase();
+  },
+  async updateProduksi(id: string, p: Partial<Produksi>) {
+    const mapped: any = {};
+    if (p.tanggal !== undefined) mapped.tanggal = p.tanggal;
+    if (p.produkId !== undefined) mapped.produk_id = p.produkId;
+    if (p.qtyRencana !== undefined) mapped.qty_rencana = p.qtyRencana;
+    if (p.qtyRealisasi !== undefined) mapped.qty_realisasi = p.qtyRealisasi;
+    await supabase.from("produksi").update(mapped).eq("id", id);
+    fetchFromSupabase();
+  },
+  async deleteProduksi(id: string) {
+    await supabase.from("produksi").delete().eq("id", id);
+    fetchFromSupabase();
+  },
+
+  async addJurnal(j: Omit<Jurnal, "id">) {
+    const id = uid();
+    await supabase.from("jurnal").insert([{
+      id,
+      tanggal: j.tanggal,
+      ref: j.ref,
+      keterangan: j.keterangan,
+      kode_akun: j.kodeAkun,
+      akun: j.akun,
+      tipe: j.tipe,
+      jumlah: j.jumlah,
+      kategori: j.kategori
+    }]);
+    fetchFromSupabase();
+  },
+  async addJurnalBulk(items: Omit<Jurnal, "id">[]) {
+    const records = items.map((j) => ({
+      id: uid(),
+      tanggal: j.tanggal,
+      ref: j.ref,
+      keterangan: j.keterangan,
+      kode_akun: j.kodeAkun,
+      akun: j.akun,
+      tipe: j.tipe,
+      jumlah: j.jumlah,
+      kategori: j.kategori
+    }));
+    await supabase.from("jurnal").insert(records);
+    fetchFromSupabase();
+  },
+  async deleteJurnal(id: string) {
+    await supabase.from("jurnal").delete().eq("id", id);
+    fetchFromSupabase();
+  },
+
+  async addBahan(b: Omit<BahanBaku, "id">) {
+    const id = uid();
+    await supabase.from("bahan_baku").insert([{
+      id,
+      kode: b.kode,
+      nama: b.nama,
+      satuan: b.satuan,
+      stok_min: b.stokMin,
+      stok_awal: b.stokAwal,
+      harga_beli: b.hargaBeli
+    }]);
+    fetchFromSupabase();
+  },
+  async updateBahan(id: string, b: Partial<BahanBaku>) {
+    const mapped: any = {};
+    if (b.kode !== undefined) mapped.kode = b.kode;
+    if (b.nama !== undefined) mapped.nama = b.nama;
+    if (b.satuan !== undefined) mapped.satuan = b.satuan;
+    if (b.stokMin !== undefined) mapped.stok_min = b.stokMin;
+    if (b.stokAwal !== undefined) mapped.stok_awal = b.stokAwal;
+    if (b.hargaBeli !== undefined) mapped.harga_beli = b.hargaBeli;
+    await supabase.from("bahan_baku").update(mapped).eq("id", id);
+    fetchFromSupabase();
+  },
+  async deleteBahan(id: string) {
+    await supabase.from("bahan_baku").delete().eq("id", id);
+    fetchFromSupabase();
+  },
+
+  async addStokMov(m: Omit<StokMovement, "id">) {
+    const id = uid();
+    await supabase.from("stok_movement").insert([{
+      id,
+      tanggal: m.tanggal,
+      bahan_id: m.bahanId,
+      tipe: m.tipe,
+      qty: m.qty,
+      keterangan: m.keterangan,
+      produksi_id: m.produksiId
+    }]);
+    fetchFromSupabase();
+  },
+  async deleteStokMov(id: string) {
+    await supabase.from("stok_movement").delete().eq("id", id);
+    fetchFromSupabase();
+  },
+
+  async addKaryawan(k: Omit<Karyawan, "id">) {
+    const id = uid();
+    await supabase.from("karyawan").insert([{
+      id,
+      nama: k.nama,
+      posisi: k.posisi,
+      outlet_id: k.outletId,
+      gaji_pokok: k.gajiPokok,
+      bonus_omset: k.bonusOmset,
+      bonus_ulasan: k.bonusUlasan
+    }]);
+    fetchFromSupabase();
+  },
+  async updateKaryawan(id: string, k: Partial<Karyawan>) {
+    const mapped: any = {};
+    if (k.nama !== undefined) mapped.nama = k.nama;
+    if (k.posisi !== undefined) mapped.posisi = k.posisi;
+    if (k.outletId !== undefined) mapped.outlet_id = k.outletId;
+    if (k.gajiPokok !== undefined) mapped.gaji_pokok = k.gajiPokok;
+    if (k.bonusOmset !== undefined) mapped.bonus_omset = k.bonusOmset;
+    if (k.bonusUlasan !== undefined) mapped.bonus_ulasan = k.bonusUlasan;
+    await supabase.from("karyawan").update(mapped).eq("id", id);
+    fetchFromSupabase();
+  },
+  async deleteKaryawan(id: string) {
+    await supabase.from("karyawan").delete().eq("id", id);
+    fetchFromSupabase();
+  },
+
+  async addAbsensi(a: Omit<Absensi, "id">) {
+    const id = uid();
+    await supabase.from("absensi").insert([{
+      id,
+      tanggal: a.tanggal,
+      karyawan_id: a.karyawanId,
+      jam_masuk: a.jamMasuk,
+      jam_pulang: a.jamPulang,
+      status: a.status,
+      catatan: a.catatan
+    }]);
+    fetchFromSupabase();
+  },
+  async deleteAbsensi(id: string) {
+    await supabase.from("absensi").delete().eq("id", id);
+    fetchFromSupabase();
+  },
+
+  async addPermohonanStok(p: Omit<PermohonanStok, "id" | "status">) {
+    const id = uid();
+    await supabase.from("permohonan_stok").insert([{
+      id,
+      tanggal: p.tanggal,
+      tanggal_kirim: p.tanggalKirim,
+      outlet_id: p.outletId,
+      produk_id: p.produkId,
+      qty: p.qty,
+      status: "Pending",
+      catatan: p.catatan
+    }]);
+    fetchFromSupabase();
+  },
+  async updatePermohonanStokStatus(id: string, status: PermohonanStokStatus) {
+    await supabase.from("permohonan_stok").update({ status }).eq("id", id);
+    fetchFromSupabase();
+  },
+  async deletePermohonanStok(id: string) {
+    await supabase.from("permohonan_stok").delete().eq("id", id);
+    fetchFromSupabase();
+  },
+
+  async reset() {
+    try {
+      await Promise.all([
+        supabase.from("penjualan").delete().neq("id", ""),
+        supabase.from("produksi").delete().neq("id", ""),
+        supabase.from("jurnal").delete().neq("id", ""),
+        supabase.from("stok_movement").delete().neq("id", ""),
+        supabase.from("absensi").delete().neq("id", ""),
+        supabase.from("permohonan_stok").delete().neq("id", ""),
+        supabase.from("karyawan").delete().neq("id", ""),
+        supabase.from("users").delete().neq("username", ""),
+        supabase.from("produk").delete().neq("id", ""),
+        supabase.from("outlets").delete().neq("id", ""),
+        supabase.from("coa").delete().neq("kode", ""),
+        supabase.from("bahan_baku").delete().neq("id", "")
+      ]);
+
+      // re-seed
+      await supabase.from("outlets").insert(SEED_OUTLETS);
+      await supabase.from("produk").insert(SEED_PRODUK);
+      
+      // Seed users
+      const seedUsers = [
+        { username: "admin", password: "admin123", nama: "Administrator", role: "admin", outlet_id: null },
+        ...SEED_OUTLETS.map((o) => ({
+          username: o.nama.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+          password: "buba123",
+          nama: o.nama,
+          role: "outlet",
+          outlet_id: o.id
+        }))
+      ];
+      await supabase.from("users").insert(seedUsers);
+      
+      const seedCoaMapped = SEED_COA.map((c) => ({
+        kode: c.kode,
+        nama: c.nama,
+        tipe: c.tipe,
+        kategori: c.kategori
+      }));
+      await supabase.from("coa").insert(seedCoaMapped);
+      
+      const seedBahanMapped = SEED_BAHAN.map((b) => ({
+        id: b.id,
+        kode: b.kode,
+        nama: b.nama,
+        satuan: b.satuan,
+        stok_min: b.stokMin,
+        stok_awal: b.stokAwal,
+        harga_beli: b.hargaBeli
+      }));
+      await supabase.from("bahan_baku").insert(seedBahanMapped);
+      
+      const seedKaryawanMapped = SEED_KARYAWAN.map((k) => ({
+        id: k.id,
+        nama: k.nama,
+        posisi: k.posisi,
+        outlet_id: k.outletId,
+        gaji_pokok: k.gajiPokok,
+        bonus_omset: k.bonusOmset,
+        bonus_ulasan: k.bonusUlasan
+      }));
+      await supabase.from("karyawan").insert(seedKaryawanMapped);
+      
+      fetchFromSupabase();
+    } catch (err) {
+      console.error("Failed to reset database:", err);
+    }
+  }
 };
 
 export function saldoBahan(bahanId: string, state_?: DB): number {

@@ -1,10 +1,33 @@
 import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, UserAccount, BahanBaku, Karyawan } from "./types";
 
-export const SEED_OUTLETS: Outlet[] = [
-  { id: "o-buba-healthy-taman", nama: "Buba Healthy Taman", lokasi: "Taman Kencana No. 5" },
-  { id: "o-buba-healthy-menganti", nama: "Buba Healthy Menganti", lokasi: "Raya Menganti No. 12" },
-  { id: "o-buba-healthy-wiyung", nama: "Buba Healthy Wiyung", lokasi: "Wiyung Indah Blok A-3" }
+const OUTLET_NAMES = [
+  "Gunung Gangsir",
+  "Randu Pitu",
+  "Kuti",
+  "Sidohwayah",
+  "Gempeng",
+  "Kesambi",
+  "Permata",
+  "MCA",
+  "Sugihwaras",
+  "Sidokare",
+  "Kenongo",
+  "Kepadangan",
+  "OUTLET B",
+  "OUTLET C",
+  "OUTLET D",
+  "OUTLET E",
+  "OUTLET F"
 ];
+
+const slug = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+export const SEED_OUTLETS: Outlet[] = OUTLET_NAMES.map((name) => ({
+  id: `o-${slug(name)}`,
+  nama: name,
+  lokasi: "-"
+}));
 
 export const SEED_PRODUK: Produk[] = [
   { id: "p-bubur-bayi-organik", nama: "Bubur Bayi Organik", harga: 15000, satuan: "cup" },
@@ -119,9 +142,13 @@ export const SEED_PRODUKSI: Produksi[] = [];
 
 export const SEED_USERS: UserAccount[] = [
   { username: "admin", password: "admin123", nama: "Administrator", role: "admin" },
-  { username: "buba-healthy-taman", password: "buba123", nama: "Buba Healthy Taman", role: "outlet", outletId: "o-buba-healthy-taman" },
-  { username: "buba-healthy-menganti", password: "buba123", nama: "Buba Healthy Menganti", role: "outlet", outletId: "o-buba-healthy-menganti" },
-  { username: "buba-healthy-wiyung", password: "buba123", nama: "Buba Healthy Wiyung", role: "outlet", outletId: "o-buba-healthy-wiyung" }
+  ...SEED_OUTLETS.map((o) => ({
+    username: o.id.replace("o-", ""),
+    password: "buba123",
+    nama: o.nama,
+    role: "outlet" as const,
+    outletId: o.id
+  }))
 ];
 
 const RAW_BAHAN = [
@@ -149,13 +176,14 @@ const RAW_BAHAN = [
   { kode: "PLAS01", nama: "PLASTIK SELER", satuan: "pcs", stokMin: 1, stokAwal: 0, hargaBeli: 66000 }
 ];
 
-const slug = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
 export const SEED_BAHAN: BahanBaku[] = RAW_BAHAN.map((b) => ({ ...b, id: `b-${slug(b.kode)}` }));
 
-export const SEED_KARYAWAN: Karyawan[] = [
-  { id: "k-o-buba-healthy-taman-1", nama: "Staff Taman A", posisi: "Kasir", outletId: "o-buba-healthy-taman", gajiPokok: 17500, bonusOmset: 100000, bonusUlasan: 30000 },
-  { id: "k-o-buba-healthy-menganti-1", nama: "Staff Menganti A", posisi: "Produksi", outletId: "o-buba-healthy-menganti", gajiPokok: 17500, bonusOmset: 100000, bonusUlasan: 30000 },
-  { id: "k-o-buba-healthy-wiyung-1", nama: "Staff Wiyung A", posisi: "Helper", outletId: "o-buba-healthy-wiyung", gajiPokok: 17500, bonusOmset: 100000, bonusUlasan: 30000 }
-];
+export const SEED_KARYAWAN: Karyawan[] = SEED_OUTLETS.map((o) => ({
+  id: `k-${o.id}-1`,
+  nama: `Staff ${o.nama} A`,
+  posisi: "Kasir",
+  outletId: o.id,
+  gajiPokok: 17500,
+  bonusOmset: 0,
+  bonusUlasan: 0
+}));

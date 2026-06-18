@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabaseClient";
 import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus } from "./types";
-import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN } from "./seed";
+import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN, SEED_JURNAL } from "./seed";
 
 interface DB {
   outlets: Outlet[];
@@ -479,6 +479,19 @@ export const db = {
         bonus_ulasan: k.bonusUlasan
       }));
       await supabase.from("karyawan").insert(seedKaryawanMapped);
+
+      const seedJurnalMapped = SEED_JURNAL.map((j) => ({
+        id: j.id,
+        tanggal: j.tanggal,
+        ref: j.ref,
+        keterangan: j.keterangan,
+        kode_akun: j.kodeAkun,
+        akun: j.akun,
+        tipe: j.tipe,
+        jumlah: j.jumlah,
+        kategori: j.kategori
+      }));
+      await supabase.from("jurnal").insert(seedJurnalMapped);
       
       fetchFromSupabase();
     } catch (err) {

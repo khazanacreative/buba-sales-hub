@@ -25,24 +25,49 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
     return d.toISOString().slice(0, 10);
   };
 
+  const [selectedItems, setSelectedItems] = useState<{ produkId: string; qty: number }[]>([]);
   const [produkId, setProdukId] = useState(produk[0]?.id ?? "");
   const [qty, setQty] = useState(1);
   const [tanggalKirim, setTanggalKirim] = useState(tomorrow());
   const [catatan, setCatatan] = useState("");
 
+  const handleAddItem = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!produkId || qty < 1) return toast.error("Pilih produk dan jumlah valid");
+    
+    const existingIndex = selectedItems.findIndex(item => item.produkId === produkId);
+    if (existingIndex > -1) {
+      const updated = [...selectedItems];
+      updated[existingIndex].qty += qty;
+      setSelectedItems(updated);
+    } else {
+      setSelectedItems([...selectedItems, { produkId, qty }]);
+    }
+    setQty(1);
+    toast.success("Produk ditambahkan ke daftar");
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setSelectedItems(selectedItems.filter((_, i) => i !== index));
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!produkId || qty < 1 || !tanggalKirim) return toast.error("Lengkapi data");
-    db.addPermohonanStok({
+    if (selectedItems.length === 0) return toast.error("Tambahkan minimal 1 produk ke daftar permintaan");
+    if (!tanggalKirim) return toast.error("Pilih tanggal kirim");
+
+    const batch = selectedItems.map(item => ({
       tanggal: todayISO(),
       tanggalKirim,
       outletId: user.outletId,
-      produkId,
-      qty,
+      produkId: item.produkId,
+      qty: item.qty,
       catatan
-    });
-    toast.success("Permohonan stok dikirim ke Admin");
-    setQty(1);
+    }));
+
+    db.addPermohonanStokBulk(batch);
+    toast.success("Permohonan stok berhasil dikirim ke Admin");
+    setSelectedItems([]);
     setCatatan("");
   };
 
@@ -58,16 +83,17 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-gradient">Permohonan Stok</h1>
-        <p className="text-sm text-muted-foreground">Pesan stok produk Buba Healthy ke admin untuk pengiriman besok</p>
+        <p className="text-sm text-muted-foreground">Pesan beberapa stok produk Buba Healthy ke admin dalam satu pengiriman</p>
       </div>
 
       <Card className="glass border-0 shadow-card">
         <CardHeader>
-          <CardTitle>Form Permohonan Stok Besok</CardTitle>
+          <CardTitle>Form Permohonan Stok Multi-Produk</CardTitle>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 items-end">
-            <div className="space-y-2 lg:col-span-2">
+        <CardContent className="space-y-6">
+          {/* Item Selector Form Row */}
+          <div className="grid gap-4 md:grid-cols-4 items-end">
+            <div className="space-y-2 md:col-span-2">
               <Label>Produk</Label>
               <Select value={produkId} onValueChange={setProdukId}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
@@ -88,6 +114,46 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                 className="h-10"
               />
             </div>
+            <div>
+              <Button type="button" onClick={handleAddItem} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                <Plus className="mr-2 h-4 w-4" /> Tambah ke Daftar
+              </Button>
+            </div>
+          </div>
+
+          {/* List of Added Items */}
+          {selectedItems.length > 0 && (
+            <div className="rounded-2xl border overflow-hidden bg-card/50">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produk</TableHead>
+                    <TableHead className="text-right">Jumlah</TableHead>
+                    <TableHead className="w-[80px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedItems.map((item, idx) => {
+                    const prod = produk.find((p: any) => p.id === item.produkId);
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{prod?.nama ?? "-"}</TableCell>
+                        <TableCell className="text-right font-semibold">{item.qty} cup</TableCell>
+                        <TableCell>
+                          <Button size="icon" variant="ghost" onClick={() => handleRemoveItem(idx)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Submit/Batch Details Form */}
+          <form onSubmit={submit} className="border-t pt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-end">
             <div className="space-y-2">
               <Label>Tanggal Kirim (Besok)</Label>
               <Input
@@ -97,18 +163,18 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                 className="h-10"
               />
             </div>
-            <div className="space-y-2 lg:col-span-3">
-              <Label>Catatan</Label>
+            <div className="space-y-2 lg:col-span-2">
+              <Label>Catatan Pengiriman</Label>
               <Input
                 value={catatan}
                 onChange={(e) => setCatatan(e.target.value)}
-                placeholder="Contoh: ayam 15 cup, sapi 15 cup (opsional)"
+                placeholder="Contoh: Titip di rombong, dll (opsional)"
                 className="h-10"
               />
             </div>
-            <div className="lg:col-span-2">
-              <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                <Send className="mr-2 h-4 w-4" /> Kirim Permohonan
+            <div className="md:col-span-2 lg:col-span-3">
+              <Button type="submit" disabled={selectedItems.length === 0} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                <Send className="mr-2 h-4 w-4" /> Kirim Permohonan ({selectedItems.length} Produk)
               </Button>
             </div>
           </form>

@@ -19,24 +19,76 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // === SUBCOMPONENT: ADMIN VIEW FOR APPROVING REQUESTS ===
 function AdminPermohonanStok({ dbState }: { dbState: any }) {
-  const { permohonanStok, outlets, produk } = dbState;
+  const { permohonanStok = [], outlets = [], produk = [] } = dbState;
+
+  const [range, setRange] = useState<DateRange>({
+    start: todayISO().slice(0, 7) + "-01", // awal bulan ini
+    end: todayISO()
+  });
+  const [selectedOutletId, setSelectedOutletId] = useState<string>("all");
+
+  const filteredRequests = useMemo(() => {
+    return (permohonanStok || []).filter((r: any) => {
+      const matchDate = inRange(r.tanggalKirim, range.start, range.end);
+      const matchOutlet = selectedOutletId === "all" || r.outletId === selectedOutletId;
+      return matchDate && matchOutlet;
+    });
+  }, [permohonanStok, range, selectedOutletId]);
 
   const sortedRequests = useMemo(() => {
-    return [...(permohonanStok || [])].sort((a: any, b: any) => {
+    return [...filteredRequests].sort((a: any, b: any) => {
       if (a.status === "Pending" && b.status !== "Pending") return -1;
       if (a.status !== "Pending" && b.status === "Pending") return 1;
       return b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id);
     });
-  }, [permohonanStok]);
+  }, [filteredRequests]);
+
+  const productTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    filteredRequests.forEach((r: any) => {
+      totals[r.produkId] = (totals[r.produkId] || 0) + r.qty;
+    });
+    return totals;
+  }, [filteredRequests]);
 
   const { paged, page, setPage, totalPages, total, pageSize } = usePagination(sortedRequests, 10);
 
   return (
     <Card className="glass border-0 shadow-card">
-      <CardHeader>
-        <CardTitle>Daftar Permohonan Stok Outlet</CardTitle>
+      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle>Daftar Permohonan Stok Outlet</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Kelola dan setujui permintaan stok produk dari outlet</p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <DateRangeFilter value={range} onChange={setRange} />
+          <Select value={selectedOutletId} onValueChange={setSelectedOutletId}>
+            <SelectTrigger className="w-[180px] h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Outlet</SelectItem>
+              {outlets.map((o: any) => (
+                <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
+        {/* Total Permohonan per Produk Summary */}
+        <div className="flex flex-wrap gap-3 bg-muted/40 p-4 rounded-2xl border">
+          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground w-full">
+            Total Permohonan per Produk (Tanggal Kirim: {range.start} s/d {range.end}):
+          </div>
+          {produk.map((p: any) => {
+            const qty = productTotals[p.id] || 0;
+            return (
+              <div key={p.id} className="bg-card px-3 py-2 rounded-xl border shadow-sm flex items-center gap-2">
+                <span className="font-semibold text-xs text-muted-foreground">{p.nama}:</span>
+                <span className="font-bold text-sm text-primary">{qty} {p.satuan}</span>
+              </div>
+            );
+          })}
+        </div>
         <div className="rounded-2xl border overflow-hidden">
           <div className="overflow-x-auto">
             <Table>

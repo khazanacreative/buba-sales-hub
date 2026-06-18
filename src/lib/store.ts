@@ -407,6 +407,20 @@ export const db = {
     }]);
     fetchFromSupabase();
   },
+  async addPermohonanStokBulk(items: Omit<PermohonanStok, "id" | "status">[]) {
+    const records = items.map((p) => ({
+      id: uid(),
+      tanggal: p.tanggal,
+      tanggal_kirim: p.tanggalKirim,
+      outlet_id: p.outletId,
+      produk_id: p.produkId,
+      qty: p.qty,
+      status: "Pending",
+      catatan: p.catatan
+    }));
+    await supabase.from("permohonan_stok").insert(records);
+    fetchFromSupabase();
+  },
   async updatePermohonanStokStatus(id: string, status: PermohonanStokStatus) {
     await supabase.from("permohonan_stok").update({ status }).eq("id", id);
     fetchFromSupabase();

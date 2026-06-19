@@ -14,6 +14,9 @@ export function BottomNav({ isAdmin = false }: Props) {
 
   const items = isAdmin
     ? [
+        { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        { title: "Absensi", url: "/absensi", icon: UserCheck },
         {
           title: "Logistik",
           icon: Warehouse,
@@ -22,9 +25,6 @@ export function BottomNav({ isAdmin = false }: Props) {
             { title: "Produksi", url: "/produksi", admin: true },
           ]
         },
-        { title: "Home", url: "/", icon: LayoutDashboard },
-        { title: "Absensi", url: "/absensi", icon: UserCheck },
-        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
         {
           title: "Laporan",
           icon: FileBarChart,

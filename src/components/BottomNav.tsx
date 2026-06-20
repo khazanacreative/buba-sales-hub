@@ -79,7 +79,7 @@ export function BottomNav({ isAdmin = false }: Props) {
             style={{
               bottom: "calc(52px + env(safe-area-inset-bottom))"
             }}
-            className={`md:hidden fixed left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-[320px] bg-background/95 backdrop-blur-md border border-border/80 border-b-0 rounded-t-2xl shadow-[0_-12px_30px_rgba(0,0,0,0.12)] p-2 transition-all duration-300 ease-out ${
+            className={`md:hidden fixed left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-[320px] bg-background/95 backdrop-blur-md border border-border/80 border-b-0 rounded-t-2xl shadow-[0_-12px_30px_rgba(0,0,0,0.12)] p-2 pb-5 transition-all duration-300 ease-out ${
               isOpen
                 ? "translate-y-0 opacity-100"
                 : "translate-y-full opacity-0 pointer-events-none"

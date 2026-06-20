@@ -89,7 +89,7 @@ export default function Dashboard() {
           <CardHeader><CardTitle>Tren Penjualan</CardTitle></CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={days}>
+              <LineChart data={days} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="tanggal" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
@@ -104,7 +104,7 @@ export default function Dashboard() {
           <CardHeader><CardTitle>Top Outlet (Periode)</CardTitle></CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={perOutlet} layout="vertical">
+              <BarChart data={perOutlet} layout="vertical" margin={{ top: 10, right: 15, left: -30, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis type="number" tickFormatter={(v) => `${Math.round(v / 1000)}k`} fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <YAxis dataKey="nama" type="category" width={90} fontSize={11} stroke="hsl(var(--muted-foreground))" />
@@ -120,11 +120,14 @@ export default function Dashboard() {
         <CardHeader><CardTitle>Produksi vs Penjualan Hari Ini</CardTitle></CardHeader>
         <CardContent className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={produk.map((pr) => ({
-              nama: pr.nama,
-              produksi: produksi.filter((p) => p.tanggal === today && p.produkId === pr.id).reduce((s, p) => s + p.qtyRencana, 0),
-              penjualan: scopedPenjualan.filter((p) => p.tanggal === today && p.produkId === pr.id).reduce((s, p) => s + p.qty, 0),
-            }))}>
+            <BarChart
+              data={produk.map((pr) => ({
+                nama: pr.nama,
+                produksi: produksi.filter((p) => p.tanggal === today && p.produkId === pr.id).reduce((s, p) => s + p.qtyRencana, 0),
+                penjualan: scopedPenjualan.filter((p) => p.tanggal === today && p.produkId === pr.id).reduce((s, p) => s + p.qty, 0),
+              }))}
+              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="nama" stroke="hsl(var(--muted-foreground))" fontSize={12} />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />

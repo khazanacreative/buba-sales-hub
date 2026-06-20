@@ -69,12 +69,21 @@ export function BottomNav({ isAdmin = false }: Props) {
       {items.map((item) => {
         if (!item.subItems) return null;
         const filteredSubItems = getFilteredSubItems(item.subItems);
-        if (filteredSubItems.length === 0 || activeDropdown !== item.title) return null;
+        if (filteredSubItems.length === 0) return null;
+
+        const isOpen = activeDropdown === item.title;
 
         return (
           <div
             key={`dropdown-${item.title}`}
-            className="md:hidden fixed bottom-[68px] left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-[320px] bg-background/95 backdrop-blur-md border border-border/80 rounded-2xl shadow-lg p-2 animate-in fade-in-50 slide-in-from-bottom-5 duration-200"
+            style={{
+              bottom: "calc(52px + env(safe-area-inset-bottom))"
+            }}
+            className={`md:hidden fixed left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-[320px] bg-background/95 backdrop-blur-md border border-border/80 border-b-0 rounded-t-2xl shadow-[0_-12px_30px_rgba(0,0,0,0.12)] p-2 transition-all duration-300 ease-out ${
+              isOpen
+                ? "translate-y-0 opacity-100"
+                : "translate-y-full opacity-0 pointer-events-none"
+            }`}
           >
             <div className="text-[10px] font-bold text-muted-foreground uppercase px-3 py-1.5 border-b border-border/50 mb-1">
               Pilih Menu {item.title}

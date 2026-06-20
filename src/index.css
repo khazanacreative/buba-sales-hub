@@ -130,3 +130,43 @@
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+
+@media print {
+  /* Hide sidebar, layout header, bottom nav, and print-hidden elements */
+  [data-sidebar],
+  aside,
+  nav,
+  header,
+  footer,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset main layouts, body backgrounds and paddings */
+  body, 
+  html, 
+  #root,
+  .ambient-bg,
+  main,
+  .flex-1 {
+    background: white !important;
+    background-image: none !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+  }
+
+  /* Target slip card to fit print layout precisely */
+  .max-w-2xl {
+    max-width: none !important;
+    width: 100% !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

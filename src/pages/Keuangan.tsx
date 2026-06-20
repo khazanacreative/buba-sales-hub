@@ -59,15 +59,19 @@ export default function Keuangan() {
 
   const totalPenjualanOmzet = filteredPenjualan.reduce((s, p) => s + p.total, 0);
 
+  const neracaJurnal = useMemo(() => {
+    return jurnal.filter((j) => !range.to || j.tanggal <= range.to);
+  }, [jurnal, range.to]);
+
   const neraca = useMemo(() => {
     const sum = (kat: AkunKategori) =>
-      filteredJurnal.filter((j) => j.kategori === kat)
+      neracaJurnal.filter((j) => j.kategori === kat)
         .reduce((s, j) => s + (j.tipe === "Debit" ? j.jumlah : -j.jumlah), 0);
     const aset = sum("Aset");
     const kewajiban = -sum("Kewajiban");
     const ekuitas = -sum("Ekuitas");
     return { aset, kewajiban, ekuitas, total: kewajiban + ekuitas };
-  }, [filteredJurnal]);
+  }, [neracaJurnal]);
 
   const labaRugi = useMemo(() => {
     const pendapatanJurnal = filteredJurnal
@@ -210,7 +214,7 @@ export default function Keuangan() {
             <CardHeader>
               <CardTitle>Neraca</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Periode: {range.from ?? "awal"} → {range.to ?? "kini"}
+                Per Tanggal: {range.to ?? todayISO()}
               </p>
             </CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-2">

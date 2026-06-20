@@ -16,11 +16,11 @@ export function AppSidebar() {
 
   const items = isAdmin
     ? [
-        { title: "Stok Gudang", url: "/stok", icon: Warehouse },
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
         { title: "Produksi", url: "/produksi", icon: Factory },
+        { title: "Stok Gudang", url: "/stok", icon: Warehouse },
         { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Keuangan", url: "/keuangan", icon: BookOpen },
         { title: "Master Data", url: "/master", icon: Settings },

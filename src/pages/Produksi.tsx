@@ -192,6 +192,7 @@ export default function Produksi() {
   const [qtyRencana, setQtyRencana] = useState(50);
   const [qtyRealisasi, setQtyRealisasi] = useState(0);
   const [range, setRange] = useState<DateRange>({});
+  const [activeTab, setActiveTab] = useState("produksi");
 
   // Default BOM: per cup produksi → 1 CUP BUBUR, 1 TUTUP, 1 SENDOK (jika tersedia di gudang)
   const consumeStock = (qty: number, produkNama: string) => {
@@ -259,23 +260,27 @@ export default function Produksi() {
         </div>
       </div>
 
-      <Tabs defaultValue="produksi" className="w-full">
-        <TabsList className="grid w-full max-w-[420px] grid-cols-2 mb-6 bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="produksi" className="rounded-lg font-semibold">Produksi MPASI</TabsTrigger>
-          <TabsTrigger value="permohonan" className="rounded-lg font-semibold relative">
-            Permohonan Outlet
-            {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white shadow animate-pulse">
-                {pendingCount}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+          <TabsList className="grid w-full max-w-[420px] grid-cols-2 bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="produksi" className="rounded-lg font-semibold">Produksi MPASI</TabsTrigger>
+            <TabsTrigger value="permohonan" className="rounded-lg font-semibold relative">
+              Permohonan Outlet
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white shadow animate-pulse">
+                  {pendingCount}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          {activeTab === "produksi" && (
+            <div className="flex items-center gap-2">
+              <ImportExcelButton onData={onImport} />
+            </div>
+          )}
+        </div>
 
         <TabsContent value="produksi" className="space-y-6 mt-0">
-          <div className="flex flex-wrap justify-end gap-2">
-            <ImportExcelButton onData={onImport} />
-          </div>
 
           <Card className="glass border-0 shadow-card">
             <CardHeader><CardTitle>Input Rencana Produksi</CardTitle></CardHeader>

@@ -112,13 +112,13 @@ export default function MasterData() {
         </Button>
       </div>
 
-      <Tabs defaultValue="outlet">
-        <TabsList className="glass">
-          <TabsTrigger value="outlet">Outlet ({outlets.length})</TabsTrigger>
-          <TabsTrigger value="produk">Produk ({produk.length})</TabsTrigger>
-          <TabsTrigger value="coa">COA ({coa.length})</TabsTrigger>
-          <TabsTrigger value="karyawan">Karyawan ({karyawan.length})</TabsTrigger>
-          <TabsTrigger value="users">Pengguna ({users.length})</TabsTrigger>
+      <Tabs defaultValue="outlet" className="w-full">
+        <TabsList className="grid w-full max-w-[650px] grid-cols-5 mb-6 bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger value="outlet" className="rounded-lg font-semibold">Outlet ({outlets.length})</TabsTrigger>
+          <TabsTrigger value="produk" className="rounded-lg font-semibold">Produk ({produk.length})</TabsTrigger>
+          <TabsTrigger value="coa" className="rounded-lg font-semibold">COA ({coa.length})</TabsTrigger>
+          <TabsTrigger value="karyawan" className="rounded-lg font-semibold">Karyawan ({karyawan.length})</TabsTrigger>
+          <TabsTrigger value="users" className="rounded-lg font-semibold">Pengguna ({users.length})</TabsTrigger>
         </TabsList>
 
         {/* ================= OUTLET ================= */}

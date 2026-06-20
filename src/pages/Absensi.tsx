@@ -209,44 +209,44 @@ export default function Absensi() {
                 </Select>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="w-full">
                 {!todayRecord ? (
-                  <>
+                  <div className="grid grid-cols-3 gap-2 w-full">
                     <Button 
                       onClick={handleClockIn} 
-                      className="h-12 flex-1 gradient-primary text-primary-foreground hover-lift font-bold text-sm"
+                      className="h-12 gradient-primary text-primary-foreground hover-lift font-bold text-xs sm:text-sm"
                     >
-                      <Plus className="mr-2 h-5 w-5" /> Absen Masuk (Clock In)
+                      <Plus className="mr-1 h-4 w-4 shrink-0" /> Masuk
                     </Button>
                     <Button 
                       variant="outline" 
                       onClick={() => handleSakitIzin("Sakit")} 
-                      className="h-12 border-destructive/30 text-destructive hover:bg-destructive/10"
+                      className="h-12 border-destructive/30 text-destructive hover:bg-destructive/10 font-bold text-xs sm:text-sm"
                     >
                       Sakit
                     </Button>
                     <Button 
                       variant="outline" 
                       onClick={() => handleSakitIzin("Izin")} 
-                      className="h-12 border-amber-600/30 text-amber-600 hover:bg-amber-50"
+                      className="h-12 border-amber-600/30 text-amber-600 hover:bg-amber-50 font-bold text-xs sm:text-sm"
                     >
                       Izin
                     </Button>
-                  </>
+                  </div>
                 ) : todayRecord.status !== "Hadir" ? (
-                  <div className="h-12 flex-1 flex items-center justify-center bg-muted/60 border rounded-xl text-sm font-semibold text-muted-foreground">
+                  <div className="h-12 w-full flex items-center justify-center bg-muted/60 border rounded-xl text-sm font-semibold text-muted-foreground">
                     Status Hari Ini: <Badge className="ml-2 bg-warning">{todayRecord.status}</Badge>
                   </div>
                 ) : !todayRecord.jamPulang ? (
                   <Button 
                     onClick={handleClockOut} 
-                    className="h-12 flex-1 bg-success text-success-foreground hover:bg-success/90 hover-lift font-bold text-sm"
+                    className="h-12 w-full bg-success text-success-foreground hover:bg-success/90 hover-lift font-bold text-sm"
                   >
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Absen Pulang (Clock Out)
+                    <CheckCircle2 className="mr-2 h-5 w-5 shrink-0" /> Pulang
                   </Button>
                 ) : (
-                  <div className="h-12 flex-1 flex items-center justify-center bg-success/10 border border-success/30 rounded-xl text-sm font-semibold text-success">
-                    <Check className="mr-1 h-4 w-4" /> Absensi Lengkap · Masuk: {todayRecord.jamMasuk} · Pulang: {todayRecord.jamPulang}
+                  <div className="h-12 w-full flex items-center justify-center bg-success/10 border border-success/30 rounded-xl text-sm font-semibold text-success">
+                    <Check className="mr-1 h-4 w-4 shrink-0" /> Absensi Lengkap · Masuk: {todayRecord.jamMasuk} · Pulang: {todayRecord.jamPulang}
                   </div>
                 )}
               </div>

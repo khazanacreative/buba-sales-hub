@@ -18,6 +18,7 @@ export function AppSidebar() {
     ? [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
+        { title: "Slip Gaji", url: "/slip-gaji", icon: FileText },
         { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
         { title: "Produksi", url: "/produksi", icon: Factory },
         { title: "Stok Gudang", url: "/stok", icon: Warehouse },

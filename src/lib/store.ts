@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabaseClient";
-import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus } from "./types";
-import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN, SEED_JURNAL } from "./seed";
+import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount } from "./types";
+import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN, SEED_JURNAL, SEED_USERS } from "./seed";
 
 interface DB {
   outlets: Outlet[];
@@ -15,6 +15,7 @@ interface DB {
   karyawan: Karyawan[];
   absensi: Absensi[];
   permohonanStok: PermohonanStok[];
+  users: UserAccount[];
 }
 
 const initial = (): DB => ({
@@ -29,6 +30,7 @@ const initial = (): DB => ({
   karyawan: SEED_KARYAWAN,
   absensi: [],
   permohonanStok: [],
+  users: SEED_USERS,
 });
 
 let state: DB = initial();
@@ -63,7 +65,8 @@ export async function fetchFromSupabase() {
       stokMovRes,
       karyawanRes,
       absensiRes,
-      permohonanRes
+      permohonanRes,
+      usersRes
     ] = await Promise.all([
       supabase.from("outlets").select("*"),
       supabase.from("produk").select("*"),
@@ -75,7 +78,8 @@ export async function fetchFromSupabase() {
       supabase.from("stok_movement").select("*"),
       supabase.from("karyawan").select("*"),
       supabase.from("absensi").select("*"),
-      supabase.from("permohonan_stok").select("*")
+      supabase.from("permohonan_stok").select("*"),
+      supabase.from("users").select("*")
     ]);
 
     state = {
@@ -146,6 +150,13 @@ export async function fetchFromSupabase() {
         qty: p.qty,
         status: p.status,
         catatan: p.catatan
+      })),
+      users: (usersRes.data || []).map((u: any) => ({
+        username: u.username,
+        password: u.password,
+        nama: u.nama,
+        role: u.role,
+        outletId: u.outlet_id
       }))
     };
     notify();
@@ -429,6 +440,29 @@ export const db = {
     await supabase.from("permohonan_stok").delete().eq("id", id);
     fetchFromSupabase();
   },
+  async addUser(u: UserAccount) {
+    await supabase.from("users").insert([{
+      username: u.username,
+      password: u.password,
+      nama: u.nama,
+      role: u.role,
+      outlet_id: u.outletId === "none" || !u.outletId ? null : u.outletId
+    }]);
+    fetchFromSupabase();
+  },
+  async updateUser(username: string, u: Partial<UserAccount>) {
+    const mapped: any = {};
+    if (u.password !== undefined) mapped.password = u.password;
+    if (u.nama !== undefined) mapped.nama = u.nama;
+    if (u.role !== undefined) mapped.role = u.role;
+    if (u.outletId !== undefined) mapped.outlet_id = u.outletId === "none" || !u.outletId ? null : u.outletId;
+    await supabase.from("users").update(mapped).eq("username", username);
+    fetchFromSupabase();
+  },
+  async deleteUser(username: string) {
+    await supabase.from("users").delete().eq("username", username);
+    fetchFromSupabase();
+  },
 
   async reset() {
     try {
@@ -454,6 +488,7 @@ export const db = {
       // Seed users
       const seedUsers = [
         { username: "admin", password: "admin123", nama: "Administrator", role: "admin", outlet_id: null },
+        { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin", outlet_id: null },
         ...SEED_OUTLETS.map((o) => ({
           username: o.nama.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
           password: "buba123",

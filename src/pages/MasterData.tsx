@@ -28,12 +28,13 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 
 export default function MasterData() {
-  const { outlets = [], produk = [], coa = [], karyawan = [] } = useDB();
+  const { outlets = [], produk = [], coa = [], karyawan = [], users = [] } = useDB();
 
   const outletPg = usePagination(outlets, 10);
   const produkPg = usePagination(produk, 10);
   const coaPg = usePagination(coa, 10);
   const karyawanPg = usePagination(karyawan, 10);
+  const usersPg = usePagination(users, 10);
 
   const [oNama, setONama] = useState("");
   const [oLokasi, setOLokasi] = useState("");
@@ -49,6 +50,41 @@ export default function MasterData() {
   const [kGajiPokok, setKGajiPokok] = useState(17500);
   const [kBonusOmset, setKBonusOmset] = useState(0);
   const [kBonusUlasan, setKBonusUlasan] = useState(0);
+
+  // User form state
+  const [uUsername, setUUsername] = useState("");
+  const [uPassword, setUPassword] = useState("");
+  const [uNama, setUNama] = useState("");
+  const [uRole, setURole] = useState<"admin" | "outlet">("outlet");
+  const [uOutletId, setUOutletId] = useState(outlets[0]?.id ?? "none");
+
+  const resetUserForm = () => {
+    setUUsername("");
+    setUPassword("");
+    setUNama("");
+    setURole("outlet");
+    setUOutletId(outlets[0]?.id ?? "none");
+  };
+
+  const handleAddUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uUsername || !uPassword || !uNama) {
+      return toast.error("Lengkapi data user");
+    }
+    const alreadyExists = users.some((u: any) => u.username === uUsername);
+    if (alreadyExists) {
+      return toast.error("Username sudah terdaftar");
+    }
+    db.addUser({
+      username: uUsername,
+      password: uPassword,
+      nama: uNama,
+      role: uRole,
+      outletId: uRole === "admin" ? undefined : (uOutletId === "none" ? undefined : uOutletId)
+    });
+    toast.success("Akun pengguna ditambahkan");
+    resetUserForm();
+  };
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
@@ -82,6 +118,7 @@ export default function MasterData() {
           <TabsTrigger value="produk">Produk ({produk.length})</TabsTrigger>
           <TabsTrigger value="coa">COA ({coa.length})</TabsTrigger>
           <TabsTrigger value="karyawan">Karyawan ({karyawan.length})</TabsTrigger>
+          <TabsTrigger value="users">Pengguna ({users.length})</TabsTrigger>
         </TabsList>
 
         {/* ================= OUTLET ================= */}
@@ -463,6 +500,149 @@ export default function MasterData() {
           </div>
         </TabsContent>
 
+        {/* ================= PENGGUNA ================= */}
+        <TabsContent value="users">
+          <div className="grid gap-6 lg:grid-cols-3">
+
+            {/* FORM */}
+            <div className="min-w-0">
+              <Card>
+                <CardHeader><CardTitle>Tambah Pengguna</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <form onSubmit={handleAddUser} className="space-y-3">
+                    <div>
+                      <Label>Username</Label>
+                      <Input
+                        value={uUsername}
+                        onChange={(e) => setUUsername(e.target.value.toLowerCase().trim())}
+                        placeholder="contoh: budi-outlet"
+                      />
+                    </div>
+                    <div>
+                      <Label>Password</Label>
+                      <Input
+                        type="text"
+                        value={uPassword}
+                        onChange={(e) => setUPassword(e.target.value)}
+                        placeholder="Masukkan password"
+                      />
+                    </div>
+                    <div>
+                      <Label>Nama Lengkap</Label>
+                      <Input
+                        value={uNama}
+                        onChange={(e) => setUNama(e.target.value)}
+                        placeholder="Nama lengkap pemilik akun"
+                      />
+                    </div>
+                    <div>
+                      <Label>Peran / Role</Label>
+                      <Select value={uRole} onValueChange={(v) => setURole(v as "admin" | "outlet")}>
+                        <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="outlet">Outlet (Cabang)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {uRole === "outlet" && (
+                      <div>
+                        <Label>Penugasan Outlet</Label>
+                        <Select value={uOutletId} onValueChange={setUOutletId}>
+                          <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Tanpa Outlet</SelectItem>
+                            {outlets.map((o) => (
+                              <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <Button type="submit" className="w-full gradient-primary text-primary-foreground hover-lift">
+                      <Plus className="mr-1 h-4 w-4" /> Tambah User
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* TABLE */}
+            <div className="lg:col-span-2 min-w-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Daftar Akun Pengguna</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-2xl border overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Username</TableHead>
+                            <TableHead>Nama Lengkap</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Password</TableHead>
+                            <TableHead>Outlet</TableHead>
+                            <TableHead className="w-[100px] text-center">Aksi</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {users.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                                Belum ada akun pengguna
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {usersPg.paged.map((u: any) => {
+                            const o = outlets.find((x: any) => x.id === u.outletId);
+                            return (
+                              <TableRow key={u.username}>
+                                <TableCell className="font-semibold">{u.username}</TableCell>
+                                <TableCell>{u.nama}</TableCell>
+                                <TableCell className="capitalize">{u.role}</TableCell>
+                                <TableCell className="font-mono text-xs">{u.password}</TableCell>
+                                <TableCell className="text-muted-foreground">{o?.nama ?? "-"}</TableCell>
+                                <TableCell className="text-center">
+                                  <div className="flex justify-center gap-1">
+                                    <EditUserDialog userAccount={u} outlets={outlets} />
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      disabled={u.username === "admin" || u.username === "khazana"}
+                                      onClick={() => {
+                                        if (confirm(`Hapus akun ${u.username}?`)) {
+                                          db.deleteUser(u.username);
+                                          toast.success("Akun dihapus");
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                  <TablePagination 
+                    page={usersPg.page}
+                    totalPages={usersPg.totalPages}
+                    total={usersPg.total}
+                    pageSize={usersPg.pageSize}
+                    onChange={usersPg.setPage}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+          </div>
+        </TabsContent>
+
       </Tabs>
     </div>
   );
@@ -644,6 +824,85 @@ function EditKaryawanDialog({ karyawan, outlets }) {
             </div>
 
             <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button type="submit">Simpan</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function EditUserDialog({ userAccount, outlets }: { userAccount: any; outlets: any[] }) {
+  const [open, setOpen] = useState(false);
+  const [nama, setNama] = useState(userAccount.nama);
+  const [password, setPassword] = useState(userAccount.password);
+  const [role, setRole] = useState(userAccount.role);
+  const [outletId, setOutletId] = useState(userAccount.outletId ?? "none");
+
+  return (
+    <>
+      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
+        <Pencil className="h-4 w-4 text-primary" />
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Akun Pengguna</DialogTitle></DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              db.updateUser(userAccount.username, {
+                nama,
+                password,
+                role,
+                outletId: role === "admin" ? undefined : (outletId === "none" ? undefined : outletId)
+              });
+              toast.success("Akun pengguna diperbarui");
+              setOpen(false);
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <Label>Username (Permanen)</Label>
+              <Input value={userAccount.username} disabled />
+            </div>
+            <div>
+              <Label>Nama Lengkap</Label>
+              <Input value={nama} onChange={(e) => setNama(e.target.value)} />
+            </div>
+            <div>
+              <Label>Password</Label>
+              <Input value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <div>
+              <Label>Role / Peran</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as "admin" | "outlet")}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="outlet">Outlet (Cabang)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {role === "outlet" && (
+              <div>
+                <Label>Penugasan Outlet</Label>
+                <Select value={outletId} onValueChange={setOutletId}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Tanpa Outlet</SelectItem>
+                    {outlets.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
               <Button type="submit">Simpan</Button>
             </DialogFooter>

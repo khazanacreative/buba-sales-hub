@@ -142,6 +142,7 @@ export const SEED_PRODUKSI: Produksi[] = [];
 
 export const SEED_USERS: UserAccount[] = [
   { username: "admin", password: "admin123", nama: "Administrator", role: "admin" },
+  { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin" },
   ...SEED_OUTLETS.map((o) => ({
     username: o.id.replace("o-", ""),
     password: "buba123",

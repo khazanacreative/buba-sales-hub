@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { db, useDB } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, UserCheck, Users, CalendarCheck } from "lucide-react";
+import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ExportButtons } from "@/components/ExportButtons";
@@ -38,9 +38,53 @@ export default function Absensi() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!karyawanId) return toast.error("Pilih karyawan");
-    db.addAbsensi({ tanggal, karyawanId, jamMasuk: status === "Hadir" ? jamMasuk : undefined, jamPulang: status === "Hadir" ? jamPulang : undefined, status });
+    const kid = karyawanId || visibleKaryawan[0]?.id;
+    if (!kid) return toast.error("Pilih karyawan");
+    db.addAbsensi({ tanggal, karyawanId: kid, jamMasuk: status === "Hadir" ? jamMasuk : undefined, jamPulang: status === "Hadir" ? jamPulang : undefined, status });
     toast.success("Absensi disimpan");
+  };
+
+  const currentTime = () => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  };
+
+  const todayRecord = useMemo(() => {
+    const kid = karyawanId || visibleKaryawan[0]?.id;
+    if (!kid) return null;
+    return absensi.find((a) => a.tanggal === todayISO() && a.karyawanId === kid);
+  }, [absensi, karyawanId, visibleKaryawan]);
+
+  const handleClockIn = () => {
+    const kid = karyawanId || visibleKaryawan[0]?.id;
+    if (!kid) return toast.error("Pilih karyawan terlebih dahulu");
+    db.addAbsensi({
+      tanggal: todayISO(),
+      karyawanId: kid,
+      jamMasuk: currentTime(),
+      status: "Hadir",
+    });
+    toast.success("Berhasil Absen Masuk!");
+  };
+
+  const handleClockOut = () => {
+    if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
+    db.updateAbsensi(todayRecord.id, {
+      jamPulang: currentTime(),
+    });
+    toast.success("Berhasil Absen Pulang!");
+  };
+
+  const handleSakitIzin = (st: "Sakit" | "Izin") => {
+    const kid = karyawanId || visibleKaryawan[0]?.id;
+    if (!kid) return toast.error("Pilih karyawan terlebih dahulu");
+    db.addAbsensi({
+      tanggal: todayISO(),
+      karyawanId: kid,
+      status: st,
+      catatan: `Dilaporkan oleh outlet via tombol cepat`
+    });
+    toast.success(`Berhasil mencatat status ${st}`);
   };
 
   const visibleIds = new Set(visibleKaryawan.map((k) => k.id));
@@ -103,48 +147,122 @@ export default function Absensi() {
         </Card>
       </div>
 
-      <Card className="glass border-0 shadow-card">
-        <CardHeader><CardTitle>Input Absensi</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="grid gap-3 md:grid-cols-2 lg:grid-cols-6 lg:items-end">
-            <div className="space-y-2">
-              <Label>Tanggal</Label>
-              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+      {isAdmin ? (
+        <Card className="glass border-0 shadow-card">
+          <CardHeader><CardTitle>Input Absensi</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={submit} className="grid gap-3 md:grid-cols-2 lg:grid-cols-6 lg:items-end">
+              <div className="space-y-2">
+                <Label>Tanggal</Label>
+                <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Karyawan</Label>
+                <Select value={karyawanId || visibleKaryawan[0]?.id || ""} onValueChange={setKaryawanId}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    {visibleKaryawan.map((k) => (
+                      <SelectItem key={k.id} value={k.id}>{k.nama} ({k.posisi})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as StatusAbsen)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Jam Masuk</Label>
+                <Input type="time" value={jamMasuk} onChange={(e) => setJamMasuk(e.target.value)} disabled={status !== "Hadir"} />
+              </div>
+              <div className="space-y-2">
+                <Label>Jam Pulang</Label>
+                <Input type="time" value={jamPulang} onChange={(e) => setJamPulang(e.target.value)} disabled={status !== "Hadir"} />
+              </div>
+              <Button type="submit" className="gradient-primary text-primary-foreground hover-lift">
+                <Plus className="mr-1 h-4 w-4" />Simpan
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="glass border-0 shadow-card">
+          <CardHeader>
+            <CardTitle>Absensi Mandiri Cabang</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 items-end">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Pilih Nama Karyawan</Label>
+                <Select value={karyawanId || visibleKaryawan[0]?.id || ""} onValueChange={setKaryawanId}>
+                  <SelectTrigger className="h-12"><SelectValue placeholder="Pilih Karyawan" /></SelectTrigger>
+                  <SelectContent>
+                    {visibleKaryawan.map((k) => (
+                      <SelectItem key={k.id} value={k.id}>{k.nama} ({k.posisi})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {!todayRecord ? (
+                  <>
+                    <Button 
+                      onClick={handleClockIn} 
+                      className="h-12 flex-1 gradient-primary text-primary-foreground hover-lift font-bold text-sm"
+                    >
+                      <Plus className="mr-2 h-5 w-5" /> Absen Masuk (Clock In)
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleSakitIzin("Sakit")} 
+                      className="h-12 border-destructive/30 text-destructive hover:bg-destructive/10"
+                    >
+                      Sakit
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleSakitIzin("Izin")} 
+                      className="h-12 border-amber-600/30 text-amber-600 hover:bg-amber-50"
+                    >
+                      Izin
+                    </Button>
+                  </>
+                ) : todayRecord.status !== "Hadir" ? (
+                  <div className="h-12 flex-1 flex items-center justify-center bg-muted/60 border rounded-xl text-sm font-semibold text-muted-foreground">
+                    Status Hari Ini: <Badge className="ml-2 bg-warning">{todayRecord.status}</Badge>
+                  </div>
+                ) : !todayRecord.jamPulang ? (
+                  <Button 
+                    onClick={handleClockOut} 
+                    className="h-12 flex-1 bg-success text-success-foreground hover:bg-success/90 hover-lift font-bold text-sm"
+                  >
+                    <CheckCircle2 className="mr-2 h-5 w-5" /> Absen Pulang (Clock Out)
+                  </Button>
+                ) : (
+                  <div className="h-12 flex-1 flex items-center justify-center bg-success/10 border border-success/30 rounded-xl text-sm font-semibold text-success">
+                    <Check className="mr-1 h-4 w-4" /> Absensi Lengkap · Masuk: {todayRecord.jamMasuk} · Pulang: {todayRecord.jamPulang}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Karyawan</Label>
-              <Select value={karyawanId} onValueChange={setKaryawanId}>
-                <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                <SelectContent>
-                  {visibleKaryawan.map((k) => (
-                    <SelectItem key={k.id} value={k.id}>{k.nama} ({k.posisi})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as StatusAbsen)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Jam Masuk</Label>
-              <Input type="time" value={jamMasuk} onChange={(e) => setJamMasuk(e.target.value)} disabled={status !== "Hadir"} />
-            </div>
-            <div className="space-y-2">
-              <Label>Jam Pulang</Label>
-              <Input type="time" value={jamPulang} onChange={(e) => setJamPulang(e.target.value)} disabled={status !== "Hadir"} />
-            </div>
-            <Button type="submit" className="gradient-primary text-primary-foreground hover-lift">
-              <Plus className="mr-1 h-4 w-4" />Simpan
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+
+            {todayRecord && todayRecord.status === "Hadir" && (
+              <div className="bg-muted/40 p-4 rounded-2xl border text-xs text-muted-foreground space-y-1">
+                <span className="font-bold text-muted-foreground uppercase tracking-wider block mb-1">Status Absensi Hari Ini:</span>
+                <div>• Jam Masuk: <span className="font-semibold text-foreground">{todayRecord.jamMasuk ?? "-"}</span></div>
+                <div>• Jam Pulang: <span className="font-semibold text-foreground">{todayRecord.jamPulang ?? "Belum Checkout (Pulang)"}</span></div>
+                <div>• Status Data: <span className="font-semibold text-foreground">{todayRecord.jamPulang ? "Komplit" : "Sementara (Menunggu Pulang)"}</span></div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="glass border-0 shadow-card">
         <CardHeader>

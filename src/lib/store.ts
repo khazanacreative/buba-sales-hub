@@ -403,6 +403,17 @@ export const db = {
     await supabase.from("absensi").delete().eq("id", id);
     fetchFromSupabase();
   },
+  async updateAbsensi(id: string, a: Partial<Absensi>) {
+    const mapped: any = {};
+    if (a.tanggal !== undefined) mapped.tanggal = a.tanggal;
+    if (a.karyawanId !== undefined) mapped.karyawan_id = a.karyawanId;
+    if (a.jamMasuk !== undefined) mapped.jam_masuk = a.jamMasuk;
+    if (a.jamPulang !== undefined) mapped.jam_pulang = a.jamPulang;
+    if (a.status !== undefined) mapped.status = a.status;
+    if (a.catatan !== undefined) mapped.catatan = a.catatan;
+    await supabase.from("absensi").update(mapped).eq("id", id);
+    fetchFromSupabase();
+  },
 
   async addPermohonanStok(p: Omit<PermohonanStok, "id" | "status">) {
     const id = uid();

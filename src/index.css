@@ -162,11 +162,14 @@
 
   /* Target slip card to fit print layout precisely */
   .max-w-2xl {
-    max-width: none !important;
+    max-width: 650px !important;
     width: 100% !important;
-    border: 0 !important;
+    margin: 30px auto !important;
+    padding: 30px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    background: white !important;
     box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    box-sizing: border-box !important;
   }
 }

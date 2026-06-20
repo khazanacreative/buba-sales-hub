@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useAuth } from "@/lib/auth";
 import {
   Card, CardContent, CardHeader, CardTitle
 } from "@/components/ui/card";
@@ -28,13 +29,18 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 
 export default function MasterData() {
+  const { user } = useAuth();
   const { outlets = [], produk = [], coa = [], karyawan = [], users = [] } = useDB();
+
+  const visibleUsers = useMemo(() => {
+    return users.filter((u: any) => u.username !== "khazana" || user?.username === "khazana");
+  }, [users, user]);
 
   const outletPg = usePagination(outlets, 10);
   const produkPg = usePagination(produk, 10);
   const coaPg = usePagination(coa, 10);
   const karyawanPg = usePagination(karyawan, 10);
-  const usersPg = usePagination(users, 10);
+  const usersPg = usePagination(visibleUsers, 10);
 
   const [oNama, setONama] = useState("");
   const [oLokasi, setOLokasi] = useState("");

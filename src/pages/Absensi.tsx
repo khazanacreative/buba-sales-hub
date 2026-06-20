@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { db, useDB } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check } from "lucide-react";
+import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ExportButtons } from "@/components/ExportButtons";
@@ -16,11 +16,13 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 import { useAuth } from "@/lib/auth";
 import { StatusAbsen } from "@/lib/types";
+import { useNavigate } from "react-router-dom";
 
 const STATUSES: StatusAbsen[] = ["Hadir", "Izin", "Sakit", "Alpha"];
 
 export default function Absensi() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const { karyawan = [], absensi = [], outlets = [] } = useDB();
 
@@ -112,9 +114,17 @@ export default function Absensi() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gradient">Absensi Karyawan</h1>
-        <p className="text-sm text-muted-foreground">Catat kehadiran & rekap penggajian harian</p>
+      <div className="flex flex-wrap justify-between items-end gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gradient">Absensi Karyawan</h1>
+          <p className="text-sm text-muted-foreground">Catat kehadiran & rekap penggajian harian</p>
+        </div>
+        <Button 
+          onClick={() => navigate("/slip-gaji")} 
+          className="gradient-primary text-primary-foreground hover-lift"
+        >
+          <FileText className="mr-2 h-4 w-4" /> Slip Gaji
+        </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

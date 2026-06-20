@@ -31,7 +31,6 @@ export function BottomNav({ isAdmin = false }: Props) {
           subItems: [
             { title: "Laporan Utama", url: "/laporan" },
             { title: "Keuangan", url: "/keuangan", admin: true },
-            { title: "Slip Gaji", url: "/slip-gaji" },
           ]
         },
       ]

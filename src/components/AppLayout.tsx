@@ -22,11 +22,11 @@ export default function AppLayout() {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full ambient-bg">
-        <div className="hidden md:block">
+        <div className="hidden md:block print:hidden">
           <AppSidebar />
         </div>
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center border-b border-border/40 glass sticky top-0 z-20 px-3 gap-3">
+          <header className="h-14 flex items-center border-b border-border/40 glass sticky top-0 z-20 px-3 gap-3 print:hidden">
             <div className="flex md:hidden items-center gap-2">
               <img src={logo} alt="Buba Healthy" className="h-8 w-8 rounded-lg object-cover" />
               <span className="font-bold text-gradient">Buba Healthy</span>

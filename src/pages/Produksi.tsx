@@ -651,48 +651,59 @@ export default function Produksi() {
       abon: 0
     };
 
-    const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal && r.status === "Disetujui");
+    // Calculate sales and return ingredients directly from local distGrid and returGrid states
+    const productKeys = ["bubur", "tim", "oatmeal", "puding", "abon", "sayur"] as const;
+    const dbProductIds: Record<string, string> = {
+      bubur: "p-bubur",
+      tim: "p-nasitim",
+      oatmeal: "p-oatmeal",
+      puding: "p-puding",
+      abon: "p-abon",
+      sayur: "p-sayur"
+    };
 
-    dayReqs.forEach((r: any) => {
-      const outletRet = returGrid[r.outletId] || {};
-      let returQty = 0;
-      if (r.produkId === "p-bubur") returQty = outletRet.bubur || 0;
-      else if (r.produkId === "p-nasitim") returQty = outletRet.tim || 0;
-      else if (r.produkId === "p-oatmeal") returQty = outletRet.oatmeal || 0;
-      else if (r.produkId === "p-puding") returQty = outletRet.puding || 0;
-      else if (r.produkId === "p-abon") returQty = outletRet.abon || 0;
-      else if (r.produkId === "p-sayur") returQty = outletRet.sayur || 0;
+    outlets.forEach((o) => {
+      const sent = distGrid[o.id] || {};
+      const retur = returGrid[o.id] || {};
 
-      const actualRetur = Math.min(returQty, r.qty);
-      const terjual = r.qty - actualRetur;
+      productKeys.forEach((key) => {
+        const sentQty = sent[key] || 0;
+        const returQty = retur[key] || 0;
 
-      const prod = produk.find(p => p.id === r.produkId);
-      const harga = prod?.harga || 0;
+        if (sentQty > 0) {
+          const actualRetur = Math.min(returQty, sentQty);
+          const terjual = sentQty - actualRetur;
 
-      if (terjual > 0) {
-        salesToPost.push({
-          tanggal,
-          outletId: r.outletId,
-          produkId: r.produkId,
-          qty: terjual,
-          harga: harga
-        });
-        totalSalesRevenue += terjual * harga;
-      }
+          const dbProductId = dbProductIds[key];
+          const prod = produk.find(p => p.id === dbProductId);
+          const harga = prod?.harga || 0;
 
-      if (actualRetur > 0) {
-        if (r.produkId === "p-bubur") {
-          recoveredIngredients.beras += actualRetur * 16.67;
-        } else if (r.produkId === "p-nasitim") {
-          recoveredIngredients.beras += actualRetur * 20.00;
-        } else if (r.produkId === "p-puding") {
-          recoveredIngredients.puding += actualRetur * 13.00;
-        } else if (r.produkId === "p-oatmeal") {
-          recoveredIngredients.oat += actualRetur * 25.71;
-        } else if (r.produkId === "p-abon") {
-          recoveredIngredients.abon += actualRetur * 10.00;
+          if (terjual > 0) {
+            salesToPost.push({
+              tanggal,
+              outletId: o.id,
+              produkId: dbProductId,
+              qty: terjual,
+              harga: harga
+            });
+            totalSalesRevenue += terjual * harga;
+          }
+
+          if (actualRetur > 0) {
+            if (dbProductId === "p-bubur") {
+              recoveredIngredients.beras += actualRetur * 16.67;
+            } else if (dbProductId === "p-nasitim") {
+              recoveredIngredients.beras += actualRetur * 20.00;
+            } else if (dbProductId === "p-puding") {
+              recoveredIngredients.puding += actualRetur * 13.00;
+            } else if (dbProductId === "p-oatmeal") {
+              recoveredIngredients.oat += actualRetur * 25.71;
+            } else if (dbProductId === "p-abon") {
+              recoveredIngredients.abon += actualRetur * 10.00;
+            }
+          }
         }
-      }
+      });
     });
 
     if (salesToPost.length > 0) {

@@ -232,6 +232,22 @@ export default function Produksi() {
     toast.success(`${items.length} riwayat produksi berhasil di-import`);
   };
   
+  const meatOptions = useMemo(() => {
+    return (bahan || []).filter(b => ["b-ay01", "b-dg01", "b-ck01"].includes(b.id));
+  }, [bahan]);
+
+  const fishOptions = useMemo(() => {
+    return (bahan || []).filter(b => ["b-sl01", "b-tn01", "b-tg01", "b-gr01", "b-kk01", "b-dr01"].includes(b.id));
+  }, [bahan]);
+
+  const meatName = useMemo(() => {
+    return (bahan || []).find(x => x.id === meatVariant)?.nama ?? "Daging";
+  }, [meatVariant, bahan]);
+
+  const fishName = useMemo(() => {
+    return (bahan || []).find(x => x.id === fishVariant)?.nama ?? "Ikan";
+  }, [fishVariant, bahan]);
+
   // STEP 1 STATES
   const [planGrid, setPlanGrid] = useState<Record<string, Record<string, number>>>({});
   const [searchOutlet, setSearchOutlet] = useState("");
@@ -748,7 +764,7 @@ export default function Produksi() {
         <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">Input rencana porsi (cup) menu Daging (D) dan Ikan (I) per outlet</p>
+            <p className="text-xs text-muted-foreground mt-1">Input rencana porsi (cup) menu Daging ({meatName}) dan Ikan ({fishName}) per outlet</p>
           </div>
           <Input
             placeholder="Cari outlet..."
@@ -763,11 +779,11 @@ export default function Produksi() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
-                    <TableHead className="min-w-[150px]">Outlet</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur D</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur I</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim D</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Tim I</TableHead>
+                    <TableHead className="min-w-[150px] font-bold">Outlet</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur {meatName}</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {fishName}</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5 font-semibold">Tim {meatName}</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {fishName}</TableHead>
                     <TableHead className="text-center font-bold text-xs">Oatmeal</TableHead>
                     <TableHead className="text-center font-bold text-xs">Puding</TableHead>
                     <TableHead className="text-center font-bold text-xs">Abon</TableHead>
@@ -781,78 +797,78 @@ export default function Produksi() {
                       oatmeal: 0, puding: 0, abon: 0, sayur: 0
                     };
                     return (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-semibold">{o.nama}</TableCell>
-                        <TableCell className="bg-amber-500/5 p-1 text-center">
+                      <TableRow key={o.id} className="hover:bg-muted/30">
+                        <TableCell className="font-semibold py-3">{o.nama}</TableCell>
+                        <TableCell className="bg-amber-500/5 p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.bubur_d || ""}
                             onChange={(e) => handlePlanChange(o.id, "bubur_d", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto border-amber-300"
+                            className="h-9 text-xs text-center w-16 mx-auto border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
                           />
                         </TableCell>
-                        <TableCell className="bg-blue-500/5 p-1 text-center">
+                        <TableCell className="bg-blue-500/5 p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.bubur_i || ""}
                             onChange={(e) => handlePlanChange(o.id, "bubur_i", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto border-blue-300"
+                            className="h-9 text-xs text-center w-16 mx-auto border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
                           />
                         </TableCell>
-                        <TableCell className="bg-amber-500/5 p-1 text-center">
+                        <TableCell className="bg-amber-500/5 p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.tim_d || ""}
                             onChange={(e) => handlePlanChange(o.id, "tim_d", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto border-amber-300"
+                            className="h-9 text-xs text-center w-16 mx-auto border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
                           />
                         </TableCell>
-                        <TableCell className="bg-blue-500/5 p-1 text-center">
+                        <TableCell className="bg-blue-500/5 p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.tim_i || ""}
                             onChange={(e) => handlePlanChange(o.id, "tim_i", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto border-blue-300"
+                            className="h-9 text-xs text-center w-16 mx-auto border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
                           />
                         </TableCell>
-                        <TableCell className="p-1 text-center">
+                        <TableCell className="p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.oatmeal || ""}
                             onChange={(e) => handlePlanChange(o.id, "oatmeal", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
+                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
                           />
                         </TableCell>
-                        <TableCell className="p-1 text-center">
+                        <TableCell className="p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.puding || ""}
                             onChange={(e) => handlePlanChange(o.id, "puding", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
+                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
                           />
                         </TableCell>
-                        <TableCell className="p-1 text-center">
+                        <TableCell className="p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.abon || ""}
                             onChange={(e) => handlePlanChange(o.id, "abon", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
+                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
                           />
                         </TableCell>
-                        <TableCell className="p-1 text-center">
+                        <TableCell className="p-3 text-center">
                           <Input
                             type="number"
                             min={0}
                             value={row.sayur || ""}
                             onChange={(e) => handlePlanChange(o.id, "sayur", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
+                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
                           />
                         </TableCell>
                       </TableRow>
@@ -962,8 +978,8 @@ export default function Produksi() {
         <CardContent className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[
-              { id: "bubur", label: "Bubur", unitWeight: 118, targetCups: totals.totalBubur },
-              { id: "tim", label: "Nasi Tim", unitWeight: 108, targetCups: totals.totalTim },
+              { id: "bubur", label: `Bubur (${meatName} & ${fishName})`, unitWeight: 118, targetCups: totals.totalBubur },
+              { id: "tim", label: `Nasi Tim (${meatName} & ${fishName})`, unitWeight: 108, targetCups: totals.totalTim },
               { id: "oatmeal", label: "Oatmeal", unitWeight: 100, targetCups: totals.oatmeal },
               { id: "puding", label: "Puding", unitWeight: 80, targetCups: totals.puding },
               { id: "abon", label: "Abon", unitWeight: 10, targetCups: totals.abon },
@@ -1264,45 +1280,65 @@ export default function Produksi() {
   function renderSiklusView() {
     return (
       <div className="space-y-6">
+        {/* Configuration Card */}
+        <Card className="glass border-0 shadow-card bg-card/60 backdrop-blur-lg">
+          <CardContent className="p-6">
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-primary" /> Tanggal Produksi
+                </Label>
+                <Input
+                  type="date"
+                  value={tanggal}
+                  onChange={(e) => setTanggal(e.target.value)}
+                  className="h-11 rounded-xl font-medium border-primary/20 focus-visible:ring-primary text-sm shadow-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Badge variant="outline" className="h-4.5 w-4.5 p-0 flex items-center justify-center font-bold text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/20">D</Badge>
+                  Menu Daging (D)
+                </Label>
+                <Select value={meatVariant} onValueChange={setMeatVariant}>
+                  <SelectTrigger className="h-11 rounded-xl border-amber-300 focus:ring-amber-500 bg-amber-500/5 font-semibold text-sm">
+                    <SelectValue placeholder="Pilih Daging" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {meatOptions.map(b => (
+                      <SelectItem key={b.id} value={b.id} className="font-medium text-sm">{b.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Badge variant="outline" className="h-4.5 w-4.5 p-0 flex items-center justify-center font-bold text-[9px] bg-blue-500/10 text-blue-600 border-blue-500/20">I</Badge>
+                  Menu Ikan (I)
+                </Label>
+                <Select value={fishVariant} onValueChange={setFishVariant}>
+                  <SelectTrigger className="h-11 rounded-xl border-blue-300 focus:ring-blue-500 bg-blue-500/5 font-semibold text-sm">
+                    <SelectValue placeholder="Pilih Ikan" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {fishOptions.map(b => (
+                      <SelectItem key={b.id} value={b.id} className="font-medium text-sm">{b.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stepper Wizard Header */}
         <div className="bg-card/45 backdrop-blur-md rounded-2xl border p-4 shadow-soft">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
             <div className="flex flex-wrap items-center gap-2">
               <ClipboardList className="h-5 w-5 text-primary" />
               <span className="font-bold text-sm">Siklus Harian</span>
               <span className="text-xs text-muted-foreground">|</span>
               <span className="text-xs font-medium text-muted-foreground">Konversi resep otomatis, alokasi gudang, dan pencatatan retur/jurnal otomatis</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground block uppercase">Tanggal Produksi</Label>
-                <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="h-8 text-xs w-32" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground block uppercase">Daging (D)</Label>
-                <Select value={meatVariant} onValueChange={setMeatVariant}>
-                  <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="b-ay01">Ayam</SelectItem>
-                    <SelectItem value="b-dg01">Daging</SelectItem>
-                    <SelectItem value="b-ck01">Ceker</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground block uppercase">Ikan (I)</Label>
-                <Select value={fishVariant} onValueChange={setFishVariant}>
-                  <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="b-sl01">Salmon</SelectItem>
-                    <SelectItem value="b-tn01">Tuna</SelectItem>
-                    <SelectItem value="b-tg01">Tengiri</SelectItem>
-                    <SelectItem value="b-gr01">Gurami</SelectItem>
-                    <SelectItem value="b-kk01">Kakap</SelectItem>
-                    <SelectItem value="b-dr01">Dori</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
           

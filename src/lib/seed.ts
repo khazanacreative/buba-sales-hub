@@ -189,12 +189,23 @@ const RAW_BAHAN = [
 
 export const SEED_BAHAN: BahanBaku[] = RAW_BAHAN.map((b) => ({ ...b, id: `b-${slug(b.kode)}` }));
 
-export const SEED_KARYAWAN: Karyawan[] = SEED_OUTLETS.map((o) => ({
-  id: `k-${o.id}-1`,
-  nama: `Staff ${o.nama} A`,
-  posisi: "Kasir",
-  outletId: o.id,
-  gajiPokok: 17500,
-  bonusOmset: 0,
-  bonusUlasan: 0
-}));
+export const SEED_KARYAWAN: Karyawan[] = [
+  {
+    id: "k-produksi",
+    nama: "Kepala Produksi",
+    posisi: "Kepala Produksi",
+    outletId: undefined,
+    gajiPokok: 25000,
+    bonusOmset: 0,
+    bonusUlasan: 0
+  },
+  ...SEED_OUTLETS.map((o) => ({
+    id: `k-${o.id}-1`,
+    nama: `Staff ${o.nama} A`,
+    posisi: "Kasir",
+    outletId: o.id,
+    gajiPokok: 17500,
+    bonusOmset: 0,
+    bonusUlasan: 0
+  }))
+];

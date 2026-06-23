@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,8 +18,14 @@ export default function SlipGaji() {
     [karyawan, isAdmin, user]
   );
 
-  const [karyawanId, setKaryawanId] = useState(visibleKaryawan[0]?.id ?? "");
+  const [karyawanId, setKaryawanId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(todayISO().slice(0, 7)); // YYYY-MM
+
+  useEffect(() => {
+    if (visibleKaryawan.length > 0 && !karyawanId) {
+      setKaryawanId(visibleKaryawan[0].id);
+    }
+  }, [visibleKaryawan, karyawanId]);
 
   const activeKaryawan = useMemo(
     () => karyawan.find((k) => k.id === karyawanId),
@@ -100,19 +106,28 @@ export default function SlipGaji() {
       {/* Selectors card - Hidden on print */}
       <Card className="glass border-0 shadow-card print:hidden">
         <CardContent className="p-4 flex flex-wrap gap-4 items-end">
-          <div className="space-y-2 flex-1 min-w-[200px]">
-            <label className="text-xs font-semibold text-muted-foreground">Pilih Karyawan</label>
-            <Select value={karyawanId} onValueChange={setKaryawanId}>
-              <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Karyawan" /></SelectTrigger>
-              <SelectContent>
-                {visibleKaryawan.map((k) => (
-                  <SelectItem key={k.id} value={k.id}>
-                    {k.nama} ({k.posisi})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {visibleKaryawan.length > 1 ? (
+            <div className="space-y-2 flex-1 min-w-[200px]">
+              <label className="text-xs font-semibold text-muted-foreground">Pilih Karyawan</label>
+              <Select value={karyawanId} onValueChange={setKaryawanId}>
+                <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Karyawan" /></SelectTrigger>
+                <SelectContent>
+                  {visibleKaryawan.map((k) => (
+                    <SelectItem key={k.id} value={k.id}>
+                      {k.nama} ({k.posisi})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2 flex-1 min-w-[200px]">
+              <label className="text-xs font-semibold text-muted-foreground">Karyawan</label>
+              <div className="h-10 flex items-center px-3 border rounded-lg bg-muted text-foreground text-sm font-semibold">
+                {activeKaryawan?.nama} ({activeKaryawan?.posisi})
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2 w-44">
             <label className="text-xs font-semibold text-muted-foreground">Pilih Bulan</label>

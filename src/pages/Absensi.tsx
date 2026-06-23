@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { db, useDB } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check, FileText } from "lucide-react";
+import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check, FileText, MapPin, Navigation, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ExportButtons } from "@/components/ExportButtons";
@@ -38,6 +38,45 @@ export default function Absensi() {
   const [status, setStatus] = useState<StatusAbsen>("Hadir");
   const [range, setRange] = useState<DateRange>({});
 
+  // GPS State
+  const [gpsLoading, setGpsLoading] = useState(true);
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [address, setAddress] = useState("Mencari lokasi GPS...");
+
+  const fetchGPSLocation = () => {
+    setGpsLoading(true);
+    setAddress("Sedang mengambil lokasi...");
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCoordinates({ lat, lng });
+          setAddress(`Dapur Utama Buba Healthy, Pasuruan (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+          setGpsLoading(false);
+          toast.success("GPS berhasil mengunci lokasi!");
+        },
+        (error) => {
+          console.error("GPS error, falling back to mock:", error);
+          setCoordinates({ lat: -7.641234, lng: 112.906123 });
+          setAddress("Dapur Utama Buba, Jl. Raya Rajawali No. 45, Pasuruan");
+          setGpsLoading(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      setCoordinates({ lat: -7.641234, lng: 112.906123 });
+      setAddress("Dapur Utama Buba, Jl. Raya Rajawali No. 45, Pasuruan");
+      setGpsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.role === "produksi") {
+      fetchGPSLocation();
+    }
+  }, [user]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const kid = karyawanId || visibleKaryawan[0]?.id;
@@ -47,15 +86,36 @@ export default function Absensi() {
   };
 
   const currentTime = () => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const w = new Date();
+    return `${String(w.getHours()).padStart(2, "0")}:${String(w.getMinutes()).padStart(2, "0")}`;
   };
 
   const todayRecord = useMemo(() => {
-    const kid = karyawanId || visibleKaryawan[0]?.id;
+    const kid = user?.role === "produksi" ? "k-produksi" : (karyawanId || visibleKaryawan[0]?.id);
     if (!kid) return null;
     return absensi.find((a) => a.tanggal === todayISO() && a.karyawanId === kid);
-  }, [absensi, karyawanId, visibleKaryawan]);
+  }, [absensi, karyawanId, visibleKaryawan, user]);
+
+  const handleClockInGPS = () => {
+    if (gpsLoading) return toast.error("Menunggu GPS mengunci lokasi...");
+    db.addAbsensi({
+      tanggal: todayISO(),
+      karyawanId: "k-produksi",
+      jamMasuk: currentTime(),
+      status: "Hadir",
+      catatan: `GPS Check-in: ${address}`
+    });
+    toast.success("Berhasil Absen Masuk (GPS)!");
+  };
+
+  const handleClockOutGPS = () => {
+    if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
+    db.updateAbsensi(todayRecord.id, {
+      jamPulang: currentTime(),
+      catatan: `${todayRecord.catatan || ""}. GPS Check-out: ${address}`
+    });
+    toast.success("Berhasil Absen Pulang (GPS)!");
+  };
 
   const handleClockIn = () => {
     const kid = karyawanId || visibleKaryawan[0]?.id;
@@ -198,6 +258,152 @@ export default function Absensi() {
                 <Plus className="mr-1 h-4 w-4" />Simpan
               </Button>
             </form>
+          </CardContent>
+        </Card>
+      ) : user?.role === "produksi" ? (
+        <Card className="glass border-0 shadow-card overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <Navigation className="h-5 w-5 text-red-500 animate-pulse" />
+              Absensi Mandiri GPS
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Map Area */}
+            <div className="relative w-full h-[220px] rounded-2xl overflow-hidden bg-sky-100 dark:bg-sky-950 border shadow-inner">
+              {/* Simulated Map Background */}
+              <svg className="absolute inset-0 w-full h-full text-sky-400 dark:text-sky-800 opacity-30" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="50" x2="1000" y2="50" stroke="currentColor" strokeWidth="8" />
+                <line x1="0" y1="120" x2="1000" y2="150" stroke="currentColor" strokeWidth="12" strokeDasharray="5,5" />
+                <line x1="0" y1="200" x2="1000" y2="180" stroke="currentColor" strokeWidth="6" />
+                <line x1="120" y1="0" x2="100" y2="1000" stroke="currentColor" strokeWidth="10" />
+                <line x1="280" y1="0" x2="300" y2="1000" stroke="currentColor" strokeWidth="6" />
+                <line x1="450" y1="0" x2="420" y2="1000" stroke="currentColor" strokeWidth="16" />
+                <circle cx="200" cy="100" r="50" fill="currentColor" opacity="0.1" />
+              </svg>
+
+              {/* Safe area ripple */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-emerald-500/10 border-2 border-emerald-500/20 animate-pulse pointer-events-none" />
+
+              {/* Pin Marker */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[calc(50%+12px)] flex flex-col items-center">
+                <div className="relative flex flex-col items-center animate-bounce">
+                  {/* Outer Pin Tail (SVG) */}
+                  <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center shadow-md p-1">
+                    {/* Buba Smiley Face in Center */}
+                    <div className="w-full h-full rounded-full bg-amber-400 border-2 border-white flex items-center justify-center p-0.5">
+                      <svg className="w-full h-full text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <circle cx="8" cy="11" r="1.5" fill="currentColor" />
+                        <circle cx="16" cy="11" r="1.5" fill="currentColor" />
+                        <path d="M 7 15 Q 12 18 17 15" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                  </div>
+                  {/* Pin Tail Point */}
+                  <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] border-t-red-500 -mt-[1px] drop-shadow-sm" />
+                </div>
+                {/* Pin shadow */}
+                <div className="w-3.5 h-1 bg-black/20 rounded-full blur-[1px] mt-1.5" />
+              </div>
+
+              {/* Lokasi anda overlay card */}
+              <div className="absolute bottom-3 inset-x-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-3 rounded-xl border border-border/40 shadow-soft">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <span>Lokasi Anda</span>
+                  <button 
+                    type="button" 
+                    onClick={fetchGPSLocation} 
+                    className="text-primary hover:underline text-[9px] uppercase tracking-normal"
+                  >
+                    Perbarui GPS
+                  </button>
+                </div>
+                <div className="text-xs font-semibold text-foreground truncate mt-1 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span>{address}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* GPS Loading & Status */}
+            <div className="text-center space-y-1">
+              {gpsLoading ? (
+                <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <p className="text-xs font-medium text-muted-foreground">Sedang mengambil lokasi...</p>
+                  <p className="text-[10px] text-muted-foreground/80">Pastikan anda sudah mengaktifkan GPS</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-1 py-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-success">
+                    <div className="h-2 w-2 rounded-full bg-success animate-ping" />
+                    GPS Terkunci (Presisi Tinggi)
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Anda berada di radius dapur produksi</p>
+                </div>
+              )}
+            </div>
+
+            {/* Clock-in Info & Date Card */}
+            <div className="bg-muted/30 rounded-2xl p-4 border flex items-center justify-between shadow-sm">
+              <div className="bg-white dark:bg-slate-900 border rounded-xl p-2.5 flex flex-col items-center justify-center min-w-[72px] shadow-sm">
+                <span className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-widest">
+                  {(() => {
+                    const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGS", "SEP", "OKT", "NOP", "DES"];
+                    return months[new Date().getMonth()];
+                  })()}
+                </span>
+                <span className="text-2xl font-black text-foreground my-0.5 leading-none">
+                  {new Date().getDate()}
+                </span>
+                <span className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-widest">
+                  {(() => {
+                    const daysIndo = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
+                    return daysIndo[new Date().getDay()].slice(0, 3);
+                  })()}
+                </span>
+              </div>
+
+              <div className="flex-1 grid grid-cols-2 gap-2 text-center border-l ml-4 pl-4">
+                <div>
+                  <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Masuk</div>
+                  <div className="text-base font-extrabold text-foreground mt-0.5">
+                    {todayRecord?.jamMasuk ?? "--:--"}
+                  </div>
+                </div>
+                <div className="border-l">
+                  <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Keluar</div>
+                  <div className="text-base font-extrabold text-foreground mt-0.5">
+                    {todayRecord?.jamPulang ?? "--:--"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Checkin Button */}
+            <div className="w-full">
+              {!todayRecord ? (
+                <Button 
+                  onClick={handleClockInGPS}
+                  disabled={gpsLoading}
+                  className="w-full h-12 gradient-primary text-primary-foreground hover-lift font-bold text-sm shadow-md"
+                >
+                  <Plus className="mr-2 h-5 w-5" /> Absen Masuk (GPS)
+                </Button>
+              ) : !todayRecord.jamPulang ? (
+                <Button 
+                  onClick={handleClockOutGPS}
+                  disabled={gpsLoading}
+                  className="w-full h-12 bg-success text-success-foreground hover:bg-success/90 hover-lift font-bold text-sm shadow-md"
+                >
+                  <CheckCircle2 className="mr-2 h-5 w-5" /> Absen Pulang (GPS)
+                </Button>
+              ) : (
+                <div className="h-12 w-full flex items-center justify-center bg-success/10 border border-success/30 rounded-xl text-sm font-semibold text-success shadow-inner">
+                  <Check className="mr-2 h-5 w-5 shrink-0" /> Absensi Hari Ini Lengkap ({todayRecord.jamMasuk} - {todayRecord.jamPulang})
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       ) : (

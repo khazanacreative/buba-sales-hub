@@ -35,15 +35,17 @@ export function BottomNav() {
       ];
     } else if (user?.role === "produksi") {
       return [
-        { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Home", url: "/", icon: LayoutDashboard },
         { title: "Produksi", url: "/produksi", icon: Factory },
-        { title: "Stok Gudang", url: "/stok", icon: Warehouse },
+        { title: "Absen", url: "/absensi", icon: UserCheck },
+        { title: "Gaji", url: "/slip-gaji", icon: FileText },
+        { title: "Stok", url: "/stok", icon: Warehouse },
       ];
     } else { // outlet
       return [
-        { title: "Absensi", url: "/absensi", icon: UserCheck },
-        { title: "Slip Gaji", url: "/slip-gaji", icon: FileText },
-        { title: "Permohonan", url: "/stok", icon: Warehouse },
+        { title: "Absen", url: "/absensi", icon: UserCheck },
+        { title: "Gaji", url: "/slip-gaji", icon: FileText },
+        { title: "Stok", url: "/stok", icon: Warehouse },
       ];
     }
   })();
@@ -167,6 +169,37 @@ export function BottomNav() {
               displayTitle = "Stok";
             } else if (item.title === "Laporan" && hasSub && filteredSubItems.length === 1) {
               displayTitle = "Laporan";
+            }
+
+            if (item.title === "Absen" || item.title === "Absensi") {
+              return (
+                <li key={item.title} className="flex-1 min-w-[64px] relative -top-3.5 flex justify-center z-10">
+                  <NavLink
+                    to={targetUrl}
+                    end
+                    className="flex flex-col items-center justify-center"
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <div
+                          className={`h-14 w-14 flex items-center justify-center rounded-full transition-all border-4 border-[#fafdfa] dark:border-background shadow-[0_4px_12px_rgba(239,68,68,0.35)] ${
+                            isActive
+                              ? "bg-red-500 text-white scale-110"
+                              : "bg-red-500/90 text-white hover:bg-red-600"
+                          }`}
+                        >
+                          <item.icon className="h-6 w-6" />
+                        </div>
+                        <span className={`text-[10px] font-bold mt-1 transition-colors ${
+                          isActive ? "text-red-500 font-bold" : "text-muted-foreground"
+                        }`}>
+                          {displayTitle}
+                        </span>
+                      </>
+                    )}
+                  </NavLink>
+                </li>
+              );
             }
 
             return (

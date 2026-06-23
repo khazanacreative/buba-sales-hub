@@ -27,8 +27,10 @@ export function AppSidebar() {
     } else if (user?.role === "produksi") {
       return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Produksi", url: "/produksi", icon: Factory },
         { title: "Stok Gudang", url: "/stok", icon: Warehouse },
+        { title: "Slip Gaji", url: "/slip-gaji", icon: FileText },
       ];
     } else { // outlet
       return [

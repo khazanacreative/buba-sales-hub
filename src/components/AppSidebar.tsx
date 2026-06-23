@@ -12,10 +12,9 @@ export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
-
-  const items = isAdmin
-    ? [
+  const items = (() => {
+    if (user?.role === "admin") {
+      return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
@@ -24,14 +23,21 @@ export function AppSidebar() {
         { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Keuangan", url: "/keuangan", icon: BookOpen },
         { title: "Master Data", url: "/master", icon: Settings },
-      ]
-    : [
-        { title: "Home", url: "/", icon: LayoutDashboard },
-        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+      ];
+    } else if (user?.role === "produksi") {
+      return [
+        { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Produksi", url: "/produksi", icon: Factory },
+        { title: "Stok Gudang", url: "/stok", icon: Warehouse },
+      ];
+    } else { // outlet
+      return [
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Slip Gaji", url: "/slip-gaji", icon: FileText },
-        { title: "Logistik", url: "/stok", icon: Warehouse },
+        { title: "Permohonan", url: "/stok", icon: Warehouse },
       ];
+    }
+  })();
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">

@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             username: u.username,
             password: u.password,
             nama: u.nama,
-            role: u.role,
+            role: u.username === "produksi" ? "produksi" : u.role,
             outletId: u.outlet_id
           }));
           setUsers(mapped);
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           username: data.username,
           password: data.password,
           nama: data.nama,
-          role: data.role,
+          role: data.username === "produksi" ? "produksi" : data.role,
           outletId: data.outlet_id
         };
         setUser(mappedUser);

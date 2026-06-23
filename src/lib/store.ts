@@ -155,7 +155,7 @@ export async function fetchFromSupabase() {
         username: u.username,
         password: u.password,
         nama: u.nama,
-        role: u.role,
+        role: u.username === "produksi" ? "produksi" : u.role,
         outletId: u.outlet_id
       }))
     };
@@ -447,6 +447,16 @@ export const db = {
     await supabase.from("permohonan_stok").update({ status }).eq("id", id);
     fetchFromSupabase();
   },
+  async updatePermohonanStok(id: string, p: Partial<PermohonanStok>) {
+    const mapped: any = {};
+    if (p.tanggal !== undefined) mapped.tanggal = p.tanggal;
+    if (p.tanggalKirim !== undefined) mapped.tanggal_kirim = p.tanggalKirim;
+    if (p.qty !== undefined) mapped.qty = p.qty;
+    if (p.status !== undefined) mapped.status = p.status;
+    if (p.catatan !== undefined) mapped.catatan = p.catatan;
+    await supabase.from("permohonan_stok").update(mapped).eq("id", id);
+    fetchFromSupabase();
+  },
   async deletePermohonanStok(id: string) {
     await supabase.from("permohonan_stok").delete().eq("id", id);
     fetchFromSupabase();
@@ -500,6 +510,7 @@ export const db = {
       const seedUsers = [
         { username: "admin", password: "admin123", nama: "Administrator", role: "admin", outlet_id: null },
         { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin", outlet_id: null },
+        { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin", outlet_id: null },
         ...SEED_OUTLETS.map((o) => ({
           username: o.nama.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
           password: "buba123",

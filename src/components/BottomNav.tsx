@@ -1,19 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp, FileText } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp, FileText, Factory } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
 
-interface Props {
-  isAdmin?: boolean;
-}
-
-export function BottomNav({ isAdmin = false }: Props) {
+export function BottomNav() {
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const items = isAdmin
-    ? [
+  const items = (() => {
+    if (user?.role === "admin") {
+      return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
@@ -22,7 +21,7 @@ export function BottomNav({ isAdmin = false }: Props) {
           icon: Warehouse,
           subItems: [
             { title: "Stok Gudang", url: "/stok" },
-            { title: "Produksi", url: "/produksi", admin: true },
+            { title: "Produksi", url: "/produksi" },
           ]
         },
         {
@@ -30,17 +29,24 @@ export function BottomNav({ isAdmin = false }: Props) {
           icon: FileBarChart,
           subItems: [
             { title: "Laporan Utama", url: "/laporan" },
-            { title: "Keuangan", url: "/keuangan", admin: true },
+            { title: "Keuangan", url: "/keuangan" },
           ]
         },
-      ]
-    : [
-        { title: "Home", url: "/", icon: LayoutDashboard },
-        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+      ];
+    } else if (user?.role === "produksi") {
+      return [
+        { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Produksi", url: "/produksi", icon: Factory },
+        { title: "Stok Gudang", url: "/stok", icon: Warehouse },
+      ];
+    } else { // outlet
+      return [
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Slip Gaji", url: "/slip-gaji", icon: FileText },
-        { title: "Logistik", url: "/stok", icon: Warehouse },
+        { title: "Permohonan", url: "/stok", icon: Warehouse },
       ];
+    }
+  })();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -60,7 +66,7 @@ export function BottomNav({ isAdmin = false }: Props) {
 
   const getFilteredSubItems = (subItems?: any[]) => {
     if (!subItems) return [];
-    return subItems.filter((sub) => !sub.admin || isAdmin);
+    return subItems;
   };
 
   return (

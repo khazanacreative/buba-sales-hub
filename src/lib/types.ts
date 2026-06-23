@@ -55,7 +55,7 @@ export interface AkunCOA {
   kategori: AkunKategori;
 }
 
-export type Role = 'admin' | 'outlet';
+export type Role = 'admin' | 'outlet' | 'produksi';
 
 export interface UserAccount {
   username: string;

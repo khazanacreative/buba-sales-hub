@@ -13,11 +13,7 @@ const OUTLET_NAMES = [
   "Sidokare",
   "Kenongo",
   "Kepadangan",
-  "OUTLET B",
-  "OUTLET C",
-  "OUTLET D",
-  "OUTLET E",
-  "OUTLET F"
+  "Pagerwojo"
 ];
 
 const slug = (s: string) =>
@@ -30,9 +26,22 @@ export const SEED_OUTLETS: Outlet[] = OUTLET_NAMES.map((name) => ({
 }));
 
 export const SEED_PRODUK: Produk[] = [
-  { id: "p-bubur-bayi-organik", nama: "Bubur Bayi Organik", harga: 15000, satuan: "cup" },
-  { id: "p-puding-susu-kambing", nama: "Puding Susu Kambing", harga: 12000, satuan: "cup" },
-  { id: "p-oatmeal-buah-segar", nama: "Oatmeal Buah Segar", harga: 16000, satuan: "cup" }
+  { id: "p-bubur", nama: "Bubur", harga: 3500, satuan: "cup" },
+  { id: "p-nasitim", nama: "Nasi Tim", harga: 4500, satuan: "cup" },
+  { id: "p-oatmeal", nama: "Oatmeal", harga: 5000, satuan: "cup" },
+  { id: "p-puding", nama: "Puding", harga: 3000, satuan: "cup" },
+  { id: "p-abon", nama: "Abon", harga: 5000, satuan: "cup" },
+  { id: "p-sayur", nama: "Sayur", harga: 3500, satuan: "cup" },
+  // Support supplies registered as products to bypass foreign key constraints:
+  { id: "b-cb01", nama: "Cup Bubur", harga: 0, satuan: "biji" },
+  { id: "b-ttp01", nama: "Tutup", harga: 0, satuan: "biji" },
+  { id: "b-sen01", nama: "Sendok", harga: 0, satuan: "Pack" },
+  { id: "b-ts01", nama: "Tisu", harga: 0, satuan: "pcs" },
+  { id: "b-krs01", nama: "Kresek", harga: 0, satuan: "PACK" },
+  { id: "b-bl01", nama: "Balon + Stik", harga: 0, satuan: "biji" },
+  { id: "b-plas01", nama: "Plastik Seler", harga: 0, satuan: "pcs" },
+  { id: "b-cupoat1", nama: "Cup Oat", harga: 0, satuan: "biji" },
+  { id: "b-cuppud01", nama: "Cup Puding", harga: 0, satuan: "biji" }
 ];
 
 export const SEED_COA: AkunCOA[] = [
@@ -143,6 +152,7 @@ export const SEED_PRODUKSI: Produksi[] = [];
 export const SEED_USERS: UserAccount[] = [
   { username: "admin", password: "admin123", nama: "Administrator", role: "admin" },
   { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin" },
+  { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin" },
   ...SEED_OUTLETS.map((o) => ({
     username: o.id.replace("o-", ""),
     password: "buba123",

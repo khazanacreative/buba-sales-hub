@@ -49,8 +49,10 @@ export default function AppLayout() {
                     <div className="hidden sm:block text-left leading-tight">
                       <div className="text-sm font-medium">{user?.nama}</div>
                       <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        {isAdmin ? <ShieldCheck className="h-3 w-3" /> : <Store className="h-3 w-3" />}
-                        {isAdmin ? "Admin" : "Outlet"}
+                        {user?.role === "admin" && <ShieldCheck className="h-3 w-3" />}
+                        {user?.role === "produksi" && <ShieldCheck className="h-3 w-3 text-amber-500" />}
+                        {user?.role === "outlet" && <Store className="h-3 w-3" />}
+                        {user?.role === "admin" ? "Admin" : user?.role === "produksi" ? "Produksi" : "Outlet"}
                       </div>
                     </div>
                   </Button>
@@ -73,7 +75,7 @@ export default function AppLayout() {
             <Outlet />
           </main>
         </div>
-        <BottomNav isAdmin={isAdmin} />
+        <BottomNav />
       </div>
     </SidebarProvider>
   );

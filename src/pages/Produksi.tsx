@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { db, useDB } from "@/lib/store";
+import { db, useDB, saldoBahan } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ImportExcelButton } from "@/components/ImportExcelButton";
@@ -16,6 +16,8 @@ import { ExportButtons } from "@/components/ExportButtons";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/lib/auth";
+import { AkunKategori } from "@/lib/types";
 
 // === SUBCOMPONENT: ADMIN VIEW FOR APPROVING REQUESTS ===
 function AdminPermohonanStok({ dbState }: { dbState: any }) {
@@ -186,84 +188,1159 @@ function AdminPermohonanStok({ dbState }: { dbState: any }) {
 // === MAIN COMPONENT ===
 export default function Produksi() {
   const dbState = useDB();
-  const { produk, produksi, penjualan, bahan, permohonanStok } = dbState;
+  const { user } = useAuth();
+  const { produk = [], produksi = [], penjualan = [], bahan = [], permohonanStok = [], outlets = [] } = dbState;
+
   const [tanggal, setTanggal] = useState(todayISO());
-  const [produkId, setProdukId] = useState(produk[0]?.id ?? "");
-  const [qtyRencana, setQtyRencana] = useState(50);
-  const [qtyRealisasi, setQtyRealisasi] = useState(0);
+  const [meatVariant, setMeatVariant] = useState("b-ay01"); // default AYAM
+  const [fishVariant, setFishVariant] = useState("b-sl01"); // default SALMON
+  
+  const [step, setStep] = useState(1);
+  const [activeTab, setActiveTab] = useState("siklus"); // siklus, permohonan, riwayat
   const [range, setRange] = useState<DateRange>({});
-  const [activeTab, setActiveTab] = useState("produksi");
+  
+  // STEP 1 STATES
+  const [planGrid, setPlanGrid] = useState<Record<string, Record<string, number>>>({});
+  const [searchOutlet, setSearchOutlet] = useState("");
 
-  // Default BOM: per cup produksi → 1 CUP BUBUR, 1 TUTUP, 1 SENDOK (jika tersedia di gudang)
-  const consumeStock = (qty: number, produkNama: string) => {
-    if (qty <= 0) return;
-    const codes = ["CB01", "TTP01", "SEN01"];
-    let count = 0;
-    codes.forEach((code) => {
-      const b = bahan.find((x) => x.kode === code);
-      if (!b) return;
-      db.addStokMov({
-        tanggal, bahanId: b.id, tipe: "OUT", qty,
-        keterangan: `Produksi ${produkNama}`,
-      });
-      count++;
+  // STEP 3 STATES
+  const [actualGrams, setActualGrams] = useState({
+    bubur: 0,
+    tim: 0,
+    oatmeal: 0,
+    puding: 0,
+    abon: 0,
+    sayur: 0
+  });
+  const [actualCups, setActualCups] = useState({
+    bubur: 0,
+    tim: 0,
+    oatmeal: 0,
+    puding: 0,
+    abon: 0,
+    sayur: 0
+  });
+
+  // STEP 4 STATES
+  const [distGrid, setDistGrid] = useState<Record<string, Record<string, number>>>({});
+
+  // STEP 5 STATES
+  const [returGrid, setReturGrid] = useState<Record<string, Record<string, number>>>({});
+
+  // Parse [D:X, I:Y] split from catatan
+  const parseSplit = (catatan: string) => {
+    const match = catatan?.match(/D:(\d+),I:(\d+)/);
+    if (match) {
+      return { d: Number(match[1]), i: Number(match[2]) };
+    }
+    return { d: 0, i: 0 };
+  };
+
+  const serializeSplit = (d: number, i: number, originalCatatan = "") => {
+    const cleanCat = originalCatatan.replace(/\[D:\d+,I:\d+\]\s*/, "");
+    return `[D:${d},I:${i}] ${cleanCat}`.trim();
+  };
+
+  // Load plan for date
+  const loadPlanForDate = (dateStr: string) => {
+    const grid: Record<string, Record<string, number>> = {};
+    outlets.forEach(o => {
+      grid[o.id] = {
+        bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+        oatmeal: 0, puding: 0, abon: 0, sayur: 0
+      };
     });
-    if (count) toast.info(`${count} bahan dikurangi dari stok gudang`);
+
+    const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === dateStr);
+    dayReqs.forEach((r: any) => {
+      if (!grid[r.outletId]) return;
+      const split = parseSplit(r.catatan || "");
+      if (r.produkId === "p-bubur") {
+        grid[r.outletId].bubur_d = split.d || r.qty;
+        grid[r.outletId].bubur_i = split.i || 0;
+      } else if (r.produkId === "p-nasitim") {
+        grid[r.outletId].tim_d = split.d || r.qty;
+        grid[r.outletId].tim_i = split.i || 0;
+      } else if (r.produkId === "p-oatmeal") {
+        grid[r.outletId].oatmeal = r.qty;
+      } else if (r.produkId === "p-puding") {
+        grid[r.outletId].puding = r.qty;
+      } else if (r.produkId === "p-abon") {
+        grid[r.outletId].abon = r.qty;
+      } else if (r.produkId === "p-sayur") {
+        grid[r.outletId].sayur = r.qty;
+      }
+    });
+    setPlanGrid(grid);
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!produkId || qtyRencana < 1) return toast.error("Lengkapi data");
-    db.addProduksi({ tanggal, produkId, qtyRencana, qtyRealisasi });
-    const prodNama = produk.find((p) => p.id === produkId)?.nama ?? "";
-    consumeStock(qtyRealisasi, prodNama);
-    toast.success("Rencana produksi disimpan");
-    setQtyRencana(50);
-    setQtyRealisasi(0);
+  // Synchronize grids on date change
+  useEffect(() => {
+    if (tanggal && outlets.length > 0) {
+      loadPlanForDate(tanggal);
+
+      // Load Step 3
+      const dayProds = produksi.filter((p: any) => p.tanggal === tanggal);
+      const newActualGrams = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+      const newActualCups = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+      dayProds.forEach((p: any) => {
+        let key = "";
+        let factor = 1;
+        if (p.produkId === "p-bubur") { key = "bubur"; factor = 118; }
+        else if (p.produkId === "p-nasitim") { key = "tim"; factor = 108; }
+        else if (p.produkId === "p-oatmeal") { key = "oatmeal"; factor = 100; }
+        else if (p.produkId === "p-puding") { key = "puding"; factor = 80; }
+        else if (p.produkId === "p-abon") { key = "abon"; factor = 10; }
+        else if (p.produkId === "p-sayur") { key = "sayur"; factor = 100; }
+
+        if (key) {
+          newActualCups[key as keyof typeof newActualCups] = p.qtyRealisasi;
+          newActualGrams[key as keyof typeof newActualGrams] = p.qtyRealisasi * factor;
+        }
+      });
+      setActualGrams(newActualGrams);
+      setActualCups(newActualCups);
+
+      // Load Step 4
+      const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+      const dGrid: Record<string, Record<string, number>> = {};
+      outlets.forEach(o => {
+        dGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+      });
+      dayReqs.forEach((r: any) => {
+        if (!dGrid[r.outletId]) return;
+        let key = "";
+        if (r.produkId === "p-bubur") key = "bubur";
+        else if (r.produkId === "p-nasitim") key = "tim";
+        else if (r.produkId === "p-oatmeal") key = "oatmeal";
+        else if (r.produkId === "p-puding") key = "puding";
+        else if (r.produkId === "p-abon") key = "abon";
+        else if (r.produkId === "p-sayur") key = "sayur";
+
+        if (key) {
+          dGrid[r.outletId][key] = r.qty;
+        }
+      });
+      setDistGrid(dGrid);
+    }
+  }, [tanggal, permohonanStok, produksi, outlets]);
+
+  const handlePlanChange = (outletId: string, field: string, val: number) => {
+    setPlanGrid(prev => ({
+      ...prev,
+      [outletId]: {
+        ...prev[outletId],
+        [field]: isNaN(val) ? 0 : val
+      }
+    }));
   };
 
-  const filtered = useMemo(
-    () => [...produksi].filter((p) => inRange(p.tanggal, range)).sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
-    [produksi, range]
-  );
-
-  const pendingCount = useMemo(() => {
-    return (permohonanStok || []).filter((r: any) => r.status === "Pending").length;
-  }, [permohonanStok]);
-
-  const onImport = (rows: any[]) => {
-    const items = rows
-      .map((r) => {
-        const p = produk.find((x) => x.nama.toLowerCase() === String(r.Produk ?? r.produk ?? "").toLowerCase());
-        const tgl = String(r.Tanggal ?? r.tanggal ?? "").slice(0, 10);
-        const plan = Number(r.Rencana ?? r.rencana ?? r.Plan ?? 0);
-        if (!p || !tgl || plan <= 0) return null;
-        return {
-          tanggal: tgl,
-          produkId: p.id,
-          qtyRencana: plan,
-          qtyRealisasi: Number(r.Realisasi ?? r.realisasi ?? 0),
-        };
-      })
-      .filter(Boolean) as any[];
-    if (!items.length) return toast.error("Kolom diperlukan: Tanggal, Produk, Rencana, Realisasi");
-    db.addProduksiBulk(items);
-    toast.success(`${items.length} produksi diimport`);
+  const handleDistChange = (outletId: string, field: string, val: number) => {
+    setDistGrid(prev => ({
+      ...prev,
+      [outletId]: {
+        ...prev[outletId],
+        [field]: isNaN(val) ? 0 : val
+      }
+    }));
   };
 
+  const handleReturChange = (outletId: string, field: string, val: number) => {
+    setReturGrid(prev => ({
+      ...prev,
+      [outletId]: {
+        ...prev[outletId],
+        [field]: isNaN(val) ? 0 : val
+      }
+    }));
+  };
+
+  const handleGramsChange = (prod: string, grams: number) => {
+    setActualGrams(prev => ({ ...prev, [prod]: grams }));
+    let factor = 1;
+    if (prod === "bubur") factor = 118;
+    else if (prod === "tim") factor = 108;
+    else if (prod === "puding") factor = 80;
+    else if (prod === "oatmeal") factor = 100;
+    else if (prod === "abon") factor = 10;
+    else if (prod === "sayur") factor = 100;
+
+    const cups = Math.floor(grams / factor);
+    setActualCups(prev => ({ ...prev, [prod]: cups }));
+  };
+
+  const handleCupsChange = (prod: string, cups: number) => {
+    setActualCups(prev => ({ ...prev, [prod]: cups }));
+  };
+
+  // STEP 1 Action: Save pre-production target plans
+  const saveStep1 = async () => {
+    const existing = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+    if (existing.length > 0) {
+      await Promise.all(existing.map((r: any) => db.deletePermohonanStok(r.id)));
+    }
+
+    const batch: any[] = [];
+    Object.entries(planGrid).forEach(([outletId, vals]) => {
+      const totalBubur = (vals.bubur_d || 0) + (vals.bubur_i || 0);
+      if (totalBubur > 0) {
+        batch.push({
+          tanggal: todayISO(),
+          tanggalKirim: tanggal,
+          outletId,
+          produkId: "p-bubur",
+          qty: totalBubur,
+          catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0)
+        });
+      }
+
+      const totalTim = (vals.tim_d || 0) + (vals.tim_i || 0);
+      if (totalTim > 0) {
+        batch.push({
+          tanggal: todayISO(),
+          tanggalKirim: tanggal,
+          outletId,
+          produkId: "p-nasitim",
+          qty: totalTim,
+          catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0)
+        });
+      }
+
+      if (vals.oatmeal > 0) {
+        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-oatmeal", qty: vals.oatmeal, catatan: "" });
+      }
+      if (vals.puding > 0) {
+        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-puding", qty: vals.puding, catatan: "" });
+      }
+      if (vals.abon > 0) {
+        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-abon", qty: vals.abon, catatan: "" });
+      }
+      if (vals.sayur > 0) {
+        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-sayur", qty: vals.sayur, catatan: "" });
+      }
+    });
+
+    if (batch.length === 0) {
+      return toast.error("Masukkan minimal 1 porsi rencana produksi");
+    }
+
+    await db.addPermohonanStokBulk(batch);
+    toast.success("Rencana Pra-Produksi berhasil disimpan!");
+    setStep(2);
+  };
+
+  // STEP 2 CALCULATIONS & ACTION
+  const totals = useMemo(() => {
+    let buburD = 0, buburI = 0, timD = 0, timI = 0;
+    let oatmeal = 0, puding = 0, abon = 0, sayur = 0;
+
+    Object.values(planGrid).forEach(v => {
+      buburD += v.bubur_d || 0;
+      buburI += v.bubur_i || 0;
+      timD += v.tim_d || 0;
+      timI += v.tim_i || 0;
+      oatmeal += v.oatmeal || 0;
+      puding += v.puding || 0;
+      abon += v.abon || 0;
+      sayur += v.sayur || 0;
+    });
+
+    const totalBubur = buburD + buburI;
+    const totalTim = timD + timI;
+
+    return {
+      buburD, buburI, totalBubur,
+      timD, timI, totalTim,
+      oatmeal, puding, abon, sayur
+    };
+  }, [planGrid]);
+
+  const materialReqs = useMemo(() => {
+    const reqs: { bahanId: string; kode: string; nama: string; qty: number; satuan: string }[] = [];
+
+    const berasQty = Math.round((totals.totalBubur * 16.67) + (totals.totalTim * 20.00));
+    if (berasQty > 0) reqs.push({ bahanId: "b-brs01", kode: "BRS01", nama: "BERAS", qty: berasQty, satuan: "gram" });
+
+    const pudingQty = Math.round(totals.puding * 13.00);
+    if (pudingQty > 0) reqs.push({ bahanId: "b-pud01", kode: "PUD01", nama: "PUDING", qty: pudingQty, satuan: "gram" });
+
+    const oatQty = Math.round(totals.oatmeal * 25.71);
+    if (oatQty > 0) reqs.push({ bahanId: "b-oat01", kode: "OAT01", nama: "OAT", qty: oatQty, satuan: "gram" });
+
+    const abonQty = Math.round(totals.abon * 10.00);
+    if (abonQty > 0) reqs.push({ bahanId: "b-ab01", kode: "AB01", nama: "ABON", qty: abonQty, satuan: "gram" });
+
+    const meatCups = totals.buburD + totals.timD;
+    const meatSachets = Math.ceil(meatCups / 10);
+    if (meatSachets > 0 && meatVariant) {
+      const b = bahan.find(x => x.id === meatVariant);
+      if (b) reqs.push({ bahanId: b.id, kode: b.kode, nama: b.nama, qty: meatSachets, satuan: b.satuan });
+    }
+
+    const fishCups = totals.buburI + totals.timI;
+    const fishSachets = Math.ceil(fishCups / 10);
+    if (fishSachets > 0 && fishVariant) {
+      const b = bahan.find(x => x.id === fishVariant);
+      if (b) reqs.push({ bahanId: b.id, kode: b.kode, nama: b.nama, qty: fishSachets, satuan: b.satuan });
+    }
+
+    const cupBuburQty = totals.totalBubur + totals.totalTim + totals.sayur;
+    if (cupBuburQty > 0) reqs.push({ bahanId: "b-cb01", kode: "CB01", nama: "CUP BUBUR", qty: cupBuburQty, satuan: "biji" });
+
+    const tutupQty = totals.totalBubur + totals.totalTim + totals.sayur + totals.puding;
+    if (tutupQty > 0) reqs.push({ bahanId: "b-ttp01", kode: "TTP01", nama: "TUTUP", qty: tutupQty, satuan: "biji" });
+
+    const sendokQty = totals.totalBubur + totals.totalTim + totals.oatmeal + totals.puding;
+    if (sendokQty > 0) reqs.push({ bahanId: "b-sen01", kode: "SEN01", nama: "SENDOK", qty: sendokQty, satuan: "pcs" });
+
+    if (totals.oatmeal > 0) reqs.push({ bahanId: "b-cupoat1", kode: "CUPOAT1", nama: "CUP OAT", qty: totals.oatmeal, satuan: "biji" });
+    if (totals.puding > 0) reqs.push({ bahanId: "b-cuppud01", kode: "CUPPUD01", nama: "CUP PUDING", qty: totals.puding, satuan: "biji" });
+
+    return reqs;
+  }, [totals, meatVariant, fishVariant, bahan]);
+
+  const isWarehouseRequested = useMemo(() => {
+    return stokMov.some((m: any) => m.tanggal === tanggal && m.tipe === "OUT" && m.keterangan?.includes("Pemakaian Produksi"));
+  }, [stokMov, tanggal]);
+
+  const requestWarehouse = async () => {
+    if (isWarehouseRequested) return toast.error("Bahan baku untuk tanggal ini sudah dipotong dari gudang!");
+
+    await Promise.all(materialReqs.map(r => {
+      return db.addStokMov({
+        tanggal,
+        bahanId: r.bahanId,
+        tipe: "OUT",
+        qty: r.qty,
+        keterangan: `Pemakaian Produksi [${tanggal}]`
+      });
+    }));
+
+    toast.success("Bahan baku berhasil dipotong dari stok gudang!");
+    setStep(3);
+  };
+
+  // STEP 3 Action
+  const saveStep3 = async () => {
+    const existing = produksi.filter((p: any) => p.tanggal === tanggal);
+    if (existing.length > 0) {
+      await Promise.all(existing.map((p: any) => db.deleteProduksi(p.id)));
+    }
+
+    const batch = [
+      { tanggal, produkId: "p-bubur", qtyRencana: totals.totalBubur, qtyRealisasi: actualCups.bubur },
+      { tanggal, produkId: "p-nasitim", qtyRencana: totals.totalTim, qtyRealisasi: actualCups.tim },
+      { tanggal, produkId: "p-oatmeal", qtyRencana: totals.oatmeal, qtyRealisasi: actualCups.oatmeal },
+      { tanggal, produkId: "p-puding", qtyRencana: totals.puding, qtyRealisasi: actualCups.puding },
+      { tanggal, produkId: "p-abon", qtyRencana: totals.abon, qtyRealisasi: actualCups.abon },
+      { tanggal, produkId: "p-sayur", qtyRencana: totals.sayur, qtyRealisasi: actualCups.sayur },
+    ];
+
+    await db.addProduksiBulk(batch);
+    toast.success("Hasil Produksi Aktual berhasil disimpan!");
+    initDistribution();
+    setStep(4);
+  };
+
+  const initDistribution = () => {
+    const grid: Record<string, Record<string, number>> = {};
+    outlets.forEach(o => {
+      const plan = planGrid[o.id] || {};
+      grid[o.id] = {
+        bubur: (plan.bubur_d || 0) + (plan.bubur_i || 0),
+        tim: (plan.tim_d || 0) + (plan.tim_i || 0),
+        oatmeal: plan.oatmeal || 0,
+        puding: plan.puding || 0,
+        abon: plan.abon || 0,
+        sayur: plan.sayur || 0
+      };
+    });
+    setDistGrid(grid);
+  };
+
+  // STEP 4 Action
+  const saveStep4 = async () => {
+    const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+    await Promise.all(dayReqs.map(async (r: any) => {
+      const outletAlloc = distGrid[r.outletId];
+      if (!outletAlloc) return;
+
+      let sentQty = 0;
+      if (r.produkId === "p-bubur") sentQty = outletAlloc.bubur || 0;
+      else if (r.produkId === "p-nasitim") sentQty = outletAlloc.tim || 0;
+      else if (r.produkId === "p-oatmeal") sentQty = outletAlloc.oatmeal || 0;
+      else if (r.produkId === "p-puding") sentQty = outletAlloc.puding || 0;
+      else if (r.produkId === "p-abon") sentQty = outletAlloc.abon || 0;
+      else if (r.produkId === "p-sayur") sentQty = outletAlloc.sayur || 0;
+
+      await db.updatePermohonanStok(r.id, {
+        qty: sentQty,
+        status: "Disetujui"
+      });
+    }));
+
+    toast.success("Barang keluar (distribusi) berhasil dikirim ke outlet!");
+    
+    // Initialize returGrid to 0
+    const rGrid: Record<string, Record<string, number>> = {};
+    outlets.forEach(o => {
+      rGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+    });
+    setReturGrid(rGrid);
+    setStep(5);
+  };
+
+  // STEP 5 Action
+  const saveStep5 = async () => {
+    const salesToPost: any[] = [];
+    let totalSalesRevenue = 0;
+
+    const recoveredIngredients = {
+      beras: 0,
+      puding: 0,
+      oat: 0,
+      abon: 0
+    };
+
+    const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal && r.status === "Disetujui");
+
+    dayReqs.forEach((r: any) => {
+      const outletRet = returGrid[r.outletId] || {};
+      let returQty = 0;
+      if (r.produkId === "p-bubur") returQty = outletRet.bubur || 0;
+      else if (r.produkId === "p-nasitim") returQty = outletRet.tim || 0;
+      else if (r.produkId === "p-oatmeal") returQty = outletRet.oatmeal || 0;
+      else if (r.produkId === "p-puding") returQty = outletRet.puding || 0;
+      else if (r.produkId === "p-abon") returQty = outletRet.abon || 0;
+      else if (r.produkId === "p-sayur") returQty = outletRet.sayur || 0;
+
+      const actualRetur = Math.min(returQty, r.qty);
+      const terjual = r.qty - actualRetur;
+
+      const prod = produk.find(p => p.id === r.produkId);
+      const harga = prod?.harga || 0;
+
+      if (terjual > 0) {
+        salesToPost.push({
+          tanggal,
+          outletId: r.outletId,
+          produkId: r.produkId,
+          qty: terjual,
+          harga: harga
+        });
+        totalSalesRevenue += terjual * harga;
+      }
+
+      if (actualRetur > 0) {
+        if (r.produkId === "p-bubur") {
+          recoveredIngredients.beras += actualRetur * 16.67;
+        } else if (r.produkId === "p-nasitim") {
+          recoveredIngredients.beras += actualRetur * 20.00;
+        } else if (r.produkId === "p-puding") {
+          recoveredIngredients.puding += actualRetur * 13.00;
+        } else if (r.produkId === "p-oatmeal") {
+          recoveredIngredients.oat += actualRetur * 25.71;
+        } else if (r.produkId === "p-abon") {
+          recoveredIngredients.abon += actualRetur * 10.00;
+        }
+      }
+    });
+
+    if (salesToPost.length > 0) {
+      await db.addPenjualanBulk(salesToPost);
+    }
+
+    if (totalSalesRevenue > 0) {
+      await db.addJurnalBulk([
+        {
+          tanggal,
+          ref: "OUT-SALES",
+          keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
+          kodeAkun: "131000",
+          akun: "Piutang usaha",
+          tipe: "Debit",
+          jumlah: totalSalesRevenue,
+          kategori: "Aset"
+        },
+        {
+          tanggal,
+          ref: "OUT-SALES",
+          keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
+          kodeAkun: "410000",
+          akun: "Pendapatan Utama",
+          tipe: "Kredit",
+          jumlah: totalSalesRevenue,
+          kategori: "Pendapatan"
+        }
+      ]);
+    }
+
+    const movPromises: Promise<any>[] = [];
+    if (recoveredIngredients.beras > 0) {
+      movPromises.push(db.addStokMov({
+        tanggal, bahanId: "b-brs01", tipe: "IN", qty: Math.round(recoveredIngredients.beras), keterangan: "Retur Bahan Baku (Gram)"
+      }));
+    }
+    if (recoveredIngredients.puding > 0) {
+      movPromises.push(db.addStokMov({
+        tanggal, bahanId: "b-pud01", tipe: "IN", qty: Math.round(recoveredIngredients.puding), keterangan: "Retur Bahan Baku (Gram)"
+      }));
+    }
+    if (recoveredIngredients.oat > 0) {
+      movPromises.push(db.addStokMov({
+        tanggal, bahanId: "b-oat01", tipe: "IN", qty: Math.round(recoveredIngredients.oat), keterangan: "Retur Bahan Baku (Gram)"
+      }));
+    }
+    if (recoveredIngredients.abon > 0) {
+      movPromises.push(db.addStokMov({
+        tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.round(recoveredIngredients.abon), keterangan: "Retur Bahan Baku (Gram)"
+      }));
+    }
+
+    if (movPromises.length > 0) {
+      await Promise.all(movPromises);
+    }
+
+    toast.success("Siklus produksi harian berhasil ditutup! Penjualan dan retur tercatat.");
+    setStep(1);
+  };
+
+  const filteredOutlets = useMemo(() => {
+    return outlets.filter(o => o.nama.toLowerCase().includes(searchOutlet.toLowerCase()));
+  }, [outlets, searchOutlet]);
+
+  function renderStep1() {
+    return (
+      <Card className="glass border-0 shadow-card">
+        <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Input rencana porsi (cup) menu Daging (D) dan Ikan (I) per outlet</p>
+          </div>
+          <Input
+            placeholder="Cari outlet..."
+            value={searchOutlet}
+            onChange={(e) => setSearchOutlet(e.target.value)}
+            className="w-full sm:w-[220px] h-9 text-xs"
+          />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="min-w-[150px]">Outlet</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur D</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur I</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim D</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Tim I</TableHead>
+                    <TableHead className="text-center font-bold text-xs">Oatmeal</TableHead>
+                    <TableHead className="text-center font-bold text-xs">Puding</TableHead>
+                    <TableHead className="text-center font-bold text-xs">Abon</TableHead>
+                    <TableHead className="text-center font-bold text-xs">Sayur</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOutlets.map((o) => {
+                    const row = planGrid[o.id] || {
+                      bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                      oatmeal: 0, puding: 0, abon: 0, sayur: 0
+                    };
+                    return (
+                      <TableRow key={o.id}>
+                        <TableCell className="font-semibold">{o.nama}</TableCell>
+                        <TableCell className="bg-amber-500/5 p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.bubur_d || ""}
+                            onChange={(e) => handlePlanChange(o.id, "bubur_d", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto border-amber-300"
+                          />
+                        </TableCell>
+                        <TableCell className="bg-blue-500/5 p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.bubur_i || ""}
+                            onChange={(e) => handlePlanChange(o.id, "bubur_i", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto border-blue-300"
+                          />
+                        </TableCell>
+                        <TableCell className="bg-amber-500/5 p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.tim_d || ""}
+                            onChange={(e) => handlePlanChange(o.id, "tim_d", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto border-amber-300"
+                          />
+                        </TableCell>
+                        <TableCell className="bg-blue-500/5 p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.tim_i || ""}
+                            onChange={(e) => handlePlanChange(o.id, "tim_i", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto border-blue-300"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.oatmeal || ""}
+                            onChange={(e) => handlePlanChange(o.id, "oatmeal", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.puding || ""}
+                            onChange={(e) => handlePlanChange(o.id, "puding", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.abon || ""}
+                            onChange={(e) => handlePlanChange(o.id, "abon", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.sayur || ""}
+                            onChange={(e) => handlePlanChange(o.id, "sayur", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={saveStep1} className="gradient-primary text-primary-foreground hover-lift">
+              Simpan & Lanjutkan ke Bahan Baku <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function renderStep2() {
+    return (
+      <Card className="glass border-0 shadow-card">
+        <CardHeader>
+          <CardTitle>Langkah 2: Request & Potong Bahan Baku</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Review kebutuhan gramasi bahan baku dan potong otomatis dari gudang utama</p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="rounded-2xl border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead>Bahan Baku</TableHead>
+                  <TableHead>Kode</TableHead>
+                  <TableHead className="text-right">Kebutuhan Produksi</TableHead>
+                  <TableHead className="text-right">Stok Gudang Saat Ini</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {materialReqs.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      Tidak ada bahan baku yang dibutuhkan. Silakan isi rencana pra-produksi di Langkah 1.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {materialReqs.map((r) => {
+                  const saldo = saldoBahan(r.bahanId, dbState);
+                  const isSufficient = saldo >= r.qty;
+                  return (
+                    <TableRow key={r.bahanId}>
+                      <TableCell className="font-semibold">{r.nama}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{r.kode}</TableCell>
+                      <TableCell className="text-right font-bold">{r.qty} {r.satuan}</TableCell>
+                      <TableCell className="text-right">{saldo} {r.satuan}</TableCell>
+                      <TableCell className="text-center">
+                        {isSufficient ? (
+                          <Badge className="bg-success text-success-foreground">Aman</Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Kurang {r.qty - saldo}
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <Button variant="outline" onClick={() => setStep(1)} className="h-10">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Langkah 1
+            </Button>
+            {isWarehouseRequested ? (
+              <div className="flex items-center gap-2">
+                <Badge className="bg-success text-success-foreground h-10 px-4 text-xs font-semibold gap-1.5">
+                  <CheckCircle2 className="h-4 w-4" /> Bahan Baku Sudah Dipotong Dari Gudang
+                </Badge>
+                <Button onClick={() => setStep(3)} className="h-10 gradient-primary text-primary-foreground">
+                  Lanjutkan <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={requestWarehouse}
+                disabled={materialReqs.length === 0}
+                className="gradient-primary text-primary-foreground hover-lift h-10"
+              >
+                <Send className="mr-2 h-4 w-4" /> Potong Stok Gudang & Lanjutkan
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function renderStep3() {
+    return (
+      <Card className="glass border-0 shadow-card">
+        <CardHeader>
+          <CardTitle>Langkah 3: Realisasi Masak / Pasca Produksi</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Input berat matang hasil masak (gram) untuk dikonversi otomatis ke jumlah cup stok awal</p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[
+              { id: "bubur", label: "Bubur", unitWeight: 118, targetCups: totals.totalBubur },
+              { id: "tim", label: "Nasi Tim", unitWeight: 108, targetCups: totals.totalTim },
+              { id: "oatmeal", label: "Oatmeal", unitWeight: 100, targetCups: totals.oatmeal },
+              { id: "puding", label: "Puding", unitWeight: 80, targetCups: totals.puding },
+              { id: "abon", label: "Abon", unitWeight: 10, targetCups: totals.abon },
+              { id: "sayur", label: "Sayur", unitWeight: 100, targetCups: totals.sayur }
+            ].map((p) => {
+              const grams = actualGrams[p.id as keyof typeof actualGrams] || 0;
+              const cups = actualCups[p.id as keyof typeof actualCups] || 0;
+              return (
+                <div key={p.id} className="p-4 rounded-2xl border bg-card/40 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <span className="font-bold text-sm">{p.label}</span>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                      Target: {p.targetCups} cup
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Berat Matang (Gram)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={grams || ""}
+                        onChange={(e) => handleGramsChange(p.id, parseInt(e.target.value))}
+                        className="h-10"
+                        placeholder="Contoh: 11800"
+                      />
+                      <span className="text-xs text-muted-foreground font-semibold">g</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Konversi Cup (Aktual)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={cups || ""}
+                        onChange={(e) => handleCupsChange(p.id, parseInt(e.target.value))}
+                        className="h-10 font-bold text-primary border-primary/40 focus-visible:ring-primary"
+                      />
+                      <span className="text-xs text-muted-foreground">cup</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground block italic">
+                      Disarankan: {Math.floor(grams / p.unitWeight)} cup (@ {p.unitWeight}g)
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-between items-center border-t pt-6">
+            <Button variant="outline" onClick={() => setStep(2)} className="h-10">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+            </Button>
+            <Button onClick={saveStep3} className="gradient-primary text-primary-foreground hover-lift h-10">
+              <Check className="mr-2 h-4 w-4" /> Simpan Hasil Aktual & Lanjutkan
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function renderStep4() {
+    return (
+      <Card className="glass border-0 shadow-card">
+        <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Langkah 4: Barang Keluar & Alokasi Outlet</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Sesuaikan alokasi cup yang dikirim ke outlet berdasarkan realisasi aktual masak</p>
+          </div>
+          <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-xl border text-xs">
+            <span className="font-bold text-muted-foreground">Status Masak (Actual/Target):</span>
+            <span className="font-semibold text-primary">
+              B: {actualCups.bubur}/{totals.totalBubur} · T: {actualCups.tim}/{totals.totalTim}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Outlet</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Bubur (Cup)</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Nasi Tim (Cup)</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Oatmeal (Cup)</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Puding (Cup)</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Abon (Cup)</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Sayur (Cup)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {outlets.map((o) => {
+                    const row = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                    return (
+                      <TableRow key={o.id}>
+                        <TableCell className="font-semibold">{o.nama}</TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.bubur || ""}
+                            onChange={(e) => handleDistChange(o.id, "bubur", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.tim || ""}
+                            onChange={(e) => handleDistChange(o.id, "tim", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.oatmeal || ""}
+                            onChange={(e) => handleDistChange(o.id, "oatmeal", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.puding || ""}
+                            onChange={(e) => handleDistChange(o.id, "puding", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.abon || ""}
+                            onChange={(e) => handleDistChange(o.id, "abon", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.sayur || ""}
+                            onChange={(e) => handleDistChange(o.id, "sayur", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center border-t pt-6">
+            <Button variant="outline" onClick={() => setStep(3)} className="h-10">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+            </Button>
+            <Button onClick={saveStep4} className="gradient-primary text-primary-foreground hover-lift h-10">
+              <Check className="mr-2 h-4 w-4" /> Konfirmasi Pengiriman & Lanjutkan
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function renderStep5() {
+    return (
+      <Card className="glass border-0 shadow-card">
+        <CardHeader>
+          <CardTitle>Langkah 5: Retur & Penjualan Akhir Hari</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Input sisa cup tidak terjual untuk retur. Penjualan dan konversi sisa kembali ke bahan baku akan diposting otomatis.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Outlet</TableHead>
+                    <TableHead className="text-center font-semibold text-xs text-blue-600 bg-blue-500/5">Bubur Retur</TableHead>
+                    <TableHead className="text-center font-semibold text-xs text-amber-600 bg-amber-500/5">Tim Retur</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Oatmeal Retur</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Puding Retur</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Abon Retur</TableHead>
+                    <TableHead className="text-center font-semibold text-xs">Sayur Retur</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {outlets.map((o) => {
+                    const row = returGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                    const sent = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                    return (
+                      <TableRow key={o.id}>
+                        <TableCell>
+                          <div className="font-semibold">{o.nama}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Dikirim: B:{sent.bubur} · T:{sent.tim} · O:{sent.oatmeal} · P:{sent.puding}
+                          </div>
+                        </TableCell>
+                        <TableCell className="bg-blue-500/5 p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={sent.bubur}
+                            value={row.bubur || ""}
+                            onChange={(e) => handleReturChange(o.id, "bubur", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto border-blue-300"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                        <TableCell className="bg-amber-500/5 p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={sent.tim}
+                            value={row.tim || ""}
+                            onChange={(e) => handleReturChange(o.id, "tim", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto border-amber-300"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={sent.oatmeal}
+                            value={row.oatmeal || ""}
+                            onChange={(e) => handleReturChange(o.id, "oatmeal", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={sent.puding}
+                            value={row.puding || ""}
+                            onChange={(e) => handleReturChange(o.id, "puding", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={sent.abon}
+                            value={row.abon || ""}
+                            onChange={(e) => handleReturChange(o.id, "abon", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={sent.sayur}
+                            value={row.sayur || ""}
+                            onChange={(e) => handleReturChange(o.id, "sayur", parseInt(e.target.value))}
+                            className="h-8 text-xs text-center w-16 mx-auto"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center border-t pt-6">
+            <Button variant="outline" onClick={() => setStep(4)} className="h-10">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+            </Button>
+            <Button onClick={saveStep5} className="gradient-success text-white hover-lift h-10 font-bold">
+              <ShoppingBag className="mr-2 h-4 w-4" /> Selesaikan & Posting Penjualan / Retur
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function renderSiklusView() {
+    return (
+      <div className="space-y-6">
+        {/* Stepper Wizard Header */}
+        <div className="bg-card/45 backdrop-blur-md rounded-2xl border p-4 shadow-soft">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              <span className="font-bold text-sm">Siklus Harian</span>
+              <span className="text-xs text-muted-foreground">|</span>
+              <span className="text-xs font-medium text-muted-foreground">Konversi resep otomatis, alokasi gudang, dan pencatatan retur/jurnal otomatis</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground block uppercase">Tanggal Produksi</Label>
+                <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="h-8 text-xs w-32" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground block uppercase">Daging (D)</Label>
+                <Select value={meatVariant} onValueChange={setMeatVariant}>
+                  <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="b-ay01">Ayam</SelectItem>
+                    <SelectItem value="b-dg01">Daging</SelectItem>
+                    <SelectItem value="b-ck01">Ceker</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground block uppercase">Ikan (I)</Label>
+                <Select value={fishVariant} onValueChange={setFishVariant}>
+                  <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="b-sl01">Salmon</SelectItem>
+                    <SelectItem value="b-tn01">Tuna</SelectItem>
+                    <SelectItem value="b-tg01">Tengiri</SelectItem>
+                    <SelectItem value="b-gr01">Gurami</SelectItem>
+                    <SelectItem value="b-kk01">Kakap</SelectItem>
+                    <SelectItem value="b-dr01">Dori</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-5 gap-2 mt-4 pt-4 border-t">
+            {[
+              { num: 1, label: "Pra-Produksi" },
+              { num: 2, label: "Request Bahan" },
+              { num: 3, label: "Aktual Masak" },
+              { num: 4, label: "Distribusi" },
+              { num: 5, label: "Retur & Penjualan" }
+            ].map((s) => {
+              const isActive = step === s.num;
+              const isPast = step > s.num;
+              return (
+                <button
+                  key={s.num}
+                  onClick={() => setStep(s.num)}
+                  className={`flex flex-col items-center p-2 rounded-xl transition-all ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-soft"
+                      : isPast
+                      ? "text-success hover:bg-success/5"
+                      : "text-muted-foreground hover:bg-muted/10"
+                  }`}
+                >
+                  <span className="text-xs font-bold flex items-center gap-1">
+                    {isPast ? <Check className="h-3 w-3" /> : <span>{s.num}</span>}
+                    {s.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* STEP CONTENT */}
+        {step === 1 && renderStep1()}
+        {step === 2 && renderStep2()}
+        {step === 3 && renderStep3()}
+        {step === 4 && renderStep4()}
+        {step === 5 && renderStep5()}
+      </div>
+    );
+  }
+
+  const isKapro = user?.role === "produksi";
+
+  if (isKapro) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gradient">Siklus Produksi Harian</h1>
+          <p className="text-sm text-muted-foreground">Kelola siklus harian dari perencanaan pra-produksi hingga retur sore hari</p>
+        </div>
+        {renderSiklusView()}
+      </div>
+    );
+  }
+
+  // Admin View has tab options
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-end gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gradient">Produksi & Permohonan</h1>
-          <p className="text-sm text-muted-foreground">Rencana produksi harian dan persetujuan stok untuk outlet</p>
-        </div>
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold text-gradient">Produksi & Permohonan</h1>
+        <p className="text-sm text-muted-foreground">Rencana produksi harian, permohonan outlet, dan riwayat produksi</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-          <TabsList className="grid w-full max-w-[420px] grid-cols-2 bg-muted/50 p-1 rounded-xl">
-            <TabsTrigger value="produksi" className="rounded-lg font-semibold">Produksi MPASI</TabsTrigger>
+          <TabsList className="grid w-full max-w-[600px] grid-cols-3 bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="siklus" className="rounded-lg font-semibold">Siklus Produksi Harian</TabsTrigger>
             <TabsTrigger value="permohonan" className="rounded-lg font-semibold relative">
               Permohonan Outlet
               {pendingCount > 0 && (
@@ -272,51 +1349,27 @@ export default function Produksi() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="riwayat" className="rounded-lg font-semibold">Riwayat Produksi</TabsTrigger>
           </TabsList>
-          {activeTab === "produksi" && (
+          {activeTab === "riwayat" && (
             <div className="flex items-center gap-2">
               <ImportExcelButton onData={onImport} />
             </div>
           )}
         </div>
 
-        <TabsContent value="produksi" className="space-y-6 mt-0">
+        <TabsContent value="siklus" className="space-y-6 mt-0">
+          {renderSiklusView()}
+        </TabsContent>
 
-          <Card className="glass border-0 shadow-card">
-            <CardHeader><CardTitle>Input Rencana Produksi</CardTitle></CardHeader>
-            <CardContent>
-              <form onSubmit={submit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 lg:items-end">
-                <div className="space-y-2">
-                  <Label>Tanggal</Label>
-                  <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Produk</Label>
-                  <Select value={produkId} onValueChange={setProdukId}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {produk.map((p) => <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Rencana (porsi)</Label>
-                  <Input type="number" min={1} value={qtyRencana} onChange={(e) => setQtyRencana(Number(e.target.value))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Realisasi (porsi)</Label>
-                  <Input type="number" min={0} value={qtyRealisasi} onChange={(e) => setQtyRealisasi(Number(e.target.value))} />
-                </div>
-                <Button type="submit" className="gradient-primary text-primary-foreground hover-lift">
-                  <Plus className="mr-1 h-4 w-4" />Simpan
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+        <TabsContent value="permohonan" className="mt-0">
+          <AdminPermohonanStok dbState={dbState} />
+        </TabsContent>
 
+        <TabsContent value="riwayat" className="space-y-6 mt-0">
           <Card className="glass border-0 shadow-card">
             <CardHeader>
-              <CardTitle>Riwayat Produksi</CardTitle>
+              <CardTitle>Riwayat Produksi (Excel-aligned)</CardTitle>
               <div className="flex flex-wrap gap-2 pt-2 items-center">
                 <DateRangeFilter value={range} onChange={setRange} />
                 <div className="w-full sm:w-auto sm:ml-auto">
@@ -338,10 +1391,6 @@ export default function Produksi() {
               <ProduksiTable filtered={filtered} produk={produk} />
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="permohonan" className="mt-0">
-          <AdminPermohonanStok dbState={dbState} />
         </TabsContent>
       </Tabs>
     </div>

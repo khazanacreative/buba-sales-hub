@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { ExportButtons } from "@/components/ExportButtons";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 import { useAuth } from "@/lib/auth";
+import { AkunKategori } from "@/lib/types";
 
 // === SUBCOMPONENT: OUTLET VIEW FOR REQUESTING STOCK ===
 function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
@@ -25,11 +26,21 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
     return d.toISOString().slice(0, 10);
   };
 
+  const supportItems = useMemo(() => {
+    return (produk || []).filter((p: any) => p.harga === 0 || p.id.startsWith("b-"));
+  }, [produk]);
+
   const [selectedItems, setSelectedItems] = useState<{ produkId: string; qty: number }[]>([]);
-  const [produkId, setProdukId] = useState(produk[0]?.id ?? "");
+  const [produkId, setProdukId] = useState("");
   const [qty, setQty] = useState(1);
   const [tanggalKirim, setTanggalKirim] = useState(tomorrow());
   const [catatan, setCatatan] = useState("");
+
+  useEffect(() => {
+    if (supportItems.length > 0 && !produkId) {
+      setProdukId(supportItems[0].id);
+    }
+  }, [supportItems, produkId]);
 
   const handleAddItem = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -98,7 +109,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
               <Select value={produkId} onValueChange={setProdukId}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {produk.map((p: any) => (
+                  {supportItems.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>
                   ))}
                 </SelectContent>
@@ -271,11 +282,25 @@ export default function StokGudang() {
   // Admin original states and computations
   const { bahan = [], stokMov = [], produksi = [], produk = [] } = dbState;
   const [tanggal, setTanggal] = useState(todayISO());
-  const [bahanId, setBahanId] = useState(bahan[0]?.id ?? "");
+  const [bahanId, setBahanId] = useState("");
   const [tipe, setTipe] = useState<"IN" | "OUT">("IN");
   const [qty, setQty] = useState(1);
   const [ket, setKet] = useState("");
   const [range, setRange] = useState<DateRange>({});
+
+  // States for Kiriman Supplier Form
+  const [supTanggal, setSupTanggal] = useState(todayISO());
+  const [supBahanId, setSupBahanId] = useState("");
+  const [supQty, setSupQty] = useState(1);
+  const [supCost, setSupCost] = useState(0);
+  const [supBayar, setSupBayar] = useState("110000"); // Kas Rupiah as default
+
+  useEffect(() => {
+    if (bahan.length > 0) {
+      if (!bahanId) setBahanId(bahan[0].id);
+      if (!supBahanId) setSupBahanId(bahan[0].id);
+    }
+  }, [bahan, bahanId, supBahanId]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,6 +308,66 @@ export default function StokGudang() {
     db.addStokMov({ tanggal, bahanId, tipe, qty, keterangan: ket || (tipe === "IN" ? "Pembelian" : "Pemakaian") });
     toast.success(`Stok ${tipe === "IN" ? "masuk" : "keluar"} dicatat`);
     setQty(1); setKet("");
+  };
+
+  const submitSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supBahanId || supQty <= 0 || supCost <= 0) {
+      return toast.error("Lengkapi data kiriman supplier dengan benar");
+    }
+    
+    const selectedBahan = bahan.find(b => b.id === supBahanId);
+    if (!selectedBahan) return toast.error("Bahan baku tidak ditemukan");
+
+    const labelBahan = selectedBahan.nama;
+    
+    // 1. Record stock movement IN
+    await db.addStokMov({
+      tanggal: supTanggal,
+      bahanId: supBahanId,
+      tipe: "IN",
+      qty: supQty,
+      keterangan: `Kiriman Supplier: ${labelBahan} (${supQty} ${selectedBahan.satuan})`
+    });
+
+    // 2. Determine credit account name and category
+    let creditAkun = "Kas Rupiah";
+    let creditKategori: AkunKategori = "Aset";
+    if (supBayar === "120000") {
+      creditAkun = "Bank";
+      creditKategori = "Aset";
+    } else if (supBayar === "210000") {
+      creditAkun = "Hutang Usaha";
+      creditKategori = "Kewajiban";
+    }
+
+    // 3. Post to Journal
+    await db.addJurnalBulk([
+      {
+        tanggal: supTanggal,
+        ref: "IN-SUPP",
+        keterangan: `Pembelian Persediaan: ${labelBahan} (${supQty} ${selectedBahan.satuan})`,
+        kodeAkun: "140000",
+        akun: "Persediaan",
+        tipe: "Debit",
+        jumlah: supCost,
+        kategori: "Aset"
+      },
+      {
+        tanggal: supTanggal,
+        ref: "IN-SUPP",
+        keterangan: `Pembelian Persediaan: ${labelBahan} (${supQty} ${selectedBahan.satuan})`,
+        kodeAkun: supBayar,
+        akun: creditAkun,
+        tipe: "Kredit",
+        jumlah: supCost,
+        kategori: creditKategori
+      }
+    ]);
+
+    toast.success("Kiriman supplier berhasil dicatat dan jurnal otomatis terposting!");
+    setSupQty(1);
+    setSupCost(0);
   };
 
   const saldoMap = useMemo(() => {
@@ -337,47 +422,96 @@ export default function StokGudang() {
         </Card>
       </div>
 
-      <Card className="glass border-0 shadow-card">
-        <CardHeader><CardTitle>Catat Pergerakan Stok</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="grid gap-3 md:grid-cols-2 lg:grid-cols-6 lg:items-end">
-            <div className="space-y-2">
-              <Label>Tanggal</Label>
-              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Bahan</Label>
-              <Select value={bahanId} onValueChange={setBahanId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Tipe</Label>
-              <Select value={tipe} onValueChange={(v) => setTipe(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="IN">Masuk</SelectItem>
-                  <SelectItem value="OUT">Keluar</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Qty</Label>
-              <Input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
-            </div>
-            <div className="space-y-2 lg:col-span-1">
-              <Label>Keterangan</Label>
-              <Input value={ket} onChange={(e) => setKet(e.target.value)} placeholder="opsional" />
-            </div>
-            <Button type="submit" className="gradient-primary text-primary-foreground hover-lift">
-              <Plus className="mr-1 h-4 w-4" />Simpan
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="glass border-0 shadow-card">
+          <CardHeader><CardTitle>Catat Pergerakan Stok (Manual)</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={submit} className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tanggal</Label>
+                  <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bahan</Label>
+                  <Select value={bahanId} onValueChange={setBahanId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipe</Label>
+                  <Select value={tipe} onValueChange={(v) => setTipe(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="IN">Masuk</SelectItem>
+                      <SelectItem value="OUT">Keluar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Qty</Label>
+                  <Input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Keterangan</Label>
+                <Input value={ket} onChange={(e) => setKet(e.target.value)} placeholder="opsional" />
+              </div>
+              <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                <Plus className="mr-1 h-4 w-4" />Simpan Penyesuaian
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="glass border-0 shadow-card">
+          <CardHeader><CardTitle>Kiriman Supplier (Pembelian)</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={submitSupplier} className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tanggal Kirim</Label>
+                  <Input type="date" value={supTanggal} onChange={(e) => setSupTanggal(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bahan Baku</Label>
+                  <Select value={supBahanId} onValueChange={setSupBahanId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Qty Datang</Label>
+                  <Input type="number" min={1} value={supQty} onChange={(e) => setSupQty(Number(e.target.value))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Biaya (Rp)</Label>
+                  <Input type="number" min={0} value={supCost} onChange={(e) => setSupCost(Number(e.target.value))} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Metode Pembayaran</Label>
+                <Select value={supBayar} onValueChange={setSupBayar}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="110000">Kas Rupiah (Cash)</SelectItem>
+                    <SelectItem value="120000">Bank (Transfer)</SelectItem>
+                    <SelectItem value="210000">Hutang Usaha (Belum Bayar)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                <Package className="mr-1 h-4 w-4" />Catat Pembelian & Posting Jurnal
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="glass border-0 shadow-card">
         <CardHeader><CardTitle>Saldo Bahan Baku</CardTitle></CardHeader>

@@ -33,17 +33,24 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/penjualan" element={<Penjualan />} />
-                <Route path="/stok" element={<StokGudang />} />
-                <Route path="/absensi" element={<Absensi />} />
-                <Route path="/laporan" element={<Laporan />} />
-                <Route path="/slip-gaji" element={<SlipGaji />} />
-                <Route element={<ProtectedRoute adminOnly />}>
+                {/* Pages accessible to Admin and Kepala Produksi */}
+                <Route element={<ProtectedRoute allowedRoles={["admin", "produksi"]} />}>
+                  <Route path="/" element={<Dashboard />} />
                   <Route path="/produksi" element={<Produksi />} />
+                </Route>
+                
+                {/* Pages accessible to Admin only */}
+                <Route element={<ProtectedRoute adminOnly />}>
+                  <Route path="/penjualan" element={<Penjualan />} />
+                  <Route path="/laporan" element={<Laporan />} />
                   <Route path="/keuangan" element={<Keuangan />} />
                   <Route path="/master" element={<MasterData />} />
                 </Route>
+
+                {/* Pages accessible to all logged in users (Admin, Produksi, Outlet) */}
+                <Route path="/stok" element={<StokGudang />} />
+                <Route path="/absensi" element={<Absensi />} />
+                <Route path="/slip-gaji" element={<SlipGaji />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

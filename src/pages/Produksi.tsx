@@ -201,6 +201,18 @@ export default function Produksi() {
   const [activeTab, setActiveTab] = useState("siklus"); // siklus, permohonan, riwayat
   const [range, setRange] = useState<DateRange>({});
 
+  const [step1OutletId, setStep1OutletId] = useState("");
+  const [step4OutletId, setStep4OutletId] = useState("");
+  const [step5OutletId, setStep5OutletId] = useState("");
+
+  useEffect(() => {
+    if (outlets.length > 0) {
+      if (!step1OutletId) setStep1OutletId(outlets[0].id);
+      if (!step4OutletId) setStep4OutletId(outlets[0].id);
+      if (!step5OutletId) setStep5OutletId(outlets[0].id);
+    }
+  }, [outlets, step1OutletId, step4OutletId, step5OutletId]);
+
   const pendingCount = useMemo(() => {
     return permohonanStok.filter((r: any) => r.status === "Pending").length;
   }, [permohonanStok]);
@@ -792,120 +804,221 @@ export default function Produksi() {
         <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">Input rencana porsi (cup) menu harian bubur & nasi tim per outlet</p>
+            <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi rencana target produksi, ringkasan seluruh outlet akan muncul di tabel bawah.</p>
           </div>
           <Input
-            placeholder="Cari outlet..."
+            placeholder="Cari outlet di tabel..."
             value={searchOutlet}
             onChange={(e) => setSearchOutlet(e.target.value)}
             className="w-full sm:w-[220px] h-9 text-xs"
           />
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-2xl border overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead className="min-w-[150px] font-bold">Outlet</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur {bubur1Name}</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name}</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5 font-semibold">Tim {tim1Name}</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name}</TableHead>
-                    <TableHead className="text-center font-bold text-xs">Oatmeal</TableHead>
-                    <TableHead className="text-center font-bold text-xs">Puding</TableHead>
-                    <TableHead className="text-center font-bold text-xs">Abon</TableHead>
-                    <TableHead className="text-center font-bold text-xs">Sayur</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOutlets.map((o) => {
-                    const row = planGrid[o.id] || {
-                      bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
-                      oatmeal: 0, puding: 0, abon: 0, sayur: 0
-                    };
-                    return (
-                      <TableRow key={o.id} className="hover:bg-muted/30">
-                        <TableCell className="font-semibold py-3">{o.nama}</TableCell>
-                        <TableCell className="bg-amber-500/5 p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.bubur_d || ""}
-                            onChange={(e) => handlePlanChange(o.id, "bubur_d", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
-                          />
-                        </TableCell>
-                        <TableCell className="bg-blue-500/5 p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.bubur_i || ""}
-                            onChange={(e) => handlePlanChange(o.id, "bubur_i", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
-                          />
-                        </TableCell>
-                        <TableCell className="bg-amber-500/5 p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.tim_d || ""}
-                            onChange={(e) => handlePlanChange(o.id, "tim_d", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
-                          />
-                        </TableCell>
-                        <TableCell className="bg-blue-500/5 p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.tim_i || ""}
-                            onChange={(e) => handlePlanChange(o.id, "tim_i", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
-                          />
-                        </TableCell>
-                        <TableCell className="p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.oatmeal || ""}
-                            onChange={(e) => handlePlanChange(o.id, "oatmeal", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
-                          />
-                        </TableCell>
-                        <TableCell className="p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.puding || ""}
-                            onChange={(e) => handlePlanChange(o.id, "puding", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
-                          />
-                        </TableCell>
-                        <TableCell className="p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.abon || ""}
-                            onChange={(e) => handlePlanChange(o.id, "abon", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
-                          />
-                        </TableCell>
-                        <TableCell className="p-3 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.sayur || ""}
-                            onChange={(e) => handlePlanChange(o.id, "sayur", parseInt(e.target.value))}
-                            className="h-9 text-xs text-center w-16 mx-auto font-medium"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+        <CardContent className="space-y-6">
+          
+          {/* Dropdown Selector & Row Form */}
+          <div className="bg-muted/30 p-5 rounded-2xl border space-y-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="space-y-1.5 flex-1 min-w-[200px]">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pilih Outlet</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const idx = outlets.findIndex(o => o.id === step1OutletId);
+                      if (idx > 0) setStep1OutletId(outlets[idx - 1].id);
+                    }}
+                    disabled={outlets.findIndex(o => o.id === step1OutletId) <= 0}
+                    className="h-11 w-11"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <Select value={step1OutletId} onValueChange={setStep1OutletId}>
+                    <SelectTrigger className="h-11 font-semibold text-sm">
+                      <SelectValue placeholder="Pilih Outlet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets.map((o: any) => (
+                        <SelectItem key={o.id} value={o.id} className="font-medium text-xs">{o.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const idx = outlets.findIndex(o => o.id === step1OutletId);
+                      if (idx < outlets.length - 1) setStep1OutletId(outlets[idx + 1].id);
+                    }}
+                    disabled={outlets.findIndex(o => o.id === step1OutletId) >= outlets.length - 1}
+                    className="h-11 w-11"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Input fields laid out as a row (grid that fits as one row on large screen, wraps on mobile) */}
+            {(() => {
+              const row = planGrid[step1OutletId] || {
+                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                oatmeal: 0, puding: 0, abon: 0, sayur: 0
+              };
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 pt-1">
+                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
+                    <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.bubur_d || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "bubur_d", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.bubur_i || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "bubur_i", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
+                    <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.tim_d || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "tim_d", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.tim_i || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "tim_i", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.oatmeal || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "oatmeal", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.puding || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "puding", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.abon || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "abon", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Sayur</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.sayur || ""}
+                      onChange={(e) => handlePlanChange(step1OutletId, "sayur", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Consolidated Table at the Bottom */}
+          <div className="space-y-2 pt-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Ringkasan Rencana Seluruh Outlet (Klik baris untuk edit)</Label>
+            <div className="rounded-2xl border overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="min-w-[150px] font-bold">Outlet</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur {bubur1Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5 font-semibold">Tim {tim1Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs">Oatmeal</TableHead>
+                      <TableHead className="text-center font-bold text-xs">Puding</TableHead>
+                      <TableHead className="text-center font-bold text-xs">Abon</TableHead>
+                      <TableHead className="text-center font-bold text-xs">Sayur</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOutlets.map((o) => {
+                      const row = planGrid[o.id] || {
+                        bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                        oatmeal: 0, puding: 0, abon: 0, sayur: 0
+                      };
+                      const isSelected = o.id === step1OutletId;
+                      return (
+                        <TableRow 
+                          key={o.id}
+                          onClick={() => setStep1OutletId(o.id)}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected 
+                              ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" 
+                              : "hover:bg-muted/30"
+                          }`}
+                        >
+                          <TableCell className="font-semibold py-3 flex items-center gap-1.5 whitespace-nowrap">
+                            {o.nama}
+                            {isSelected && <Badge className="text-[9px] bg-primary/10 text-primary hover:bg-primary/20 border-primary/20" variant="outline">Edit</Badge>}
+                          </TableCell>
+                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">{row.bubur_d || 0}</TableCell>
+                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">{row.bubur_i || 0}</TableCell>
+                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">{row.tim_d || 0}</TableCell>
+                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">{row.tim_i || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.oatmeal || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.puding || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.abon || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.sayur || 0}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </div>
+
           <div className="flex justify-end">
             <Button onClick={saveStep1} className="gradient-primary text-primary-foreground hover-lift">
               Simpan & Lanjutkan ke Bahan Baku <ArrowRight className="ml-2 h-4 w-4" />
@@ -1079,7 +1192,7 @@ export default function Produksi() {
         <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <CardTitle>Langkah 4: Barang Keluar & Alokasi Outlet</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">Sesuaikan alokasi cup yang dikirim ke outlet berdasarkan realisasi aktual masak</p>
+            <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi kuantitas cup yang dikirim, ringkasan pengiriman akan muncul di tabel bawah.</p>
           </div>
           <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-xl border text-xs">
             <span className="font-bold text-muted-foreground">Status Masak (Actual/Target):</span>
@@ -1088,86 +1201,177 @@ export default function Produksi() {
             </span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-2xl border overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead>Outlet</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Bubur (Cup)</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Nasi Tim (Cup)</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Oatmeal (Cup)</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Puding (Cup)</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Abon (Cup)</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Sayur (Cup)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {outlets.map((o) => {
-                    const row = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
-                    return (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-semibold">{o.nama}</TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.bubur || ""}
-                            onChange={(e) => handleDistChange(o.id, "bubur", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.tim || ""}
-                            onChange={(e) => handleDistChange(o.id, "tim", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.oatmeal || ""}
-                            onChange={(e) => handleDistChange(o.id, "oatmeal", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.puding || ""}
-                            onChange={(e) => handleDistChange(o.id, "puding", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.abon || ""}
-                            onChange={(e) => handleDistChange(o.id, "abon", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.sayur || ""}
-                            onChange={(e) => handleDistChange(o.id, "sayur", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+        <CardContent className="space-y-6">
+
+          {/* Dropdown Selector & Row Form */}
+          <div className="bg-muted/30 p-5 rounded-2xl border space-y-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="space-y-1.5 flex-1 min-w-[200px]">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pilih Outlet</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const idx = outlets.findIndex(o => o.id === step4OutletId);
+                      if (idx > 0) setStep4OutletId(outlets[idx - 1].id);
+                    }}
+                    disabled={outlets.findIndex(o => o.id === step4OutletId) <= 0}
+                    className="h-11 w-11"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <Select value={step4OutletId} onValueChange={setStep4OutletId}>
+                    <SelectTrigger className="h-11 font-semibold text-sm">
+                      <SelectValue placeholder="Pilih Outlet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets.map((o: any) => (
+                        <SelectItem key={o.id} value={o.id} className="font-medium text-xs">{o.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const idx = outlets.findIndex(o => o.id === step4OutletId);
+                      if (idx < outlets.length - 1) setStep4OutletId(outlets[idx + 1].id);
+                    }}
+                    disabled={outlets.findIndex(o => o.id === step4OutletId) >= outlets.length - 1}
+                    className="h-11 w-11"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Input fields laid out as a row */}
+            {(() => {
+              const row = distGrid[step4OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
+                    <Label className="text-[10px] font-bold text-amber-600 block truncate">Bubur (Cup)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.bubur || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "bubur", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate">Nasi Tim (Cup)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.tim || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "tim", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal (Cup)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.oatmeal || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "oatmeal", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding (Cup)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.puding || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "puding", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon (Cup)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.abon || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "abon", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Sayur (Cup)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.sayur || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "sayur", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Consolidated Table at the Bottom */}
+          <div className="space-y-2 pt-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Ringkasan Distribusi Pengiriman (Klik baris untuk edit)</Label>
+            <div className="rounded-2xl border overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead>Outlet</TableHead>
+                      <TableHead className="text-center font-semibold text-xs text-amber-600 bg-amber-500/5">Bubur (Cup)</TableHead>
+                      <TableHead className="text-center font-semibold text-xs text-blue-600 bg-blue-500/5">Nasi Tim (Cup)</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Oatmeal (Cup)</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Puding (Cup)</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Abon (Cup)</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Sayur (Cup)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {outlets.map((o) => {
+                      const row = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                      const isSelected = o.id === step4OutletId;
+                      return (
+                        <TableRow 
+                          key={o.id}
+                          onClick={() => setStep4OutletId(o.id)}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected 
+                              ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" 
+                              : "hover:bg-muted/30"
+                          }`}
+                        >
+                          <TableCell className="font-semibold py-3 flex items-center gap-1.5 whitespace-nowrap">
+                            {o.nama}
+                            {isSelected && <Badge className="text-[9px] bg-primary/10 text-primary hover:bg-primary/20 border-primary/20" variant="outline">Edit</Badge>}
+                          </TableCell>
+                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">{row.bubur || 0}</TableCell>
+                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">{row.tim || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.oatmeal || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.puding || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.abon || 0}</TableCell>
+                          <TableCell className="text-center font-medium text-xs">{row.sayur || 0}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </div>
 
@@ -1183,112 +1387,218 @@ export default function Produksi() {
       </Card>
     );
   }
-
   function renderStep5() {
     return (
       <Card className="glass border-0 shadow-card">
         <CardHeader>
           <CardTitle>Langkah 5: Retur & Penjualan Akhir Hari</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">Input sisa cup tidak terjual untuk retur. Penjualan dan konversi sisa kembali ke bahan baku akan diposting otomatis.</p>
+          <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi sisa cup tidak terjual (retur), penjualan akan dihitung otomatis.</p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-2xl border overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead>Outlet</TableHead>
-                    <TableHead className="text-center font-semibold text-xs text-blue-600 bg-blue-500/5">Bubur Retur</TableHead>
-                    <TableHead className="text-center font-semibold text-xs text-amber-600 bg-amber-500/5">Tim Retur</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Oatmeal Retur</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Puding Retur</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Abon Retur</TableHead>
-                    <TableHead className="text-center font-semibold text-xs">Sayur Retur</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {outlets.map((o) => {
-                    const row = returGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
-                    const sent = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
-                    return (
-                      <TableRow key={o.id}>
-                        <TableCell>
-                          <div className="font-semibold">{o.nama}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            Dikirim: B:{sent.bubur} · T:{sent.tim} · O:{sent.oatmeal} · P:{sent.puding}
-                          </div>
-                        </TableCell>
-                        <TableCell className="bg-blue-500/5 p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={sent.bubur}
-                            value={row.bubur || ""}
-                            onChange={(e) => handleReturChange(o.id, "bubur", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto border-blue-300"
-                            placeholder="0"
-                          />
-                        </TableCell>
-                        <TableCell className="bg-amber-500/5 p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={sent.tim}
-                            value={row.tim || ""}
-                            onChange={(e) => handleReturChange(o.id, "tim", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto border-amber-300"
-                            placeholder="0"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={sent.oatmeal}
-                            value={row.oatmeal || ""}
-                            onChange={(e) => handleReturChange(o.id, "oatmeal", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                            placeholder="0"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={sent.puding}
-                            value={row.puding || ""}
-                            onChange={(e) => handleReturChange(o.id, "puding", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                            placeholder="0"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={sent.abon}
-                            value={row.abon || ""}
-                            onChange={(e) => handleReturChange(o.id, "abon", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                            placeholder="0"
-                          />
-                        </TableCell>
-                        <TableCell className="p-1 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={sent.sayur}
-                            value={row.sayur || ""}
-                            onChange={(e) => handleReturChange(o.id, "sayur", parseInt(e.target.value))}
-                            className="h-8 text-xs text-center w-16 mx-auto"
-                            placeholder="0"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+        <CardContent className="space-y-6">
+
+          {/* Dropdown Selector & Row Form */}
+          <div className="bg-muted/30 p-5 rounded-2xl border space-y-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="space-y-1.5 flex-1 min-w-[200px]">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pilih Outlet</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const idx = outlets.findIndex(o => o.id === step5OutletId);
+                      if (idx > 0) setStep5OutletId(outlets[idx - 1].id);
+                    }}
+                    disabled={outlets.findIndex(o => o.id === step5OutletId) <= 0}
+                    className="h-11 w-11"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <Select value={step5OutletId} onValueChange={setStep5OutletId}>
+                    <SelectTrigger className="h-11 font-semibold text-sm">
+                      <SelectValue placeholder="Pilih Outlet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets.map((o: any) => (
+                        <SelectItem key={o.id} value={o.id} className="font-medium text-xs">{o.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const idx = outlets.findIndex(o => o.id === step5OutletId);
+                      if (idx < outlets.length - 1) setStep5OutletId(outlets[idx + 1].id);
+                    }}
+                    disabled={outlets.findIndex(o => o.id === step5OutletId) >= outlets.length - 1}
+                    className="h-11 w-11"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Input fields laid out as a row with maximum constraints based on sent qty */}
+            {(() => {
+              const row = returGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+              const sent = distGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate">Bubur Retur</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.bubur}
+                      value={row.bubur || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "bubur", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.bubur}</span>
+                  </div>
+                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
+                    <Label className="text-[10px] font-bold text-amber-600 block truncate">Tim Retur</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.tim}
+                      value={row.tim || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "tim", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-amber-300 focus-visible:ring-amber-500 font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.tim}</span>
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal Retur</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.oatmeal}
+                      value={row.oatmeal || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "oatmeal", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.oatmeal}</span>
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding Retur</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.puding}
+                      value={row.puding || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "puding", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.puding}</span>
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon Retur</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.abon}
+                      value={row.abon || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "abon", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.abon}</span>
+                  </div>
+                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Sayur Retur</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.sayur}
+                      value={row.sayur || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "sayur", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center font-medium"
+                      placeholder="0"
+                    />
+                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.sayur}</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Consolidated Table at the Bottom */}
+          <div className="space-y-2 pt-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Ringkasan Retur & Estimasi Terjual (Klik baris untuk edit)</Label>
+            <div className="rounded-2xl border overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead>Outlet</TableHead>
+                      <TableHead className="text-center font-semibold text-xs text-blue-600 bg-blue-500/5">Bubur Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-semibold text-xs text-amber-600 bg-amber-500/5">Tim Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Oatmeal Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Puding Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Abon Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Sayur Retur/Kirim</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {outlets.map((o) => {
+                      const row = returGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                      const sent = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                      const isSelected = o.id === step5OutletId;
+                      return (
+                        <TableRow 
+                          key={o.id}
+                          onClick={() => setStep5OutletId(o.id)}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected 
+                              ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" 
+                              : "hover:bg-muted/30"
+                          }`}
+                        >
+                          <TableCell className="font-semibold py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span>{o.nama}</span>
+                              {isSelected && <Badge className="text-[9px] bg-primary/10 text-primary hover:bg-primary/20 border-primary/20" variant="outline">Edit</Badge>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">
+                            <span className="text-destructive">{row.bubur || 0}</span>
+                            <span className="text-muted-foreground/60">/{sent.bubur}</span>
+                          </TableCell>
+                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">
+                            <span className="text-destructive">{row.tim || 0}</span>
+                            <span className="text-muted-foreground/60">/{sent.tim}</span>
+                          </TableCell>
+                          <TableCell className="text-center font-medium text-xs">
+                            <span className="text-destructive">{row.oatmeal || 0}</span>
+                            <span className="text-muted-foreground/60">/{sent.oatmeal}</span>
+                          </TableCell>
+                          <TableCell className="text-center font-medium text-xs">
+                            <span className="text-destructive">{row.puding || 0}</span>
+                            <span className="text-muted-foreground/60">/{sent.puding}</span>
+                          </TableCell>
+                          <TableCell className="text-center font-medium text-xs">
+                            <span className="text-destructive">{row.abon || 0}</span>
+                            <span className="text-muted-foreground/60">/{sent.abon}</span>
+                          </TableCell>
+                          <TableCell className="text-center font-medium text-xs">
+                            <span className="text-destructive">{row.sayur || 0}</span>
+                            <span className="text-muted-foreground/60">/{sent.sayur}</span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </div>
 

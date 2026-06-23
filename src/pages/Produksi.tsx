@@ -24,14 +24,14 @@ function AdminPermohonanStok({ dbState }: { dbState: any }) {
   const { permohonanStok = [], outlets = [], produk = [] } = dbState;
 
   const [range, setRange] = useState<DateRange>({
-    start: todayISO().slice(0, 7) + "-01", // awal bulan ini
-    end: todayISO()
+    from: todayISO().slice(0, 7) + "-01", // awal bulan ini
+    to: todayISO()
   });
   const [selectedOutletId, setSelectedOutletId] = useState<string>("all");
 
   const filteredRequests = useMemo(() => {
     return (permohonanStok || []).filter((r: any) => {
-      const matchDate = inRange(r.tanggalKirim, range.start, range.end);
+      const matchDate = inRange(r.tanggalKirim, range);
       const matchOutlet = selectedOutletId === "all" || r.outletId === selectedOutletId;
       return matchDate && matchOutlet;
     });
@@ -79,7 +79,7 @@ function AdminPermohonanStok({ dbState }: { dbState: any }) {
         {/* Total Permohonan per Produk Summary */}
         <div className="flex flex-wrap gap-3 bg-muted/40 p-4 rounded-2xl border">
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground w-full">
-            Total Permohonan per Produk (Tanggal Kirim: {range.start} s/d {range.end}):
+            Total Permohonan per Produk (Tanggal Kirim: {range.from ?? "-"} s/d {range.to ?? "-"}):
           </div>
           {produk.map((p: any) => {
             const qty = productTotals[p.id] || 0;
@@ -189,7 +189,7 @@ function AdminPermohonanStok({ dbState }: { dbState: any }) {
 export default function Produksi() {
   const dbState = useDB();
   const { user } = useAuth();
-  const { produk = [], produksi = [], penjualan = [], bahan = [], permohonanStok = [], outlets = [] } = dbState;
+  const { produk = [], produksi = [], penjualan = [], bahan = [], permohonanStok = [], outlets = [], stokMov = [] } = dbState;
 
   const [tanggal, setTanggal] = useState(todayISO());
   const [meatVariant, setMeatVariant] = useState("b-ay01"); // default AYAM
@@ -198,6 +198,39 @@ export default function Produksi() {
   const [step, setStep] = useState(1);
   const [activeTab, setActiveTab] = useState("siklus"); // siklus, permohonan, riwayat
   const [range, setRange] = useState<DateRange>({});
+
+  const pendingCount = useMemo(() => {
+    return permohonanStok.filter((r: any) => r.status === "Pending").length;
+  }, [permohonanStok]);
+
+  const filtered = useMemo(() => {
+    return (produksi || []).filter((p: any) => {
+      return inRange(p.tanggal, range);
+    });
+  }, [produksi, range]);
+
+  const onImport = (rows: any[]) => {
+    const items = rows
+      .map((r) => {
+        const p = produk.find((x) => x.nama.toLowerCase() === String(r.Produk ?? r.produk ?? "").toLowerCase());
+        const tgl = String(r.Tanggal ?? r.tanggal ?? "").slice(0, 10);
+        const qtyRencana = Number(r.Rencana ?? r.rencana ?? r.QtyRencana ?? r.qty_rencana ?? 0);
+        const qtyRealisasi = Number(r.Realisasi ?? r.realisasi ?? r.QtyRealisasi ?? r.qty_realisasi ?? 0);
+        if (!p || !tgl || (qtyRencana <= 0 && qtyRealisasi <= 0)) return null;
+        return {
+          tanggal: tgl,
+          produkId: p.id,
+          qtyRencana,
+          qtyRealisasi
+        };
+      })
+      .filter(Boolean) as any[];
+    if (!items.length) {
+      return toast.error("Tidak ada data valid (kolom: Tanggal, Produk, Rencana, Realisasi)");
+    }
+    db.addProduksiBulk(items);
+    toast.success(`${items.length} riwayat produksi berhasil di-import`);
+  };
   
   // STEP 1 STATES
   const [planGrid, setPlanGrid] = useState<Record<string, Record<string, number>>>({});

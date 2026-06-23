@@ -36,6 +36,10 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   const [tanggalKirim, setTanggalKirim] = useState(tomorrow());
   const [catatan, setCatatan] = useState("");
 
+  const selectedProduct = useMemo(() => {
+    return (produk || []).find((p: any) => p.id === produkId);
+  }, [produk, produkId]);
+
   useEffect(() => {
     if (supportItems.length > 0 && !produkId) {
       setProdukId(supportItems[0].id);
@@ -44,7 +48,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
 
   const handleAddItem = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!produkId || qty < 1) return toast.error("Pilih produk dan jumlah valid");
+    if (!produkId || qty < 1) return toast.error("Pilih perlengkapan dan jumlah valid");
     
     const existingIndex = selectedItems.findIndex(item => item.produkId === produkId);
     if (existingIndex > -1) {
@@ -55,7 +59,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
       setSelectedItems([...selectedItems, { produkId, qty }]);
     }
     setQty(1);
-    toast.success("Produk ditambahkan ke daftar");
+    toast.success("Perlengkapan ditambahkan ke daftar");
   };
 
   const handleRemoveItem = (index: number) => {
@@ -64,7 +68,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedItems.length === 0) return toast.error("Tambahkan minimal 1 produk ke daftar permintaan");
+    if (selectedItems.length === 0) return toast.error("Tambahkan minimal 1 perlengkapan ke daftar");
     if (!tanggalKirim) return toast.error("Pilih tanggal kirim");
 
     const batch = selectedItems.map(item => ({
@@ -77,7 +81,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
     }));
 
     db.addPermohonanStokBulk(batch);
-    toast.success("Permohonan stok berhasil dikirim ke Admin");
+    toast.success("Permohonan perlengkapan berhasil dikirim ke Admin");
     setSelectedItems([]);
     setCatatan("");
   };
@@ -93,19 +97,19 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gradient">Permohonan Stok</h1>
-        <p className="text-sm text-muted-foreground">Pesan beberapa stok produk Buba Healthy ke admin dalam satu pengiriman</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gradient">Request Perlengkapan Outlet</h1>
+        <p className="text-sm text-muted-foreground">Ajukan permohonan perlengkapan pendukung (cup, tutup, sendok, tisu, kantong, dll.) ke admin.</p>
       </div>
 
       <Card className="glass border-0 shadow-card">
         <CardHeader>
-          <CardTitle>Form Permohonan Stok Multi-Produk</CardTitle>
+          <CardTitle>Form Request Perlengkapan</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Item Selector Form Row */}
           <div className="grid gap-4 md:grid-cols-4 items-end">
             <div className="space-y-2 md:col-span-2">
-              <Label>Produk</Label>
+              <Label>Pilih Perlengkapan</Label>
               <Select value={produkId} onValueChange={setProdukId}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -116,7 +120,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Jumlah (Cup)</Label>
+              <Label>Jumlah ({selectedProduct?.satuan ?? "pcs"})</Label>
               <Input
                 type="number"
                 min={1}
@@ -138,7 +142,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Produk</TableHead>
+                    <TableHead>Perlengkapan</TableHead>
                     <TableHead className="text-right">Jumlah</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
@@ -149,7 +153,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                     return (
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{prod?.nama ?? "-"}</TableCell>
-                        <TableCell className="text-right font-semibold">{item.qty} cup</TableCell>
+                        <TableCell className="text-right font-semibold">{item.qty} {prod?.satuan ?? "pcs"}</TableCell>
                         <TableCell>
                           <Button size="icon" variant="ghost" onClick={() => handleRemoveItem(idx)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -185,7 +189,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
             </div>
             <div className="md:col-span-2 lg:col-span-3">
               <Button type="submit" disabled={selectedItems.length === 0} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                <Send className="mr-2 h-4 w-4" /> Kirim Permohonan ({selectedItems.length} Produk)
+                <Send className="mr-2 h-4 w-4" /> Kirim Permohonan ({selectedItems.length} Item)
               </Button>
             </div>
           </form>
@@ -204,7 +208,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                   <TableRow>
                     <TableHead>Tgl Request</TableHead>
                     <TableHead>Tgl Kirim</TableHead>
-                    <TableHead>Produk</TableHead>
+                    <TableHead>Perlengkapan</TableHead>
                     <TableHead className="text-right">Jumlah</TableHead>
                     <TableHead>Catatan</TableHead>
                     <TableHead>Status</TableHead>
@@ -215,7 +219,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                   {myRequests.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        Belum ada permohonan stok
+                        Belum ada permohonan stok perlengkapan
                       </TableCell>
                     </TableRow>
                   )}
@@ -226,7 +230,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                         <TableCell className="whitespace-nowrap">{r.tanggal}</TableCell>
                         <TableCell className="whitespace-nowrap">{r.tanggalKirim}</TableCell>
                         <TableCell className="whitespace-nowrap font-medium">{prod?.nama ?? "-"}</TableCell>
-                        <TableCell className="text-right font-semibold">{r.qty} cup</TableCell>
+                        <TableCell className="text-right font-semibold">{r.qty} {prod?.satuan ?? "pcs"}</TableCell>
                         <TableCell className="max-w-[200px] truncate" title={r.catatan}>{r.catatan || "-"}</TableCell>
                         <TableCell>
                           {r.status === "Pending" && (

@@ -192,8 +192,10 @@ export default function Produksi() {
   const { produk = [], produksi = [], penjualan = [], bahan = [], permohonanStok = [], outlets = [], stokMov = [] } = dbState;
 
   const [tanggal, setTanggal] = useState(todayISO());
-  const [meatVariant, setMeatVariant] = useState("b-ay01"); // default AYAM
-  const [fishVariant, setFishVariant] = useState("b-sl01"); // default SALMON
+  const [bubur1Variant, setBubur1Variant] = useState("b-ay01"); // default AYAM
+  const [bubur2Variant, setBubur2Variant] = useState("b-sl01"); // default SALMON
+  const [tim1Variant, setTim1Variant] = useState("b-ay01"); // default AYAM
+  const [tim2Variant, setTim2Variant] = useState("b-sl01"); // default SALMON
   
   const [step, setStep] = useState(1);
   const [activeTab, setActiveTab] = useState("siklus"); // siklus, permohonan, riwayat
@@ -232,21 +234,28 @@ export default function Produksi() {
     toast.success(`${items.length} riwayat produksi berhasil di-import`);
   };
   
-  const meatOptions = useMemo(() => {
-    return (bahan || []).filter(b => ["b-ay01", "b-dg01", "b-ck01"].includes(b.id));
+  const menuOptions = useMemo(() => {
+    return (bahan || []).filter(b => [
+      "b-ay01", "b-dg01", "b-ck01", // meats
+      "b-sl01", "b-tn01", "b-tg01", "b-gr01", "b-kk01", "b-dr01" // fish
+    ].includes(b.id));
   }, [bahan]);
 
-  const fishOptions = useMemo(() => {
-    return (bahan || []).filter(b => ["b-sl01", "b-tn01", "b-tg01", "b-gr01", "b-kk01", "b-dr01"].includes(b.id));
-  }, [bahan]);
+  const bubur1Name = useMemo(() => {
+    return (bahan || []).find(x => x.id === bubur1Variant)?.nama ?? "Daging";
+  }, [bubur1Variant, bahan]);
 
-  const meatName = useMemo(() => {
-    return (bahan || []).find(x => x.id === meatVariant)?.nama ?? "Daging";
-  }, [meatVariant, bahan]);
+  const bubur2Name = useMemo(() => {
+    return (bahan || []).find(x => x.id === bubur2Variant)?.nama ?? "Ikan";
+  }, [bubur2Variant, bahan]);
 
-  const fishName = useMemo(() => {
-    return (bahan || []).find(x => x.id === fishVariant)?.nama ?? "Ikan";
-  }, [fishVariant, bahan]);
+  const tim1Name = useMemo(() => {
+    return (bahan || []).find(x => x.id === tim1Variant)?.nama ?? "Daging";
+  }, [tim1Variant, bahan]);
+
+  const tim2Name = useMemo(() => {
+    return (bahan || []).find(x => x.id === tim2Variant)?.nama ?? "Ikan";
+  }, [tim2Variant, bahan]);
 
   // STEP 1 STATES
   const [planGrid, setPlanGrid] = useState<Record<string, Record<string, number>>>({});
@@ -519,19 +528,27 @@ export default function Produksi() {
     const abonQty = Math.round(totals.abon * 10.00);
     if (abonQty > 0) reqs.push({ bahanId: "b-ab01", kode: "AB01", nama: "ABON", qty: abonQty, satuan: "gram" });
 
-    const meatCups = totals.buburD + totals.timD;
-    const meatSachets = Math.ceil(meatCups / 10);
-    if (meatSachets > 0 && meatVariant) {
-      const b = bahan.find(x => x.id === meatVariant);
-      if (b) reqs.push({ bahanId: b.id, kode: b.kode, nama: b.nama, qty: meatSachets, satuan: b.satuan });
+    const variantReqs: Record<string, number> = {};
+
+    if (totals.buburD > 0 && bubur1Variant) {
+      variantReqs[bubur1Variant] = (variantReqs[bubur1Variant] || 0) + Math.ceil(totals.buburD / 10);
+    }
+    if (totals.buburI > 0 && bubur2Variant) {
+      variantReqs[bubur2Variant] = (variantReqs[bubur2Variant] || 0) + Math.ceil(totals.buburI / 10);
+    }
+    if (totals.timD > 0 && tim1Variant) {
+      variantReqs[tim1Variant] = (variantReqs[tim1Variant] || 0) + Math.ceil(totals.timD / 10);
+    }
+    if (totals.timI > 0 && tim2Variant) {
+      variantReqs[tim2Variant] = (variantReqs[tim2Variant] || 0) + Math.ceil(totals.timI / 10);
     }
 
-    const fishCups = totals.buburI + totals.timI;
-    const fishSachets = Math.ceil(fishCups / 10);
-    if (fishSachets > 0 && fishVariant) {
-      const b = bahan.find(x => x.id === fishVariant);
-      if (b) reqs.push({ bahanId: b.id, kode: b.kode, nama: b.nama, qty: fishSachets, satuan: b.satuan });
-    }
+    Object.entries(variantReqs).forEach(([variantId, qtySachets]) => {
+      const b = bahan.find(x => x.id === variantId);
+      if (b) {
+        reqs.push({ bahanId: b.id, kode: b.kode, nama: b.nama, qty: qtySachets, satuan: b.satuan });
+      }
+    });
 
     const cupBuburQty = totals.totalBubur + totals.totalTim + totals.sayur;
     if (cupBuburQty > 0) reqs.push({ bahanId: "b-cb01", kode: "CB01", nama: "CUP BUBUR", qty: cupBuburQty, satuan: "biji" });
@@ -546,7 +563,7 @@ export default function Produksi() {
     if (totals.puding > 0) reqs.push({ bahanId: "b-cuppud01", kode: "CUPPUD01", nama: "CUP PUDING", qty: totals.puding, satuan: "biji" });
 
     return reqs;
-  }, [totals, meatVariant, fishVariant, bahan]);
+  }, [totals, bubur1Variant, bubur2Variant, tim1Variant, tim2Variant, bahan]);
 
   const isWarehouseRequested = useMemo(() => {
     return stokMov.some((m: any) => m.tanggal === tanggal && m.tipe === "OUT" && m.keterangan?.includes("Pemakaian Produksi"));
@@ -775,7 +792,7 @@ export default function Produksi() {
         <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">Input rencana porsi (cup) menu Daging ({meatName}) dan Ikan ({fishName}) per outlet</p>
+            <p className="text-xs text-muted-foreground mt-1">Input rencana porsi (cup) menu harian bubur & nasi tim per outlet</p>
           </div>
           <Input
             placeholder="Cari outlet..."
@@ -791,10 +808,10 @@ export default function Produksi() {
                 <TableHeader>
                   <TableRow className="bg-muted/40">
                     <TableHead className="min-w-[150px] font-bold">Outlet</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur {meatName}</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {fishName}</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5 font-semibold">Tim {meatName}</TableHead>
-                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {fishName}</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur {bubur1Name}</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name}</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5 font-semibold">Tim {tim1Name}</TableHead>
+                    <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name}</TableHead>
                     <TableHead className="text-center font-bold text-xs">Oatmeal</TableHead>
                     <TableHead className="text-center font-bold text-xs">Puding</TableHead>
                     <TableHead className="text-center font-bold text-xs">Abon</TableHead>
@@ -989,8 +1006,8 @@ export default function Produksi() {
         <CardContent className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[
-              { id: "bubur", label: `Bubur (${meatName} & ${fishName})`, unitWeight: 118, targetCups: totals.totalBubur },
-              { id: "tim", label: `Nasi Tim (${meatName} & ${fishName})`, unitWeight: 108, targetCups: totals.totalTim },
+              { id: "bubur", label: `Bubur (${bubur1Name} & ${bubur2Name})`, unitWeight: 118, targetCups: totals.totalBubur },
+              { id: "tim", label: `Nasi Tim (${tim1Name} & ${tim2Name})`, unitWeight: 108, targetCups: totals.totalTim },
               { id: "oatmeal", label: "Oatmeal", unitWeight: 100, targetCups: totals.oatmeal },
               { id: "puding", label: "Puding", unitWeight: 80, targetCups: totals.puding },
               { id: "abon", label: "Abon", unitWeight: 10, targetCups: totals.abon },
@@ -1294,49 +1311,92 @@ export default function Produksi() {
         {/* Configuration Card */}
         <Card className="glass border-0 shadow-card bg-card/60 backdrop-blur-lg">
           <CardContent className="p-6">
-            <div className="grid gap-6 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-primary" /> Tanggal Produksi
-                </Label>
-                <Input
-                  type="date"
-                  value={tanggal}
-                  onChange={(e) => setTanggal(e.target.value)}
-                  className="h-11 rounded-xl font-medium border-primary/20 focus-visible:ring-primary text-sm shadow-sm"
-                />
+            <div className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="space-y-1 w-full md:w-1/3">
+                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 text-primary" /> Tanggal Produksi
+                  </Label>
+                  <Input
+                    type="date"
+                    value={tanggal}
+                    onChange={(e) => setTanggal(e.target.value)}
+                    className="h-10 rounded-xl font-medium border-primary/20 focus-visible:ring-primary text-sm shadow-sm"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground italic text-right hidden md:block">
+                  Pilih varian menu harian secara independen untuk Bubur 1, Bubur 2, Tim 1, dan Tim 2
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Badge variant="outline" className="h-4.5 w-4.5 p-0 flex items-center justify-center font-bold text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/20">D</Badge>
-                  Menu Daging (D)
-                </Label>
-                <Select value={meatVariant} onValueChange={setMeatVariant}>
-                  <SelectTrigger className="h-11 rounded-xl border-amber-300 focus:ring-amber-500 bg-amber-500/5 font-semibold text-sm">
-                    <SelectValue placeholder="Pilih Daging" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {meatOptions.map(b => (
-                      <SelectItem key={b.id} value={b.id} className="font-medium text-sm">{b.nama}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Badge variant="outline" className="h-4.5 w-4.5 p-0 flex items-center justify-center font-bold text-[9px] bg-blue-500/10 text-blue-600 border-blue-500/20">I</Badge>
-                  Menu Ikan (I)
-                </Label>
-                <Select value={fishVariant} onValueChange={setFishVariant}>
-                  <SelectTrigger className="h-11 rounded-xl border-blue-300 focus:ring-blue-500 bg-blue-500/5 font-semibold text-sm">
-                    <SelectValue placeholder="Pilih Ikan" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {fishOptions.map(b => (
-                      <SelectItem key={b.id} value={b.id} className="font-medium text-sm">{b.nama}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 pt-4 border-t border-muted/50">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1">
+                    <Badge variant="outline" className="h-4 w-4 p-0 flex items-center justify-center font-bold text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/20">B1</Badge>
+                    Bubur 1
+                  </Label>
+                  <Select value={bubur1Variant} onValueChange={setBubur1Variant}>
+                    <SelectTrigger className="h-10 rounded-xl border-amber-300/80 focus:ring-amber-500 bg-amber-500/5 font-semibold text-xs">
+                      <SelectValue placeholder="Pilih Menu" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {menuOptions.map(b => (
+                        <SelectItem key={b.id} value={b.id} className="font-medium text-xs">{b.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                    <Badge variant="outline" className="h-4 w-4 p-0 flex items-center justify-center font-bold text-[9px] bg-blue-500/10 text-blue-600 border-blue-500/20">B2</Badge>
+                    Bubur 2
+                  </Label>
+                  <Select value={bubur2Variant} onValueChange={setBubur2Variant}>
+                    <SelectTrigger className="h-10 rounded-xl border-blue-300/80 focus:ring-blue-500 bg-blue-500/5 font-semibold text-xs">
+                      <SelectValue placeholder="Pilih Menu" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {menuOptions.map(b => (
+                        <SelectItem key={b.id} value={b.id} className="font-medium text-xs">{b.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1">
+                    <Badge variant="outline" className="h-4 w-4 p-0 flex items-center justify-center font-bold text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/20">T1</Badge>
+                    Tim 1
+                  </Label>
+                  <Select value={tim1Variant} onValueChange={setTim1Variant}>
+                    <SelectTrigger className="h-10 rounded-xl border-amber-300/80 focus:ring-amber-500 bg-amber-500/5 font-semibold text-xs">
+                      <SelectValue placeholder="Pilih Menu" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {menuOptions.map(b => (
+                        <SelectItem key={b.id} value={b.id} className="font-medium text-xs">{b.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                    <Badge variant="outline" className="h-4 w-4 p-0 flex items-center justify-center font-bold text-[9px] bg-blue-500/10 text-blue-600 border-blue-500/20">T2</Badge>
+                    Tim 2
+                  </Label>
+                  <Select value={tim2Variant} onValueChange={setTim2Variant}>
+                    <SelectTrigger className="h-10 rounded-xl border-blue-300/80 focus:ring-blue-500 bg-blue-500/5 font-semibold text-xs">
+                      <SelectValue placeholder="Pilih Menu" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {menuOptions.map(b => (
+                        <SelectItem key={b.id} value={b.id} className="font-medium text-xs">{b.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardContent>

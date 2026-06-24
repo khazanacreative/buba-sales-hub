@@ -174,17 +174,9 @@ export default function Absensi() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-end gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gradient">Absensi Karyawan</h1>
-          <p className="text-sm text-muted-foreground">Catat kehadiran & rekap penggajian harian</p>
-        </div>
-        <Button 
-          onClick={() => navigate("/slip-gaji")} 
-          className="gradient-primary text-primary-foreground hover-lift"
-        >
-          <FileText className="mr-2 h-4 w-4" /> Slip Gaji
-        </Button>
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold text-gradient">Absensi Karyawan</h1>
+        <p className="text-sm text-muted-foreground">Catat kehadiran & rekap penggajian harian</p>
       </div>
 
 
@@ -374,14 +366,6 @@ export default function Absensi() {
                   <Check className="mr-2 h-5 w-5 shrink-0" /> Absensi Hari Ini Lengkap ({todayRecord.jamMasuk} - {todayRecord.jamPulang})
                 </div>
               )}
-
-              <Button 
-                onClick={() => navigate("/slip-gaji")}
-                variant="outline" 
-                className="w-full h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 font-bold text-xs shadow-sm hover-lift"
-              >
-                <FileText className="mr-2 h-4 w-4" /> Cetak Slip Gaji Bulan Ini
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -444,14 +428,6 @@ export default function Absensi() {
                     <Check className="mr-1 h-4 w-4 shrink-0" /> Absensi Lengkap · Masuk: {todayRecord.jamMasuk} · Pulang: {todayRecord.jamPulang}
                   </div>
                 )}
-
-                <Button 
-                  onClick={() => navigate("/slip-gaji")}
-                  variant="outline" 
-                  className="w-full h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 font-bold text-xs shadow-sm hover-lift"
-                >
-                  <FileText className="mr-2 h-4 w-4" /> Cetak Slip Gaji Karyawan
-                </Button>
               </div>
             </div>
 
@@ -549,6 +525,14 @@ export default function Absensi() {
             pageSize={rekapPg.pageSize} 
             onChange={rekapPg.setPage} 
           />
+          <div className="flex justify-end mt-4 pt-4 border-t">
+            <Button 
+              onClick={() => navigate("/slip-gaji")} 
+              className="gradient-primary text-primary-foreground hover-lift w-full sm:w-auto"
+            >
+              <FileText className="mr-2 h-4 w-4" /> Cetak Slip Gaji
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

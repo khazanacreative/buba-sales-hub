@@ -993,7 +993,8 @@ export default function Produksi() {
 
           <div className="flex justify-end">
             <Button onClick={saveStep1} className="gradient-primary text-primary-foreground hover-lift">
-              Simpan & Lanjutkan ke Bahan Baku <ArrowRight className="ml-2 h-4 w-4" />
+              <span className="hidden md:inline">Simpan & Lanjutkan ke Bahan Baku</span>
+              <ArrowRight className="h-4 w-4 md:ml-2" />
             </Button>
           </div>
         </CardContent>
@@ -1055,15 +1056,18 @@ export default function Produksi() {
 
           <div className="flex justify-between items-center">
             <Button variant="outline" onClick={() => setStep(1)} className="h-10">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Langkah 1
+              <ArrowLeft className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Kembali ke Langkah 1</span>
             </Button>
             {isWarehouseRequested ? (
               <div className="flex items-center gap-2">
                 <Badge className="bg-success text-success-foreground h-10 px-4 text-xs font-semibold gap-1.5">
-                  <CheckCircle2 className="h-4 w-4" /> Bahan Baku Sudah Dipotong Dari Gudang
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="hidden md:inline">Bahan Baku Sudah Dipotong Dari Gudang</span>
                 </Badge>
                 <Button onClick={() => setStep(3)} className="h-10 gradient-primary text-primary-foreground">
-                  Lanjutkan <ArrowRight className="ml-2 h-4 w-4" />
+                  <span className="hidden md:inline">Lanjutkan</span>
+                  <ArrowRight className="h-4 w-4 md:ml-2" />
                 </Button>
               </div>
             ) : (
@@ -1072,7 +1076,8 @@ export default function Produksi() {
                 disabled={materialReqs.length === 0}
                 className="gradient-primary text-primary-foreground hover-lift h-10"
               >
-                <Send className="mr-2 h-4 w-4" /> Potong Stok Gudang & Lanjutkan
+                <span className="hidden md:inline">Potong Stok Gudang & Lanjutkan</span>
+                <Send className="h-4 w-4 md:ml-2" />
               </Button>
             )}
           </div>
@@ -1151,10 +1156,12 @@ export default function Produksi() {
 
           <div className="flex justify-between items-center border-t pt-6">
             <Button variant="outline" onClick={() => setStep(2)} className="h-10">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+              <ArrowLeft className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Kembali</span>
             </Button>
             <Button onClick={saveStep3} className="gradient-primary text-primary-foreground hover-lift h-10">
-              <Check className="mr-2 h-4 w-4" /> Simpan Hasil Aktual & Lanjutkan
+              <Check className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Simpan Hasil Aktual & Lanjutkan</span>
             </Button>
           </div>
         </CardContent>
@@ -1340,10 +1347,12 @@ export default function Produksi() {
 
           <div className="flex justify-between items-center border-t pt-6">
             <Button variant="outline" onClick={() => setStep(3)} className="h-10">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+              <ArrowLeft className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Kembali</span>
             </Button>
             <Button onClick={saveStep4} className="gradient-primary text-primary-foreground hover-lift h-10">
-              <Check className="mr-2 h-4 w-4" /> Konfirmasi Pengiriman & Lanjutkan
+              <Check className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Konfirmasi Pengiriman & Lanjutkan</span>
             </Button>
           </div>
         </CardContent>
@@ -1549,10 +1558,12 @@ export default function Produksi() {
 
           <div className="flex justify-between items-center border-t pt-6">
             <Button variant="outline" onClick={() => setStep(4)} className="h-10">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+              <ArrowLeft className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Kembali</span>
             </Button>
             <Button onClick={saveStep5} className="gradient-success text-white hover-lift h-10 font-bold">
-              <ShoppingBag className="mr-2 h-4 w-4" /> Selesaikan & Posting Penjualan / Retur
+              <ShoppingBag className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Selesaikan & Posting Penjualan / Retur</span>
             </Button>
           </div>
         </CardContent>

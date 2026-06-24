@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp, FileText, Factory } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp, FileText, Factory, User } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 
@@ -15,7 +15,7 @@ export function BottomNav() {
       return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
-        { title: "Absensi", url: "/absensi", icon: UserCheck },
+        { title: "Absensi", url: "/absensi", icon: UserCheck, highlighted: true },
         {
           title: "Logistik",
           icon: Warehouse,
@@ -36,16 +36,18 @@ export function BottomNav() {
     } else if (user?.role === "produksi") {
       return [
         { title: "Home", url: "/", icon: LayoutDashboard },
-        { title: "Produksi", url: "/produksi", icon: Factory },
-        { title: "Absen", url: "/absensi", icon: UserCheck },
-        { title: "Gaji", url: "/slip-gaji", icon: FileText },
         { title: "Stok", url: "/stok", icon: Warehouse },
+        { title: "Produksi", url: "/produksi", icon: Factory, highlighted: true },
+        { title: "Absen", url: "/absensi", icon: UserCheck },
+        { title: "Profile", url: "/profile", icon: User },
       ];
     } else { // outlet
       return [
-        { title: "Absen", url: "/absensi", icon: UserCheck },
-        { title: "Gaji", url: "/slip-gaji", icon: FileText },
+        { title: "Home", url: "/", icon: LayoutDashboard },
+        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        { title: "Absen", url: "/absensi", icon: UserCheck, highlighted: true },
         { title: "Stok", url: "/stok", icon: Warehouse },
+        { title: "Profile", url: "/profile", icon: User },
       ];
     }
   })();
@@ -171,7 +173,7 @@ export function BottomNav() {
               displayTitle = "Laporan";
             }
 
-            if (item.title === "Absen" || item.title === "Absensi") {
+            if (item.highlighted) {
               return (
                 <li key={item.title} className="flex-1 min-w-[64px] relative -top-3.5 flex justify-center z-10">
                   <NavLink

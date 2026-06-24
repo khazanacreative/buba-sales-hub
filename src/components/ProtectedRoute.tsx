@@ -11,10 +11,10 @@ export default function ProtectedRoute({ adminOnly, allowedRoles }: Props) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/welcome" replace />;
   if (adminOnly && user.role !== "admin") {
-    return <Navigate to={user.role === "outlet" ? "/absensi" : "/"} replace />;
+    return <Navigate to="/" replace />;
   }
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={user.role === "outlet" ? "/absensi" : "/"} replace />;
+    return <Navigate to="/" replace />;
   }
   return <Outlet />;
 }

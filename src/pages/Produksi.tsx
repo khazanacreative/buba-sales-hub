@@ -1723,7 +1723,7 @@ export default function Produksi() {
             </div>
           </div>
           
-          <div className="grid grid-cols-5 gap-2 mt-4 pt-4 border-t">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mt-4 pt-4 border-t">
             {[
               { num: 1, label: "Pra-Produksi" },
               { num: 2, label: "Request Bahan" },
@@ -1737,7 +1737,7 @@ export default function Produksi() {
                 <button
                   key={s.num}
                   onClick={() => setStep(s.num)}
-                  className={`flex flex-col items-center p-2 rounded-xl transition-all ${
+                  className={`flex flex-row md:flex-col items-center gap-3 md:gap-1.5 p-3 md:p-2.5 rounded-xl transition-all text-left md:text-center ${
                     isActive
                       ? "bg-primary text-primary-foreground shadow-soft"
                       : isPast
@@ -1745,10 +1745,16 @@ export default function Produksi() {
                       : "text-muted-foreground hover:bg-muted/10"
                   }`}
                 >
-                  <span className="text-xs font-bold flex items-center gap-1">
-                    {isPast ? <Check className="h-3 w-3" /> : <span>{s.num}</span>}
-                    {s.label}
-                  </span>
+                  <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                    isActive 
+                      ? "bg-white text-primary" 
+                      : isPast 
+                      ? "bg-success/15 text-success" 
+                      : "bg-muted/50 text-muted-foreground"
+                  }`}>
+                    {isPast ? <Check className="h-3.5 w-3.5" /> : s.num}
+                  </div>
+                  <span className="text-xs font-bold leading-none">{s.label}</span>
                 </button>
               );
             })}

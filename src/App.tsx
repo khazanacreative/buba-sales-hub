@@ -17,6 +17,7 @@ import MasterData from "./pages/MasterData";
 import StokGudang from "./pages/StokGudang";
 import Absensi from "./pages/Absensi";
 import SlipGaji from "./pages/SlipGaji";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -35,22 +36,27 @@ const App = () => (
               <Route element={<AppLayout />}>
                 {/* Pages accessible to Admin and Kepala Produksi */}
                 <Route element={<ProtectedRoute allowedRoles={["admin", "produksi"]} />}>
-                  <Route path="/" element={<Dashboard />} />
                   <Route path="/produksi" element={<Produksi />} />
+                </Route>
+
+                {/* Pages accessible to Admin and Outlet */}
+                <Route element={<ProtectedRoute allowedRoles={["admin", "outlet"]} />}>
+                  <Route path="/penjualan" element={<Penjualan />} />
                 </Route>
                 
                 {/* Pages accessible to Admin only */}
                 <Route element={<ProtectedRoute adminOnly />}>
-                  <Route path="/penjualan" element={<Penjualan />} />
                   <Route path="/laporan" element={<Laporan />} />
                   <Route path="/keuangan" element={<Keuangan />} />
                   <Route path="/master" element={<MasterData />} />
                 </Route>
 
                 {/* Pages accessible to all logged in users (Admin, Produksi, Outlet) */}
+                <Route path="/" element={<Dashboard />} />
                 <Route path="/stok" element={<StokGudang />} />
                 <Route path="/absensi" element={<Absensi />} />
                 <Route path="/slip-gaji" element={<SlipGaji />} />
+                <Route path="/profile" element={<Profile />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

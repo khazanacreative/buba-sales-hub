@@ -381,7 +381,7 @@ export default function Absensi() {
             </div>
 
             {/* Action Checkin Button */}
-            <div className="w-full">
+            <div className="w-full space-y-3">
               {!todayRecord ? (
                 <Button 
                   onClick={handleClockInGPS}
@@ -403,6 +403,14 @@ export default function Absensi() {
                   <Check className="mr-2 h-5 w-5 shrink-0" /> Absensi Hari Ini Lengkap ({todayRecord.jamMasuk} - {todayRecord.jamPulang})
                 </div>
               )}
+
+              <Button 
+                onClick={() => navigate("/slip-gaji")}
+                variant="outline" 
+                className="w-full h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 font-bold text-xs shadow-sm hover-lift"
+              >
+                <FileText className="mr-2 h-4 w-4" /> Cetak Slip Gaji Bulan Ini
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -425,7 +433,7 @@ export default function Absensi() {
                 </Select>
               </div>
 
-              <div className="w-full">
+              <div className="w-full space-y-3">
                 {!todayRecord ? (
                   <div className="grid grid-cols-3 gap-2 w-full">
                     <Button 
@@ -465,6 +473,14 @@ export default function Absensi() {
                     <Check className="mr-1 h-4 w-4 shrink-0" /> Absensi Lengkap · Masuk: {todayRecord.jamMasuk} · Pulang: {todayRecord.jamPulang}
                   </div>
                 )}
+
+                <Button 
+                  onClick={() => navigate("/slip-gaji")}
+                  variant="outline" 
+                  className="w-full h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 font-bold text-xs shadow-sm hover-lift"
+                >
+                  <FileText className="mr-2 h-4 w-4" /> Cetak Slip Gaji Karyawan
+                </Button>
               </div>
             </div>
 

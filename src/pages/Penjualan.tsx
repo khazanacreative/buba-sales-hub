@@ -79,60 +79,68 @@ export default function Penjualan() {
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-end gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gradient">Input Penjualan</h1>
-          <p className="text-sm text-muted-foreground">Catat transaksi penjualan harian {isOutlet ? `untuk outlet ${user?.nama}` : "per outlet"}</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gradient">
+            {isOutlet ? "Laporan Penjualan (Read-Only)" : "Input Penjualan"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {isOutlet
+              ? `Riwayat transaksi penjualan untuk outlet ${user?.nama}`
+              : "Catat transaksi penjualan harian per outlet"}
+          </p>
         </div>
         {!isOutlet && <ImportExcelButton onData={onImport} />}
       </div>
 
       {/* Form utama (di atas) */}
-      <Card className="glass border-0 shadow-card">
-        <CardHeader><CardTitle>Form Penjualan</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6 items-end">
-            <div className="space-y-2 col-span-2 md:col-span-1">
-              <Label>Tanggal</Label>
-              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="h-10" />
-            </div>
-            {!isOutlet && (
+      {!isOutlet && (
+        <Card className="glass border-0 shadow-card">
+          <CardHeader><CardTitle>Form Penjualan</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={submit} className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6 items-end">
               <div className="space-y-2 col-span-2 md:col-span-1">
-                <Label>Outlet</Label>
-                <Select value={outletId} onValueChange={setOutletId}>
+                <Label>Tanggal</Label>
+                <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="h-10" />
+              </div>
+              {!isOutlet && (
+                <div className="space-y-2 col-span-2 md:col-span-1">
+                  <Label>Outlet</Label>
+                  <Select value={outletId} onValueChange={setOutletId}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {outlets.map((o) => <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2 col-span-2 md:col-span-1">
+                <Label>Produk</Label>
+                <Select value={produkId} onValueChange={setProdukId}>
                   <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {outlets.map((o) => <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>)}
+                    {produk.map((p) => <SelectItem key={p.id} value={p.id}>{p.nama} — {rupiah(p.harga)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            <div className="space-y-2 col-span-2 md:col-span-1">
-              <Label>Produk</Label>
-              <Select value={produkId} onValueChange={setProdukId}>
-                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {produk.map((p) => <SelectItem key={p.id} value={p.id}>{p.nama} — {rupiah(p.harga)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Jumlah</Label>
-              <Input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} className="h-10" />
-            </div>
-            <div className="space-y-2">
-              <Label>Total</Label>
-              <div className="h-10 rounded-md gradient-soft px-3 flex items-center border border-border/50 font-bold text-primary text-sm">
-                {rupiah(total)}
+              <div className="space-y-2">
+                <Label>Jumlah</Label>
+                <Input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} className="h-10" />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="invisible hidden lg:block">.</Label>
-              <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                <Plus className="mr-1 h-4 w-4" />Simpan
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <div className="space-y-2">
+                <Label>Total</Label>
+                <div className="h-10 rounded-md gradient-soft px-3 flex items-center border border-border/50 font-bold text-primary text-sm">
+                  {rupiah(total)}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="invisible hidden lg:block">.</Label>
+                <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                  <Plus className="mr-1 h-4 w-4" />Simpan
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Riwayat (di bawah) */}
       <Riwayat
@@ -213,12 +221,12 @@ function Riwayat({
                   <TableHead>Produk</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead></TableHead>
+                  {!isOutlet && <TableHead></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Belum ada data sesuai filter</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={isOutlet ? 5 : 6} className="text-center text-muted-foreground py-8">Belum ada data sesuai filter</TableCell></TableRow>
                 )}
                 {paged.map((p: any) => (
                   <TableRow key={p.id}>
@@ -227,11 +235,13 @@ function Riwayat({
                     <TableCell className="whitespace-nowrap">{produk.find((x: any) => x.id === p.produkId)?.nama ?? "-"}</TableCell>
                     <TableCell className="text-right">{p.qty}</TableCell>
                     <TableCell className="text-right font-medium whitespace-nowrap">{rupiah(p.total)}</TableCell>
-                    <TableCell>
-                      <Button size="icon" variant="ghost" onClick={() => db.deletePenjualan(p.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </TableCell>
+                    {!isOutlet && (
+                      <TableCell>
+                        <Button size="icon" variant="ghost" onClick={() => db.deletePenjualan(p.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

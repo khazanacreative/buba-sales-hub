@@ -815,17 +815,9 @@ export default function Produksi() {
   function renderStep1() {
     return (
       <Card className="glass border-0 shadow-card">
-        <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi rencana target produksi, ringkasan seluruh outlet akan muncul di tabel bawah.</p>
-          </div>
-          <Input
-            placeholder="Cari outlet di tabel..."
-            value={searchOutlet}
-            onChange={(e) => setSearchOutlet(e.target.value)}
-            className="w-full sm:w-[220px] h-9 text-xs"
-          />
+        <CardHeader>
+          <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi rencana target produksi, ringkasan seluruh outlet akan muncul di tabel bawah.</p>
         </CardHeader>
         <CardContent className="space-y-6">
           
@@ -967,7 +959,15 @@ export default function Produksi() {
 
           {/* Consolidated Table at the Bottom */}
           <div className="space-y-2 pt-2">
-            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Ringkasan Rencana Seluruh Outlet (Klik baris untuk edit)</Label>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Ringkasan Rencana Seluruh Outlet (Klik baris untuk edit)</Label>
+              <Input
+                placeholder="Cari outlet di tabel..."
+                value={searchOutlet}
+                onChange={(e) => setSearchOutlet(e.target.value)}
+                className="w-full sm:w-[220px] h-9 text-xs"
+              />
+            </div>
             <div className="rounded-2xl border overflow-hidden">
               <div className="overflow-x-auto">
                 <Table>

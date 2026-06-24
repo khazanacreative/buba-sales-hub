@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDB } from "@/lib/store";
 import { rupiah, todayISO, monthKey, DateRange, inRange, daysAgoISO } from "@/lib/format";
-import { ShoppingCart, TrendingUp, Factory, Store } from "lucide-react";
+import { ShoppingCart, TrendingUp, ChefHat, Store } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useMemo, useState } from "react";
@@ -51,7 +51,7 @@ export default function Dashboard() {
   const stats = [
     { label: "Penjualan Hari Ini", value: rupiah(totalToday), icon: ShoppingCart, sub: `${qtyToday} cup terjual` },
     { label: "Penjualan Bulan Ini", value: rupiah(totalMonth), icon: TrendingUp, sub: m },
-    { label: "Rencana Produksi Hari Ini", value: `${planToday}`, icon: Factory, sub: "porsi" },
+    { label: "Rencana Produksi Hari Ini", value: `${planToday}`, icon: ChefHat, sub: "porsi" },
     { label: user?.role === "outlet" ? "Outlet Anda" : "Outlet Aktif", value: user?.role === "outlet" ? user.nama : `${outlets.length}`, icon: Store, sub: `${produk.length} produk` },
   ];
 

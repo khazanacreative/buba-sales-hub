@@ -279,16 +279,14 @@ export default function Produksi() {
     tim: 0,
     oatmeal: 0,
     puding: 0,
-    abon: 0,
-    sayur: 0
+    abon: 0
   });
   const [actualCups, setActualCups] = useState({
     bubur: 0,
     tim: 0,
     oatmeal: 0,
     puding: 0,
-    abon: 0,
-    sayur: 0
+    abon: 0
   });
 
   // STEP 4 STATES
@@ -317,7 +315,7 @@ export default function Produksi() {
     outlets.forEach(o => {
       grid[o.id] = {
         bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
-        oatmeal: 0, puding: 0, abon: 0, sayur: 0
+        oatmeal: 0, puding: 0, abon: 0
       };
     });
 
@@ -337,8 +335,6 @@ export default function Produksi() {
         grid[r.outletId].puding = r.qty;
       } else if (r.produkId === "p-abon") {
         grid[r.outletId].abon = r.qty;
-      } else if (r.produkId === "p-sayur") {
-        grid[r.outletId].sayur = r.qty;
       }
     });
     setPlanGrid(grid);
@@ -351,8 +347,8 @@ export default function Produksi() {
 
       // Load Step 3
       const dayProds = produksi.filter((p: any) => p.tanggal === tanggal);
-      const newActualGrams = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
-      const newActualCups = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+      const newActualGrams = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+      const newActualCups = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
       dayProds.forEach((p: any) => {
         let key = "";
         let factor = 1;
@@ -361,7 +357,6 @@ export default function Produksi() {
         else if (p.produkId === "p-oatmeal") { key = "oatmeal"; factor = 100; }
         else if (p.produkId === "p-puding") { key = "puding"; factor = 80; }
         else if (p.produkId === "p-abon") { key = "abon"; factor = 10; }
-        else if (p.produkId === "p-sayur") { key = "sayur"; factor = 100; }
 
         if (key) {
           newActualCups[key as keyof typeof newActualCups] = p.qtyRealisasi;
@@ -375,7 +370,7 @@ export default function Produksi() {
       const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
       const dGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
-        dGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+        dGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
       dayReqs.forEach((r: any) => {
         if (!dGrid[r.outletId]) return;
@@ -385,7 +380,6 @@ export default function Produksi() {
         else if (r.produkId === "p-oatmeal") key = "oatmeal";
         else if (r.produkId === "p-puding") key = "puding";
         else if (r.produkId === "p-abon") key = "abon";
-        else if (r.produkId === "p-sayur") key = "sayur";
 
         if (key) {
           dGrid[r.outletId][key] = r.qty;
@@ -433,7 +427,6 @@ export default function Produksi() {
     else if (prod === "puding") factor = 80;
     else if (prod === "oatmeal") factor = 100;
     else if (prod === "abon") factor = 10;
-    else if (prod === "sayur") factor = 100;
 
     const cups = Math.floor(grams / factor);
     setActualCups(prev => ({ ...prev, [prod]: cups }));
@@ -485,9 +478,6 @@ export default function Produksi() {
       if (vals.abon > 0) {
         batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-abon", qty: vals.abon, catatan: "" });
       }
-      if (vals.sayur > 0) {
-        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-sayur", qty: vals.sayur, catatan: "" });
-      }
     });
 
     if (batch.length === 0) {
@@ -502,7 +492,7 @@ export default function Produksi() {
   // STEP 2 CALCULATIONS & ACTION
   const totals = useMemo(() => {
     let buburD = 0, buburI = 0, timD = 0, timI = 0;
-    let oatmeal = 0, puding = 0, abon = 0, sayur = 0;
+    let oatmeal = 0, puding = 0, abon = 0;
 
     Object.values(planGrid).forEach(v => {
       buburD += v.bubur_d || 0;
@@ -512,7 +502,6 @@ export default function Produksi() {
       oatmeal += v.oatmeal || 0;
       puding += v.puding || 0;
       abon += v.abon || 0;
-      sayur += v.sayur || 0;
     });
 
     const totalBubur = buburD + buburI;
@@ -521,7 +510,7 @@ export default function Produksi() {
     return {
       buburD, buburI, totalBubur,
       timD, timI, totalTim,
-      oatmeal, puding, abon, sayur
+      oatmeal, puding, abon
     };
   }, [planGrid]);
 
@@ -562,10 +551,10 @@ export default function Produksi() {
       }
     });
 
-    const cupBuburQty = totals.totalBubur + totals.totalTim + totals.sayur;
+    const cupBuburQty = totals.totalBubur + totals.totalTim;
     if (cupBuburQty > 0) reqs.push({ bahanId: "b-cb01", kode: "CB01", nama: "CUP BUBUR", qty: cupBuburQty, satuan: "biji" });
 
-    const tutupQty = totals.totalBubur + totals.totalTim + totals.sayur + totals.puding;
+    const tutupQty = totals.totalBubur + totals.totalTim + totals.puding;
     if (tutupQty > 0) reqs.push({ bahanId: "b-ttp01", kode: "TTP01", nama: "TUTUP", qty: tutupQty, satuan: "biji" });
 
     const sendokQty = totals.totalBubur + totals.totalTim + totals.oatmeal + totals.puding;
@@ -610,8 +599,7 @@ export default function Produksi() {
       { tanggal, produkId: "p-nasitim", qtyRencana: totals.totalTim, qtyRealisasi: actualCups.tim },
       { tanggal, produkId: "p-oatmeal", qtyRencana: totals.oatmeal, qtyRealisasi: actualCups.oatmeal },
       { tanggal, produkId: "p-puding", qtyRencana: totals.puding, qtyRealisasi: actualCups.puding },
-      { tanggal, produkId: "p-abon", qtyRencana: totals.abon, qtyRealisasi: actualCups.abon },
-      { tanggal, produkId: "p-sayur", qtyRencana: totals.sayur, qtyRealisasi: actualCups.sayur },
+      { tanggal, produkId: "p-abon", qtyRencana: totals.abon, qtyRealisasi: actualCups.abon }
     ];
 
     await db.addProduksiBulk(batch);
@@ -629,8 +617,7 @@ export default function Produksi() {
         tim: (plan.tim_d || 0) + (plan.tim_i || 0),
         oatmeal: plan.oatmeal || 0,
         puding: plan.puding || 0,
-        abon: plan.abon || 0,
-        sayur: plan.sayur || 0
+        abon: plan.abon || 0
       };
     });
     setDistGrid(grid);
@@ -649,7 +636,6 @@ export default function Produksi() {
       else if (r.produkId === "p-oatmeal") sentQty = outletAlloc.oatmeal || 0;
       else if (r.produkId === "p-puding") sentQty = outletAlloc.puding || 0;
       else if (r.produkId === "p-abon") sentQty = outletAlloc.abon || 0;
-      else if (r.produkId === "p-sayur") sentQty = outletAlloc.sayur || 0;
 
       await db.updatePermohonanStok(r.id, {
         qty: sentQty,
@@ -662,7 +648,7 @@ export default function Produksi() {
     // Initialize returGrid to 0
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => {
-      rGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+      rGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
     });
     setReturGrid(rGrid);
     setStep(5);
@@ -681,14 +667,13 @@ export default function Produksi() {
     };
 
     // Calculate sales and return ingredients directly from local distGrid and returGrid states
-    const productKeys = ["bubur", "tim", "oatmeal", "puding", "abon", "sayur"] as const;
+    const productKeys = ["bubur", "tim", "oatmeal", "puding", "abon"] as const;
     const dbProductIds: Record<string, string> = {
       bubur: "p-bubur",
       tim: "p-nasitim",
       oatmeal: "p-oatmeal",
       puding: "p-puding",
-      abon: "p-abon",
-      sayur: "p-sayur"
+      abon: "p-abon"
     };
 
     outlets.forEach((o) => {
@@ -865,10 +850,10 @@ export default function Produksi() {
             {(() => {
               const row = planGrid[step1OutletId] || {
                 bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
-                oatmeal: 0, puding: 0, abon: 0, sayur: 0
+                oatmeal: 0, puding: 0, abon: 0
               };
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</Label>
                     <Input
@@ -946,17 +931,6 @@ export default function Produksi() {
                       placeholder="0"
                     />
                   </div>
-                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Sayur</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.sayur || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "sayur", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center font-medium"
-                      placeholder="0"
-                    />
-                  </div>
                 </div>
               );
             })()}
@@ -978,14 +952,13 @@ export default function Produksi() {
                       <TableHead className="text-center font-bold text-xs">Oatmeal</TableHead>
                       <TableHead className="text-center font-bold text-xs">Puding</TableHead>
                       <TableHead className="text-center font-bold text-xs">Abon</TableHead>
-                      <TableHead className="text-center font-bold text-xs">Sayur</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredOutlets.map((o) => {
                       const row = planGrid[o.id] || {
                         bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
-                        oatmeal: 0, puding: 0, abon: 0, sayur: 0
+                        oatmeal: 0, puding: 0, abon: 0
                       };
                       const isSelected = o.id === step1OutletId;
                       return (
@@ -1009,7 +982,6 @@ export default function Produksi() {
                           <TableCell className="text-center font-medium text-xs">{row.oatmeal || 0}</TableCell>
                           <TableCell className="text-center font-medium text-xs">{row.puding || 0}</TableCell>
                           <TableCell className="text-center font-medium text-xs">{row.abon || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.sayur || 0}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -1123,8 +1095,7 @@ export default function Produksi() {
               { id: "tim", label: `Nasi Tim (${tim1Name} & ${tim2Name})`, unitWeight: 108, targetCups: totals.totalTim },
               { id: "oatmeal", label: "Oatmeal", unitWeight: 100, targetCups: totals.oatmeal },
               { id: "puding", label: "Puding", unitWeight: 80, targetCups: totals.puding },
-              { id: "abon", label: "Abon", unitWeight: 10, targetCups: totals.abon },
-              { id: "sayur", label: "Sayur", unitWeight: 100, targetCups: totals.sayur }
+              { id: "abon", label: "Abon", unitWeight: 10, targetCups: totals.abon }
             ].map((p) => {
               const grams = actualGrams[p.id as keyof typeof actualGrams] || 0;
               const cups = actualCups[p.id as keyof typeof actualCups] || 0;
@@ -1150,6 +1121,11 @@ export default function Produksi() {
                       />
                       <span className="text-xs text-muted-foreground font-semibold">g</span>
                     </div>
+                    {(p.id === "bubur" || p.id === "tim") && (
+                      <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                        ✨ Konversi: <span className="font-bold">{Math.floor(grams / p.unitWeight)} cup</span> (Standar {p.unitWeight}g per cup)
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1">
@@ -1251,9 +1227,9 @@ export default function Produksi() {
 
             {/* Input fields laid out as a row */}
             {(() => {
-              const row = distGrid[step4OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+              const row = distGrid[step4OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate">Bubur (Cup)</Label>
                     <Input
@@ -1309,17 +1285,6 @@ export default function Produksi() {
                       placeholder="0"
                     />
                   </div>
-                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Sayur (Cup)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.sayur || ""}
-                      onChange={(e) => handleDistChange(step4OutletId, "sayur", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center font-medium"
-                      placeholder="0"
-                    />
-                  </div>
                 </div>
               );
             })()}
@@ -1339,12 +1304,11 @@ export default function Produksi() {
                       <TableHead className="text-center font-semibold text-xs">Oatmeal (Cup)</TableHead>
                       <TableHead className="text-center font-semibold text-xs">Puding (Cup)</TableHead>
                       <TableHead className="text-center font-semibold text-xs">Abon (Cup)</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Sayur (Cup)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {outlets.map((o) => {
-                      const row = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                      const row = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
                       const isSelected = o.id === step4OutletId;
                       return (
                         <TableRow 
@@ -1365,7 +1329,6 @@ export default function Produksi() {
                           <TableCell className="text-center font-medium text-xs">{row.oatmeal || 0}</TableCell>
                           <TableCell className="text-center font-medium text-xs">{row.puding || 0}</TableCell>
                           <TableCell className="text-center font-medium text-xs">{row.abon || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.sayur || 0}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -1444,10 +1407,10 @@ export default function Produksi() {
 
             {/* Input fields laid out as a row with maximum constraints based on sent qty */}
             {(() => {
-              const row = returGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
-              const sent = distGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+              const row = returGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+              const sent = distGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate">Bubur Retur</Label>
                     <Input
@@ -1513,19 +1476,6 @@ export default function Produksi() {
                     />
                     <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.abon}</span>
                   </div>
-                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Sayur Retur</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={sent.sayur}
-                      value={row.sayur || ""}
-                      onChange={(e) => handleReturChange(step5OutletId, "sayur", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center font-medium"
-                      placeholder="0"
-                    />
-                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.sayur}</span>
-                  </div>
                 </div>
               );
             })()}
@@ -1545,13 +1495,12 @@ export default function Produksi() {
                       <TableHead className="text-center font-semibold text-xs">Oatmeal Retur/Kirim</TableHead>
                       <TableHead className="text-center font-semibold text-xs">Puding Retur/Kirim</TableHead>
                       <TableHead className="text-center font-semibold text-xs">Abon Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Sayur Retur/Kirim</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {outlets.map((o) => {
-                      const row = returGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
-                      const sent = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0, sayur: 0 };
+                      const row = returGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+                      const sent = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
                       const isSelected = o.id === step5OutletId;
                       return (
                         <TableRow 
@@ -1588,10 +1537,6 @@ export default function Produksi() {
                           <TableCell className="text-center font-medium text-xs">
                             <span className="text-destructive">{row.abon || 0}</span>
                             <span className="text-muted-foreground/60">/{sent.abon}</span>
-                          </TableCell>
-                          <TableCell className="text-center font-medium text-xs">
-                            <span className="text-destructive">{row.sayur || 0}</span>
-                            <span className="text-muted-foreground/60">/{sent.sayur}</span>
                           </TableCell>
                         </TableRow>
                       );
@@ -1832,13 +1777,23 @@ export default function Produksi() {
                   <ExportButtons
                     filename="produksi"
                     title="Riwayat Produksi"
-                    headers={["Tanggal", "Produk", "Rencana", "Realisasi"]}
-                    rows={filtered.map((p) => [
-                      p.tanggal,
-                      produk.find((x) => x.id === p.produkId)?.nama ?? "-",
-                      p.qtyRencana,
-                      p.qtyRealisasi,
-                    ])}
+                    headers={["Tanggal", "Produk", "Rencana", "Realisasi", "Gramasi (g)"]}
+                    rows={filtered.map((p) => {
+                      const pr = produk.find((x) => x.id === p.produkId);
+                      let factor = 0;
+                      if (p.produkId === "p-bubur") factor = 118;
+                      else if (p.produkId === "p-nasitim") factor = 108;
+                      else if (p.produkId === "p-oatmeal") factor = 100;
+                      else if (p.produkId === "p-puding") factor = 80;
+                      else if (p.produkId === "p-abon") factor = 10;
+                      return [
+                        p.tanggal,
+                        pr?.nama ?? "-",
+                        p.qtyRencana,
+                        p.qtyRealisasi,
+                        p.qtyRealisasi * factor
+                      ];
+                    })}
                   />
                 </div>
               </div>
@@ -1866,23 +1821,31 @@ function ProduksiTable({ filtered, produk }: any) {
               <TableHead>Produk</TableHead>
               <TableHead className="text-right">Rencana (porsi)</TableHead>
               <TableHead className="text-right">Realisasi (porsi)</TableHead>
+              <TableHead className="text-right">Gramasi (g)</TableHead>
               <TableHead>Status</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Belum ada produksi</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Belum ada produksi</TableCell></TableRow>
             )}
             {paged.map((p: any) => {
               const pr = produk.find((x: any) => x.id === p.produkId);
               const ok = p.qtyRealisasi >= p.qtyRencana;
+              let factor = 0;
+              if (p.produkId === "p-bubur") factor = 118;
+              else if (p.produkId === "p-nasitim") factor = 108;
+              else if (p.produkId === "p-oatmeal") factor = 100;
+              else if (p.produkId === "p-puding") factor = 80;
+              else if (p.produkId === "p-abon") factor = 10;
               return (
                 <TableRow key={p.id}>
                   <TableCell className="whitespace-nowrap">{p.tanggal}</TableCell>
                   <TableCell className="whitespace-nowrap font-medium">{pr?.nama ?? "-"}</TableCell>
                   <TableCell className="text-right">{p.qtyRencana}</TableCell>
                   <TableCell className="text-right font-semibold">{p.qtyRealisasi}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">{p.qtyRealisasi * factor} g</TableCell>
                   <TableCell>
                     {ok
                       ? <Badge className="bg-success text-success-foreground gap-1"><CheckCircle2 className="h-3 w-3" />Tercapai</Badge>

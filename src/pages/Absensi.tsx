@@ -187,35 +187,6 @@ export default function Absensi() {
         </Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card className="glass border-0 shadow-card">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Users className="h-8 w-8 text-primary" />
-            <div>
-              <div className="text-xs text-muted-foreground">Karyawan</div>
-              <div className="text-xl font-bold">{visibleKaryawan.length}</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass border-0 shadow-card">
-          <CardContent className="p-4 flex items-center gap-3">
-            <CalendarCheck className="h-8 w-8 text-success" />
-            <div>
-              <div className="text-xs text-muted-foreground">Total Hadir (filter)</div>
-              <div className="text-xl font-bold">{totalHadir}</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass border-0 shadow-card">
-          <CardContent className="p-4 flex items-center gap-3">
-            <UserCheck className="h-8 w-8 text-accent-foreground" />
-            <div>
-              <div className="text-xs text-muted-foreground">Estimasi Gaji</div>
-              <div className="text-xl font-bold">{rupiah(totalGajiAll)}</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {isAdmin ? (
         <Card className="glass border-0 shadow-card">
@@ -495,6 +466,16 @@ export default function Absensi() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="glass border-0 shadow-card max-w-sm">
+        <CardContent className="p-4 flex items-center gap-3">
+          <CalendarCheck className="h-8 w-8 text-success" />
+          <div>
+            <div className="text-xs text-muted-foreground">Total Hadir (filter)</div>
+            <div className="text-xl font-bold">{totalHadir}</div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="glass border-0 shadow-card">
         <CardHeader>

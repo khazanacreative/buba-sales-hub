@@ -201,18 +201,18 @@ export function BottomNav() {
               
               if (isAbsenMenu && user?.role === "outlet") {
                 if (isClockedIn) {
-                  bgClass = "bg-red-500 text-white hover:bg-red-600 shadow-[0_4px_12px_rgba(239,68,68,0.3)]";
+                  bgClass = "bg-red-500 border border-transparent text-white hover:bg-red-600 shadow-[0_4px_12px_rgba(239,68,68,0.3)]";
                   textClass = "text-red-500 font-bold";
                 } else {
-                  bgClass = "bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_4px_12px_rgba(5,150,105,0.3)]";
+                  bgClass = "bg-emerald-600 border border-transparent text-white hover:bg-emerald-700 shadow-[0_4px_12px_rgba(5,150,105,0.3)]";
                   textClass = "text-emerald-600 font-bold";
                 }
               } else {
                 if (isActive) {
-                  bgClass = "gradient-primary text-primary-foreground shadow-soft scale-105";
+                  bgClass = "gradient-primary border border-transparent text-primary-foreground shadow-soft scale-105";
                   textClass = "text-primary font-bold";
                 } else {
-                  bgClass = "bg-transparent text-muted-foreground hover:text-foreground";
+                  bgClass = "bg-transparent border border-muted-foreground/35 text-muted-foreground hover:text-foreground";
                   textClass = "text-muted-foreground";
                 }
               }
@@ -239,7 +239,7 @@ export function BottomNav() {
                     className="flex flex-col items-center justify-center gap-0.5 py-1 w-full"
                   >
                     <div
-                      className={`h-12 w-12 flex items-center justify-center rounded-full transition-all ${bgClass}`}
+                      className={`h-12 w-12 flex items-center justify-center rounded-full transition-all relative -top-2.5 ${bgClass}`}
                     >
                       <item.icon className="h-6 w-6" />
                     </div>

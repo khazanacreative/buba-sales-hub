@@ -114,6 +114,8 @@ export default function Absensi() {
 
   const handleClockOutGPS = () => {
     if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
+    const confirmOut = window.confirm("Apakah Anda yakin ingin melakukan Absen Pulang?");
+    if (!confirmOut) return;
     db.updateAbsensi(todayRecord.id, {
       jamPulang: currentTime(),
       catatan: `${todayRecord.catatan || ""}. GPS Check-out: ${address}`
@@ -135,6 +137,8 @@ export default function Absensi() {
 
   const handleClockOut = () => {
     if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
+    const confirmOut = window.confirm("Apakah Anda yakin ingin melakukan Absen Pulang?");
+    if (!confirmOut) return;
     db.updateAbsensi(todayRecord.id, {
       jamPulang: currentTime(),
     });

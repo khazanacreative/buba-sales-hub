@@ -1,7 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp, FileText, ChefHat, User } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import { useDB, db } from "@/lib/store";
+import { todayISO } from "@/lib/format";
+import { toast } from "sonner";
 
 export function BottomNav() {
   const { user } = useAuth();
@@ -9,6 +12,22 @@ export function BottomNav() {
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { absensi = [] } = useDB();
+
+  const todayRecord = useMemo(() => {
+    if (!user) return null;
+    const kid = user.role === "produksi" ? "k-produksi" : (user.role === "outlet" ? `k-${user.outletId}-1` : null);
+    if (!kid) return null;
+    return absensi.find((a: any) => a.tanggal === todayISO() && a.karyawanId === kid);
+  }, [absensi, user]);
+
+  const isClockedIn = todayRecord && todayRecord.status === "Hadir" && !todayRecord.jamPulang;
+
+  const currentTime = () => {
+    const w = new Date();
+    return `${String(w.getHours()).padStart(2, "0")}:${String(w.getMinutes()).padStart(2, "0")}`;
+  };
 
   const items = (() => {
     if (user?.role === "admin") {
@@ -174,32 +193,60 @@ export function BottomNav() {
             }
 
             if (item.highlighted) {
+              const isAbsenMenu = item.url === "/absensi";
+              const isActive = location.pathname === targetUrl;
+              
+              let bgClass = "";
+              let textClass = "";
+              
+              if (isAbsenMenu && user?.role === "outlet") {
+                if (isClockedIn) {
+                  bgClass = "bg-red-500 text-white hover:bg-red-600 shadow-[0_4px_12px_rgba(239,68,68,0.3)]";
+                  textClass = "text-red-500 font-bold";
+                } else {
+                  bgClass = "bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_4px_12px_rgba(5,150,105,0.3)]";
+                  textClass = "text-emerald-600 font-bold";
+                }
+              } else {
+                if (isActive) {
+                  bgClass = "gradient-primary text-primary-foreground shadow-soft scale-105";
+                  textClass = "text-primary font-bold";
+                } else {
+                  bgClass = "bg-transparent text-muted-foreground hover:text-foreground";
+                  textClass = "text-muted-foreground";
+                }
+              }
+
+              const handleMiddleButtonClick = () => {
+                if (isAbsenMenu && user?.role === "outlet" && isClockedIn) {
+                  const confirmCheckOut = window.confirm("Apakah Anda yakin ingin melakukan Absen Pulang (Keluar)?");
+                  if (confirmCheckOut) {
+                    db.updateAbsensi(todayRecord.id, {
+                      jamPulang: currentTime(),
+                      catatan: todayRecord.catatan ? `${todayRecord.catatan}. Pulang via Bottom Nav` : "Pulang via Bottom Nav"
+                    });
+                    toast.success("Berhasil Absen Pulang!");
+                  }
+                }
+                navigate(targetUrl);
+              };
+
               return (
-                <li key={item.title} className="flex-1 min-w-[64px] relative -top-3.5 flex justify-center z-10">
-                  <NavLink
-                    to={targetUrl}
-                    end
-                    className="flex flex-col items-center justify-center"
+                <li key={item.title} className="flex-1 min-w-[64px] flex justify-center z-10">
+                  <button
+                    type="button"
+                    onClick={handleMiddleButtonClick}
+                    className="flex flex-col items-center justify-center gap-0.5 py-1 w-full"
                   >
-                    {({ isActive }) => (
-                      <>
-                        <div
-                          className={`h-14 w-14 flex items-center justify-center rounded-full transition-all border-4 border-[#fafdfa] dark:border-background shadow-[0_4px_12px_rgba(239,68,68,0.35)] ${
-                            isActive
-                              ? "bg-red-500 text-white scale-110"
-                              : "bg-red-500/90 text-white hover:bg-red-600"
-                          }`}
-                        >
-                          <item.icon className="h-6 w-6" />
-                        </div>
-                        <span className={`text-[10px] font-bold mt-1 transition-colors ${
-                          isActive ? "text-red-500 font-bold" : "text-muted-foreground"
-                        }`}>
-                          {displayTitle}
-                        </span>
-                      </>
-                    )}
-                  </NavLink>
+                    <div
+                      className={`h-12 w-12 flex items-center justify-center rounded-full transition-all ${bgClass}`}
+                    >
+                      <item.icon className="h-6 w-6" />
+                    </div>
+                    <span className={`text-[10px] mt-1 transition-colors ${textClass}`}>
+                      {displayTitle}
+                    </span>
+                  </button>
                 </li>
               );
             }

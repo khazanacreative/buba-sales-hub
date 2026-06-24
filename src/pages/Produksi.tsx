@@ -275,15 +275,19 @@ export default function Produksi() {
 
   // STEP 3 STATES
   const [actualGrams, setActualGrams] = useState({
-    bubur: 0,
-    tim: 0,
+    bubur_1: 0,
+    bubur_2: 0,
+    tim_1: 0,
+    tim_2: 0,
     oatmeal: 0,
     puding: 0,
     abon: 0
   });
   const [actualCups, setActualCups] = useState({
-    bubur: 0,
-    tim: 0,
+    bubur_1: 0,
+    bubur_2: 0,
+    tim_1: 0,
+    tim_2: 0,
     oatmeal: 0,
     puding: 0,
     abon: 0
@@ -347,22 +351,45 @@ export default function Produksi() {
 
       // Load Step 3
       const dayProds = produksi.filter((p: any) => p.tanggal === tanggal);
-      const newActualGrams = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
-      const newActualCups = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
-      dayProds.forEach((p: any) => {
-        let key = "";
-        let factor = 1;
-        if (p.produkId === "p-bubur") { key = "bubur"; factor = 118; }
-        else if (p.produkId === "p-nasitim") { key = "tim"; factor = 108; }
-        else if (p.produkId === "p-oatmeal") { key = "oatmeal"; factor = 100; }
-        else if (p.produkId === "p-puding") { key = "puding"; factor = 80; }
-        else if (p.produkId === "p-abon") { key = "abon"; factor = 10; }
-
-        if (key) {
-          newActualCups[key as keyof typeof newActualCups] = p.qtyRealisasi;
-          newActualGrams[key as keyof typeof newActualGrams] = p.qtyRealisasi * factor;
+      const newActualGrams = { bubur_1: 0, bubur_2: 0, tim_1: 0, tim_2: 0, oatmeal: 0, puding: 0, abon: 0 };
+      const newActualCups = { bubur_1: 0, bubur_2: 0, tim_1: 0, tim_2: 0, oatmeal: 0, puding: 0, abon: 0 };
+      
+      const buburProds = dayProds.filter((p: any) => p.produkId === "p-bubur");
+      const timProds = dayProds.filter((p: any) => p.produkId === "p-nasitim");
+      
+      if (buburProds.length > 0) {
+        newActualCups.bubur_1 = buburProds[0].qtyRealisasi;
+        newActualGrams.bubur_1 = buburProds[0].qtyRealisasi * 118;
+        if (buburProds.length > 1) {
+          newActualCups.bubur_2 = buburProds[1].qtyRealisasi;
+          newActualGrams.bubur_2 = buburProds[1].qtyRealisasi * 118;
         }
-      });
+      }
+      if (timProds.length > 0) {
+        newActualCups.tim_1 = timProds[0].qtyRealisasi;
+        newActualGrams.tim_1 = timProds[0].qtyRealisasi * 108;
+        if (timProds.length > 1) {
+          newActualCups.tim_2 = timProds[1].qtyRealisasi;
+          newActualGrams.tim_2 = timProds[1].qtyRealisasi * 108;
+        }
+      }
+      
+      const oatmealProd = dayProds.find((p: any) => p.produkId === "p-oatmeal");
+      if (oatmealProd) {
+        newActualCups.oatmeal = oatmealProd.qtyRealisasi;
+        newActualGrams.oatmeal = oatmealProd.qtyRealisasi * 100;
+      }
+      const pudingProd = dayProds.find((p: any) => p.produkId === "p-puding");
+      if (pudingProd) {
+        newActualCups.puding = pudingProd.qtyRealisasi;
+        newActualGrams.puding = pudingProd.qtyRealisasi * 80;
+      }
+      const abonProd = dayProds.find((p: any) => p.produkId === "p-abon");
+      if (abonProd) {
+        newActualCups.abon = abonProd.qtyRealisasi;
+        newActualGrams.abon = abonProd.qtyRealisasi * 10;
+      }
+      
       setActualGrams(newActualGrams);
       setActualCups(newActualCups);
 
@@ -422,8 +449,8 @@ export default function Produksi() {
   const handleGramsChange = (prod: string, grams: number) => {
     setActualGrams(prev => ({ ...prev, [prod]: grams }));
     let factor = 1;
-    if (prod === "bubur") factor = 118;
-    else if (prod === "tim") factor = 108;
+    if (prod === "bubur_1" || prod === "bubur_2") factor = 118;
+    else if (prod === "tim_1" || prod === "tim_2") factor = 108;
     else if (prod === "puding") factor = 80;
     else if (prod === "oatmeal") factor = 100;
     else if (prod === "abon") factor = 10;
@@ -595,8 +622,10 @@ export default function Produksi() {
     }
 
     const batch = [
-      { tanggal, produkId: "p-bubur", qtyRencana: totals.totalBubur, qtyRealisasi: actualCups.bubur },
-      { tanggal, produkId: "p-nasitim", qtyRencana: totals.totalTim, qtyRealisasi: actualCups.tim },
+      { tanggal, produkId: "p-bubur", qtyRencana: totals.buburD, qtyRealisasi: actualCups.bubur_1 },
+      { tanggal, produkId: "p-bubur", qtyRencana: totals.buburI, qtyRealisasi: actualCups.bubur_2 },
+      { tanggal, produkId: "p-nasitim", qtyRencana: totals.timD, qtyRealisasi: actualCups.tim_1 },
+      { tanggal, produkId: "p-nasitim", qtyRencana: totals.timI, qtyRealisasi: actualCups.tim_2 },
       { tanggal, produkId: "p-oatmeal", qtyRencana: totals.oatmeal, qtyRealisasi: actualCups.oatmeal },
       { tanggal, produkId: "p-puding", qtyRencana: totals.puding, qtyRealisasi: actualCups.puding },
       { tanggal, produkId: "p-abon", qtyRencana: totals.abon, qtyRealisasi: actualCups.abon }
@@ -1096,8 +1125,10 @@ export default function Produksi() {
         <CardContent className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[
-              { id: "bubur", label: `Bubur (${bubur1Name} & ${bubur2Name})`, unitWeight: 118, targetCups: totals.totalBubur },
-              { id: "tim", label: `Nasi Tim (${tim1Name} & ${tim2Name})`, unitWeight: 108, targetCups: totals.totalTim },
+              { id: "bubur_1", label: `Bubur 1 (${bubur1Name})`, unitWeight: 118, targetCups: totals.buburD },
+              { id: "bubur_2", label: `Bubur 2 (${bubur2Name})`, unitWeight: 118, targetCups: totals.buburI },
+              { id: "tim_1", label: `Nasi Tim 1 (${tim1Name})`, unitWeight: 108, targetCups: totals.timD },
+              { id: "tim_2", label: `Nasi Tim 2 (${tim2Name})`, unitWeight: 108, targetCups: totals.timI },
               { id: "oatmeal", label: "Oatmeal", unitWeight: 100, targetCups: totals.oatmeal },
               { id: "puding", label: "Puding", unitWeight: 80, targetCups: totals.puding },
               { id: "abon", label: "Abon", unitWeight: 10, targetCups: totals.abon }
@@ -1126,7 +1157,7 @@ export default function Produksi() {
                       />
                       <span className="text-xs text-muted-foreground font-semibold">g</span>
                     </div>
-                    {(p.id === "bubur" || p.id === "tim") && (
+                    {(p.id === "bubur_1" || p.id === "bubur_2" || p.id === "tim_1" || p.id === "tim_2") && (
                       <p className="text-[11px] text-emerald-600 font-medium mt-1">
                         ✨ Konversi: <span className="font-bold">{Math.floor(grams / p.unitWeight)} cup</span> (Standar {p.unitWeight}g per cup)
                       </p>
@@ -1180,7 +1211,7 @@ export default function Produksi() {
           <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-xl border text-xs">
             <span className="font-bold text-muted-foreground">Status Masak (Actual/Target):</span>
             <span className="font-semibold text-primary">
-              B: {actualCups.bubur}/{totals.totalBubur} · T: {actualCups.tim}/{totals.totalTim}
+              B: {actualCups.bubur_1 + actualCups.bubur_2}/{totals.totalBubur} · T: {actualCups.tim_1 + actualCups.tim_2}/{totals.totalTim}
             </span>
           </div>
         </CardHeader>

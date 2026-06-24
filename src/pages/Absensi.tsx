@@ -52,27 +52,30 @@ export default function Absensi() {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           setCoordinates({ lat, lng });
-          setAddress(`Dapur Utama Buba Healthy, Pasuruan (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+          const locName = user?.role === "outlet" ? `Outlet ${user.nama}` : "Dapur Utama Buba Healthy";
+          setAddress(`${locName}, Pasuruan (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
           setGpsLoading(false);
           toast.success("GPS berhasil mengunci lokasi!");
         },
         (error) => {
           console.error("GPS error, falling back to mock:", error);
           setCoordinates({ lat: -7.641234, lng: 112.906123 });
-          setAddress("Dapur Utama Buba, Jl. Raya Rajawali No. 45, Pasuruan");
+          const locName = user?.role === "outlet" ? `Outlet ${user.nama}` : "Dapur Utama Buba";
+          setAddress(`${locName}, Jl. Raya Rajawali No. 45, Pasuruan`);
           setGpsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
       setCoordinates({ lat: -7.641234, lng: 112.906123 });
-      setAddress("Dapur Utama Buba, Jl. Raya Rajawali No. 45, Pasuruan");
+      const locName = user?.role === "outlet" ? `Outlet ${user.nama}` : "Dapur Utama Buba";
+      setAddress(`${locName}, Jl. Raya Rajawali No. 45, Pasuruan`);
       setGpsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user?.role === "produksi") {
+    if (user?.role === "produksi" || user?.role === "outlet") {
       fetchGPSLocation();
     }
   }, [user]);
@@ -91,16 +94,17 @@ export default function Absensi() {
   };
 
   const todayRecord = useMemo(() => {
-    const kid = user?.role === "produksi" ? "k-produksi" : (karyawanId || visibleKaryawan[0]?.id);
+    const kid = user?.role === "produksi" ? "k-produksi" : (user?.role === "outlet" ? `k-${user.outletId}-1` : (karyawanId || visibleKaryawan[0]?.id));
     if (!kid) return null;
     return absensi.find((a) => a.tanggal === todayISO() && a.karyawanId === kid);
   }, [absensi, karyawanId, visibleKaryawan, user]);
 
   const handleClockInGPS = () => {
     if (gpsLoading) return toast.error("Menunggu GPS mengunci lokasi...");
+    const kid = user?.role === "produksi" ? "k-produksi" : `k-${user?.outletId}-1`;
     db.addAbsensi({
       tanggal: todayISO(),
-      karyawanId: "k-produksi",
+      karyawanId: kid,
       jamMasuk: currentTime(),
       status: "Hadir",
       catatan: `GPS Check-in: ${address}`
@@ -223,7 +227,7 @@ export default function Absensi() {
             </form>
           </CardContent>
         </Card>
-      ) : user?.role === "produksi" ? (
+      ) : (user?.role === "produksi" || user?.role === "outlet") ? (
         <Card className="glass border-0 shadow-card overflow-hidden">
           <CardHeader className="pb-3">
             <CardTitle className="text-xl font-bold flex items-center gap-2">

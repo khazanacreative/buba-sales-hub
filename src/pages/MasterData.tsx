@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Card, CardContent, CardHeader, CardTitle
@@ -19,18 +19,34 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 
-import { db, useDB } from "@/lib/store";
+import { db, useDB, getBubaSettings, saveBubaSettings } from "@/lib/store";
 import { rupiah } from "@/lib/format";
 
-import { Plus, Trash2, RotateCcw, Pencil } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Pencil, Settings, Sliders, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 
+// GPS Location parsing helper
+const parseLokasi = (lokasiStr: string) => {
+  const parts = (lokasiStr || "").split(" @ ");
+  const alamat = parts[0] || "";
+  let lat = "";
+  let lng = "";
+  let rad = "100";
+  if (parts[1]) {
+    const coords = parts[1].split(",");
+    lat = coords[0] || "";
+    lng = coords[1] || "";
+    rad = coords[2] || "100";
+  }
+  return { alamat, lat, lng, rad };
+};
+
 export default function MasterData() {
   const { user } = useAuth();
-  const { outlets = [], produk = [], coa = [], karyawan = [], users = [] } = useDB();
+  const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [] } = useDB();
 
   const visibleUsers = useMemo(() => {
     return users.filter((u: any) => u.username !== "khazana" || user?.username === "khazana");
@@ -41,13 +57,26 @@ export default function MasterData() {
   const coaPg = usePagination(coa, 10);
   const karyawanPg = usePagination(karyawan, 10);
   const usersPg = usePagination(visibleUsers, 10);
+  const bahanPg = usePagination(bahan, 10);
 
+  // Outlet form state with GPS
   const [oNama, setONama] = useState("");
   const [oLokasi, setOLokasi] = useState("");
+  const [oLat, setOLat] = useState("");
+  const [oLng, setOLng] = useState("");
+  const [oRadius, setORadius] = useState("100");
 
   const [pNama, setPNama] = useState("");
   const [pHarga, setPHarga] = useState(0);
   const [pSatuan, setPSatuan] = useState("cup");
+
+  // Bahan Baku form state
+  const [bKode, setBKode] = useState("");
+  const [bNama, setBNama] = useState("");
+  const [bSatuan, setBSatuan] = useState("sachet");
+  const [bStokMin, setBStokMin] = useState(0);
+  const [bStokAwal, setBStokAwal] = useState(0);
+  const [bHargaBeli, setBHargaBeli] = useState(0);
 
   // Karyawan form state
   const [kNama, setKNama] = useState("");
@@ -63,6 +92,89 @@ export default function MasterData() {
   const [uNama, setUNama] = useState("");
   const [uRole, setURole] = useState<"admin" | "outlet">("outlet");
   const [uOutletId, setUOutletId] = useState(outlets[0]?.id ?? "none");
+
+  // Global Settings state
+  const [globalSettings, setGlobalSettings] = useState(getBubaSettings());
+  const [sBerasBubur, setSBerasBubur] = useState(globalSettings.berasBubur);
+  const [sDagingBubur, setSDagingBubur] = useState(globalSettings.dagingBubur);
+  const [sAirBubur, setSAirBubur] = useState(globalSettings.airBubur);
+  const [sSayurHijauBubur, setSSayurHijauBubur] = useState(globalSettings.sayurHijauBubur);
+  const [sSayurBrokoliBubur, setSSayurBrokoliBubur] = useState(globalSettings.sayurBrokoliBubur);
+  const [sSayurPutihBubur, setSSayurPutihBubur] = useState(globalSettings.sayurPutihBubur);
+
+  const [sBerasTim, setSBerasTim] = useState(globalSettings.berasTim);
+  const [sDagingTim, setSDagingTim] = useState(globalSettings.dagingTim);
+  const [sAirTim, setSAirTim] = useState(globalSettings.airTim);
+  const [sSayurHijauTim, setSSayurHijauTim] = useState(globalSettings.sayurHijauTim);
+  const [sSayurBrokoliTim, setSSayurBrokoliTim] = useState(globalSettings.sayurBrokoliTim);
+  const [sSayurPutihTim, setSSayurPutihTim] = useState(globalSettings.sayurPutihTim);
+
+  const [sOatmealCup, setSOatmealCup] = useState(globalSettings.oatmealCup);
+  const [sPudingCup, setSPudingCup] = useState(globalSettings.pudingCup);
+  const [sAbonCup, setSAbonCup] = useState(globalSettings.abonCup);
+
+  const [sJamMasukStandar, setSJamMasukStandar] = useState(globalSettings.jamMasukStandar);
+  const [sJamPulangStandar, setSJamPulangStandar] = useState(globalSettings.jamPulangStandar);
+  const [sOvertimeRate, setSOvertimeRate] = useState(globalSettings.overtimeRate);
+  const [sTunjanganHarian, setSTunjanganHarian] = useState(globalSettings.tunjanganHarian);
+
+  useEffect(() => {
+    const handler = () => {
+      const gs = getBubaSettings();
+      setGlobalSettings(gs);
+      setSBerasBubur(gs.berasBubur);
+      setSDagingBubur(gs.dagingBubur);
+      setSAirBubur(gs.airBubur);
+      setSSayurHijauBubur(gs.sayurHijauBubur);
+      setSSayurBrokoliBubur(gs.sayurBrokoliBubur);
+      setSSayurPutihBubur(gs.sayurPutihBubur);
+      setSBerasTim(gs.berasTim);
+      setSDagingTim(gs.dagingTim);
+      setSAirTim(gs.airTim);
+      setSSayurHijauTim(gs.sayurHijauTim);
+      setSSayurBrokoliTim(gs.sayurBrokoliTim);
+      setSSayurPutihTim(gs.sayurPutihTim);
+      setSOatmealCup(gs.oatmealCup);
+      setSPudingCup(gs.pudingCup);
+      setSAbonCup(gs.abonCup);
+      setSJamMasukStandar(gs.jamMasukStandar);
+      setSJamPulangStandar(gs.jamPulangStandar);
+      setSOvertimeRate(gs.overtimeRate);
+      setSTunjanganHarian(gs.tunjanganHarian);
+    };
+    window.addEventListener("buba_settings_changed", handler);
+    return () => window.removeEventListener("buba_settings_changed", handler);
+  }, []);
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newSettings = {
+      berasBubur: Number(sBerasBubur),
+      dagingBubur: Number(sDagingBubur),
+      airBubur: Number(sAirBubur),
+      sayurHijauBubur: Number(sSayurHijauBubur),
+      sayurBrokoliBubur: Number(sSayurBrokoliBubur),
+      sayurPutihBubur: Number(sSayurPutihBubur),
+      
+      berasTim: Number(sBerasTim),
+      dagingTim: Number(sDagingTim),
+      airTim: Number(sAirTim),
+      sayurHijauTim: Number(sSayurHijauTim),
+      sayurBrokoliTim: Number(sSayurBrokoliTim),
+      sayurPutihTim: Number(sSayurPutihTim),
+
+      oatmealCup: Number(sOatmealCup),
+      pudingCup: Number(sPudingCup),
+      abonCup: Number(sAbonCup),
+
+      jamMasukStandar: sJamMasukStandar,
+      jamPulangStandar: sJamPulangStandar,
+      overtimeRate: Number(sOvertimeRate),
+      tunjanganHarian: Number(sTunjanganHarian),
+    };
+    saveBubaSettings(newSettings);
+    toast.success("Pengaturan global berhasil disimpan!");
+  };
 
   const resetUserForm = () => {
     setUUsername("");
@@ -100,7 +212,7 @@ export default function MasterData() {
         <div>
           <h1 className="text-3xl font-bold text-gradient">Master Data</h1>
           <p className="text-muted-foreground">
-            Kelola outlet, produk, COA, dan karyawan
+            Kelola outlet, produk, bahan baku, COA, karyawan, dan pengaturan global
           </p>
         </div>
 
@@ -119,12 +231,14 @@ export default function MasterData() {
       </div>
 
       <Tabs defaultValue="outlet" className="w-full">
-        <TabsList className="grid w-full max-w-[650px] grid-cols-5 mb-6 bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="outlet" className="rounded-lg font-semibold">Outlet ({outlets.length})</TabsTrigger>
-          <TabsTrigger value="produk" className="rounded-lg font-semibold">Produk ({produk.length})</TabsTrigger>
-          <TabsTrigger value="coa" className="rounded-lg font-semibold">COA ({coa.length})</TabsTrigger>
-          <TabsTrigger value="karyawan" className="rounded-lg font-semibold">Karyawan ({karyawan.length})</TabsTrigger>
-          <TabsTrigger value="users" className="rounded-lg font-semibold">Pengguna ({users.length})</TabsTrigger>
+        <TabsList className="flex flex-wrap gap-1 mb-6 bg-muted/50 p-1 rounded-xl w-full max-w-[900px]">
+          <TabsTrigger value="outlet" className="rounded-lg font-semibold flex-1 sm:flex-initial">Outlet ({outlets.length})</TabsTrigger>
+          <TabsTrigger value="produk" className="rounded-lg font-semibold flex-1 sm:flex-initial">Produk ({produk.length})</TabsTrigger>
+          <TabsTrigger value="bahan" className="rounded-lg font-semibold flex-1 sm:flex-initial">Bahan Baku ({bahan.length})</TabsTrigger>
+          <TabsTrigger value="coa" className="rounded-lg font-semibold flex-1 sm:flex-initial">COA ({coa.length})</TabsTrigger>
+          <TabsTrigger value="karyawan" className="rounded-lg font-semibold flex-1 sm:flex-initial">Karyawan ({karyawan.length})</TabsTrigger>
+          <TabsTrigger value="users" className="rounded-lg font-semibold flex-1 sm:flex-initial">Pengguna ({users.length})</TabsTrigger>
+          <TabsTrigger value="pengaturan" className="rounded-lg font-semibold flex-1 sm:flex-initial">Pengaturan</TabsTrigger>
         </TabsList>
 
         {/* ================= OUTLET ================= */}
@@ -133,32 +247,55 @@ export default function MasterData() {
 
             {/* FORM */}
             <div className="min-w-0">
-              <Card>
+              <Card className="glass border-0 shadow-card">
                 <CardHeader><CardTitle>Tambah Outlet</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (!oNama) return;
-                      db.addOutlet({ nama: oNama, lokasi: oLokasi });
+                      let lokasiCombined = oLokasi;
+                      if (oLat && oLng) {
+                        lokasiCombined += ` @ ${oLat},${oLng},${oRadius || 100}`;
+                      }
+                      db.addOutlet({ nama: oNama, lokasi: lokasiCombined });
                       setONama("");
                       setOLokasi("");
+                      setOLat("");
+                      setOLng("");
+                      setORadius("100");
                       toast.success("Outlet ditambahkan");
                     }}
                     className="space-y-3"
                   >
                     <div>
                       <Label>Nama Outlet</Label>
-                      <Input value={oNama} onChange={(e) => setONama(e.target.value)} />
+                      <Input value={oNama} onChange={(e) => setONama(e.target.value)} placeholder="Contoh: Gunung Gangsir" />
                     </div>
 
                     <div>
-                      <Label>Lokasi</Label>
-                      <Input value={oLokasi} onChange={(e) => setOLokasi(e.target.value)} />
+                      <Label>Alamat / Lokasi</Label>
+                      <Input value={oLokasi} onChange={(e) => setOLokasi(e.target.value)} placeholder="Contoh: Jl. Raya Rajawali No. 45" />
                     </div>
 
-                    <Button className="w-full">
-                      <Plus className="mr-2 h-4 w-4" />Tambah
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label>Latitude GPS</Label>
+                        <Input value={oLat} onChange={(e) => setOLat(e.target.value)} placeholder="Contoh: -7.641234" />
+                      </div>
+                      <div>
+                        <Label>Longitude GPS</Label>
+                        <Input value={oLng} onChange={(e) => setOLng(e.target.value)} placeholder="Contoh: 112.906123" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>Radius Absensi (Meter)</Label>
+                      <Input type="number" value={oRadius} onChange={(e) => setORadius(e.target.value)} placeholder="Contoh: 100" />
+                    </div>
+
+                    <Button className="w-full h-10 gradient-primary text-primary-foreground hover-lift mt-2">
+                      <Plus className="mr-2 h-4 w-4" />Tambah Outlet
                     </Button>
                   </form>
                 </CardContent>
@@ -167,7 +304,7 @@ export default function MasterData() {
 
             {/* TABLE */}
             <div className="min-w-0 lg:col-span-2">
-              <Card>
+              <Card className="glass border-0 shadow-card">
                 <CardHeader><CardTitle>Daftar Outlet</CardTitle></CardHeader>
                 <CardContent>
 
@@ -177,26 +314,38 @@ export default function MasterData() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Nama</TableHead>
-                            <TableHead className="text-center">Lokasi</TableHead>
+                            <TableHead>Lokasi / Koordinat GPS</TableHead>
                             <TableHead className="text-center">Aksi</TableHead>
                           </TableRow>
                         </TableHeader>
 
                         <TableBody>
-                          {outletPg.paged.map((o) => (
-                            <TableRow key={o.id}>
-                              <TableCell>{o.nama}</TableCell>
-                              <TableCell className="text-center">{o.lokasi}</TableCell>
-                              <TableCell className="text-center">
-                                <div className="flex justify-center gap-1">
-                                  <EditOutletDialog outlet={o} />
-                                  <Button size="icon" variant="ghost" onClick={() => db.deleteOutlet(o.id)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {outletPg.paged.map((o) => {
+                            const parsed = parseLokasi(o.lokasi);
+                            return (
+                              <TableRow key={o.id}>
+                                <TableCell className="font-semibold">{o.nama}</TableCell>
+                                <TableCell className="text-left">
+                                  <div className="text-sm font-medium">{parsed.alamat || "-"}</div>
+                                  {parsed.lat && parsed.lng && (
+                                    <div className="text-[10px] text-primary font-mono mt-0.5">
+                                      GPS: {parsed.lat}, {parsed.lng} (Radius: {parsed.rad}m)
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div className="flex justify-center gap-1">
+                                    <EditOutletDialog outlet={o} />
+                                    <Button size="icon" variant="ghost" onClick={() => {
+                                      if (confirm(`Hapus outlet ${o.nama}?`)) db.deleteOutlet(o.id);
+                                    }}>
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -302,6 +451,136 @@ export default function MasterData() {
                     total={produkPg.total}
                     pageSize={produkPg.pageSize}
                     onChange={produkPg.setPage}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+          </div>
+        </TabsContent>
+
+        {/* ================= BAHAN BAKU ================= */}
+        <TabsContent value="bahan">
+          <div className="grid gap-6 lg:grid-cols-3">
+
+            {/* FORM */}
+            <div className="min-w-0">
+              <Card className="glass border-0 shadow-card">
+                <CardHeader><CardTitle>Tambah Bahan Baku</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!bKode || !bNama) return toast.error("Lengkapi kode dan nama bahan!");
+                      db.addBahan({
+                        kode: bKode,
+                        nama: bNama,
+                        satuan: bSatuan,
+                        stokMin: bStokMin,
+                        stokAwal: bStokAwal,
+                        hargaBeli: bHargaBeli
+                      });
+                      setBKode("");
+                      setBNama("");
+                      setBSatuan("sachet");
+                      setBStokMin(0);
+                      setBStokAwal(0);
+                      setBHargaBeli(0);
+                      toast.success("Bahan baku ditambahkan");
+                    }}
+                    className="space-y-3"
+                  >
+                    <div>
+                      <Label>Kode Bahan</Label>
+                      <Input value={bKode} onChange={(e) => setBKode(e.target.value)} placeholder="Contoh: BRS01" />
+                    </div>
+
+                    <div>
+                      <Label>Nama Bahan Baku</Label>
+                      <Input value={bNama} onChange={(e) => setBNama(e.target.value)} placeholder="Contoh: BERAS" />
+                    </div>
+
+                    <div>
+                      <Label>Satuan</Label>
+                      <Input value={bSatuan} onChange={(e) => setBSatuan(e.target.value)} placeholder="Contoh: sachet, Pack, biji" />
+                    </div>
+
+                    <div>
+                      <Label>Stok Minimum</Label>
+                      <Input type="number" value={bStokMin} onChange={(e) => setBStokMin(Number(e.target.value))} />
+                    </div>
+
+                    <div>
+                      <Label>Stok Awal</Label>
+                      <Input type="number" value={bStokAwal} onChange={(e) => setBStokAwal(Number(e.target.value))} />
+                    </div>
+
+                    <div>
+                      <Label>Harga Beli (Rp)</Label>
+                      <Input type="number" value={bHargaBeli} onChange={(e) => setBHargaBeli(Number(e.target.value))} />
+                    </div>
+
+                    <Button className="w-full h-10 gradient-primary text-primary-foreground hover-lift mt-2">
+                      <Plus className="mr-2 h-4 w-4" />Tambah Bahan Baku
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* TABLE */}
+            <div className="min-w-0 lg:col-span-2">
+              <Card className="glass border-0 shadow-card">
+                <CardHeader><CardTitle>Daftar Bahan Baku</CardTitle></CardHeader>
+                <CardContent>
+
+                  <div className="w-full overflow-hidden rounded-xl border">
+                    <div className="w-full overflow-x-auto">
+                      <Table className="w-full text-sm">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kode</TableHead>
+                            <TableHead>Nama</TableHead>
+                            <TableHead>Satuan</TableHead>
+                            <TableHead className="text-right">Stok Min</TableHead>
+                            <TableHead className="text-right">Stok Awal</TableHead>
+                            <TableHead className="text-right">Harga Beli</TableHead>
+                            <TableHead className="text-center">Aksi</TableHead>
+                          </TableRow>
+                        </TableHeader>
+
+                        <TableBody>
+                          {bahanPg.paged.map((b) => (
+                            <TableRow key={b.id}>
+                              <TableCell className="font-mono font-bold text-xs">{b.kode}</TableCell>
+                              <TableCell className="font-semibold">{b.nama}</TableCell>
+                              <TableCell>{b.satuan}</TableCell>
+                              <TableCell className="text-right font-semibold">{b.stokMin}</TableCell>
+                              <TableCell className="text-right font-semibold">{b.stokAwal}</TableCell>
+                              <TableCell className="text-right font-semibold text-primary">{rupiah(b.hargaBeli)}</TableCell>
+                              <TableCell className="text-center">
+                                <div className="flex justify-center gap-1">
+                                  <EditBahanDialog bahan={b} />
+                                  <Button size="icon" variant="ghost" onClick={() => {
+                                    if (confirm(`Hapus bahan baku ${b.nama}?`)) db.deleteBahan(b.id);
+                                  }}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  <TablePagination 
+                    page={bahanPg.page}
+                    totalPages={bahanPg.totalPages}
+                    total={bahanPg.total}
+                    pageSize={bahanPg.pageSize}
+                    onChange={bahanPg.setPage}
                   />
                 </CardContent>
               </Card>
@@ -649,6 +928,139 @@ export default function MasterData() {
           </div>
         </TabsContent>
 
+        {/* ================= PENGATURAN GLOBAL ================= */}
+        <TabsContent value="pengaturan">
+          <form onSubmit={handleSaveSettings} className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              
+              {/* CARD 1: GRAMASI */}
+              <Card className="glass border-0 shadow-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sliders className="h-5 w-5 text-primary" />
+                    Konversi Gramasi (Resep per Cup)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-bold text-amber-600 border-b pb-1">Varian Bubur</h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Beras (gr)</Label>
+                        <Input type="number" step="any" value={sBerasBubur} onChange={(e) => setSBerasBubur(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Air (ml)</Label>
+                        <Input type="number" step="any" value={sAirBubur} onChange={(e) => setSAirBubur(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Daging (gr)</Label>
+                        <Input type="number" step="any" value={sDagingBubur} onChange={(e) => setSDagingBubur(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">S. Hijau (gr)</Label>
+                        <Input type="number" step="any" value={sSayurHijauBubur} onChange={(e) => setSSayurHijauBubur(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">S. Brokoli (gr)</Label>
+                        <Input type="number" step="any" value={sSayurBrokoliBubur} onChange={(e) => setSSayurBrokoliBubur(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">S. Putih (gr)</Label>
+                        <Input type="number" step="any" value={sSayurPutihBubur} onChange={(e) => setSSayurPutihBubur(Number(e.target.value))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-sm font-bold text-blue-600 border-b pb-1">Varian Nasi Tim</h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Beras (gr)</Label>
+                        <Input type="number" step="any" value={sBerasTim} onChange={(e) => setSBerasTim(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Air (ml)</Label>
+                        <Input type="number" step="any" value={sAirTim} onChange={(e) => setSAirTim(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Daging (gr)</Label>
+                        <Input type="number" step="any" value={sDagingTim} onChange={(e) => setSDagingTim(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">S. Hijau (gr)</Label>
+                        <Input type="number" step="any" value={sSayurHijauTim} onChange={(e) => setSSayurHijauTim(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">S. Brokoli (gr)</Label>
+                        <Input type="number" step="any" value={sSayurBrokoliTim} onChange={(e) => setSSayurBrokoliTim(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">S. Putih (gr)</Label>
+                        <Input type="number" step="any" value={sSayurPutihTim} onChange={(e) => setSSayurPutihTim(Number(e.target.value))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-sm font-bold text-muted-foreground border-b pb-1">Menu Lainnya (per Cup)</h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Oatmeal (gr)</Label>
+                        <Input type="number" step="any" value={sOatmealCup} onChange={(e) => setSOatmealCup(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Puding (gr)</Label>
+                        <Input type="number" step="any" value={sPudingCup} onChange={(e) => setSPudingCup(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Abon (gr)</Label>
+                        <Input type="number" step="any" value={sAbonCup} onChange={(e) => setSAbonCup(Number(e.target.value))} />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* CARD 2: JAM & LAINNYA */}
+              <Card className="glass border-0 shadow-card self-start">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-primary" />
+                    Pengaturan Jam Operasional & Absensi
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Jam Masuk Standar</Label>
+                      <Input type="text" value={sJamMasukStandar} onChange={(e) => setSJamMasukStandar(e.target.value)} placeholder="Contoh: 07:30" />
+                    </div>
+                    <div>
+                      <Label>Jam Pulang Standar</Label>
+                      <Input type="text" value={sJamPulangStandar} onChange={(e) => setSJamPulangStandar(e.target.value)} placeholder="Contoh: 15:00" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Tarif Lembur per Jam (Rp)</Label>
+                    <Input type="number" value={sOvertimeRate} onChange={(e) => setSOvertimeRate(Number(e.target.value))} />
+                  </div>
+
+                  <div>
+                    <Label>Tunjangan Harian Karyawan (Rp)</Label>
+                    <Input type="number" value={sTunjanganHarian} onChange={(e) => setSTunjanganHarian(Number(e.target.value))} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Button type="submit" className="w-full h-11 gradient-primary text-primary-foreground hover-lift text-sm font-semibold shadow-md">
+              Simpan Semua Pengaturan
+            </Button>
+          </form>
+        </TabsContent>
+
       </Tabs>
     </div>
   );
@@ -659,7 +1071,12 @@ export default function MasterData() {
 function EditOutletDialog({ outlet }) {
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState(outlet.nama);
-  const [lokasi, setLokasi] = useState(outlet.lokasi);
+
+  const parsed = parseLokasi(outlet.lokasi);
+  const [alamat, setAlamat] = useState(parsed.alamat);
+  const [lat, setLat] = useState(parsed.lat);
+  const [lng, setLng] = useState(parsed.lng);
+  const [rad, setRad] = useState(parsed.rad);
 
   return (
     <>
@@ -674,7 +1091,11 @@ function EditOutletDialog({ outlet }) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              db.updateOutlet(outlet.id, { nama, lokasi });
+              let lokasiCombined = alamat;
+              if (lat && lng) {
+                lokasiCombined += ` @ ${lat},${lng},${rad || 100}`;
+              }
+              db.updateOutlet(outlet.id, { nama, lokasi: lokasiCombined });
               toast.success("Outlet diperbarui");
               setOpen(false);
             }}
@@ -685,8 +1106,86 @@ function EditOutletDialog({ outlet }) {
               <Input value={nama} onChange={(e) => setNama(e.target.value)} />
             </div>
             <div>
-              <Label>Lokasi</Label>
-              <Input value={lokasi} onChange={(e) => setLokasi(e.target.value)} />
+              <Label>Alamat / Lokasi</Label>
+              <Input value={alamat} onChange={(e) => setAlamat(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Latitude GPS</Label>
+                <Input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="Contoh: -7.641234" />
+              </div>
+              <div>
+                <Label>Longitude GPS</Label>
+                <Input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="Contoh: 112.906123" />
+              </div>
+            </div>
+            <div>
+              <Label>Radius Absensi (Meter)</Label>
+              <Input type="number" value={rad} onChange={(e) => setRad(e.target.value)} />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button type="submit">Simpan</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function EditBahanDialog({ bahan }) {
+  const [open, setOpen] = useState(false);
+  const [kode, setKode] = useState(bahan.kode);
+  const [nama, setNama] = useState(bahan.nama);
+  const [satuan, setSatuan] = useState(bahan.satuan);
+  const [stokMin, setStokMin] = useState(bahan.stokMin);
+  const [stokAwal, setStokAwal] = useState(bahan.stokAwal);
+  const [hargaBeli, setHargaBeli] = useState(bahan.hargaBeli);
+
+  return (
+    <>
+      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
+        <Pencil className="h-4 w-4 text-primary" />
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Bahan Baku</DialogTitle></DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              db.updateBahan(bahan.id, { kode, nama, satuan, stokMin, stokAwal, hargaBeli });
+              toast.success("Bahan baku diperbarui");
+              setOpen(false);
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <Label>Kode</Label>
+              <Input value={kode} onChange={(e) => setKode(e.target.value)} />
+            </div>
+            <div>
+              <Label>Nama Bahan Baku</Label>
+              <Input value={nama} onChange={(e) => setNama(e.target.value)} />
+            </div>
+            <div>
+              <Label>Satuan</Label>
+              <Input value={satuan} onChange={(e) => setSatuan(e.target.value)} />
+            </div>
+            <div>
+              <Label>Stok Minimum</Label>
+              <Input type="number" value={stokMin} onChange={(e) => setStokMin(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Stok Awal</Label>
+              <Input type="number" value={stokAwal} onChange={(e) => setStokAwal(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Harga Beli (Rp)</Label>
+              <Input type="number" value={hargaBeli} onChange={(e) => setHargaBeli(Number(e.target.value))} />
             </div>
 
             <DialogFooter>

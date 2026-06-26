@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { db, useDB } from "@/lib/store";
+import { db, useDB, getBubaSettings } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
 import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check, FileText, MapPin, Navigation, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -33,8 +33,21 @@ export default function Absensi() {
 
   const [tanggal, setTanggal] = useState(todayISO());
   const [karyawanId, setKaryawanId] = useState(visibleKaryawan[0]?.id ?? "");
-  const [jamMasuk, setJamMasuk] = useState("07:00");
-  const [jamPulang, setJamPulang] = useState("15:00");
+
+  const settings = getBubaSettings();
+  const [jamMasuk, setJamMasuk] = useState(settings.jamMasukStandar);
+  const [jamPulang, setJamPulang] = useState(settings.jamPulangStandar);
+
+  useEffect(() => {
+    const handler = () => {
+      const s = getBubaSettings();
+      setJamMasuk(s.jamMasukStandar);
+      setJamPulang(s.jamPulangStandar);
+    };
+    window.addEventListener("buba_settings_changed", handler);
+    return () => window.removeEventListener("buba_settings_changed", handler);
+  }, []);
+
   const [status, setStatus] = useState<StatusAbsen>("Hadir");
   const [bonusInput, setBonusInput] = useState(0);
   const [tunjanganInput, setTunjanganInput] = useState(0);
@@ -114,8 +127,54 @@ export default function Absensi() {
     return absensi.find((a) => a.tanggal === todayISO() && a.karyawanId === kid);
   }, [absensi, karyawanId, visibleKaryawan, user]);
 
+  // Haversine formula to compute distance between two coordinates in meters
+  const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c * 1000; // meters
+  };
+
+  const validateGPSDistance = () => {
+    if (user?.role !== "outlet" || !user?.outletId) return true;
+    const myOutlet = outlets.find((o: any) => o.id === user.outletId);
+    if (!myOutlet || !myOutlet.lokasi) return true;
+    
+    // Parse lokasi
+    const parts = myOutlet.lokasi.split(" @ ");
+    if (parts.length < 2) return true; // No GPS target set yet
+    
+    const [latStr, lngStr, radStr] = parts[1].split(",");
+    const targetLat = parseFloat(latStr);
+    const targetLng = parseFloat(lngStr);
+    const radius = parseFloat(radStr || "100");
+    
+    if (isNaN(targetLat) || isNaN(targetLng)) return true;
+    
+    if (!coordinates) {
+      toast.error("Gagal mendapatkan koordinat GPS Anda!");
+      return false;
+    }
+    
+    const dist = getDistanceMeters(coordinates.lat, coordinates.lng, targetLat, targetLng);
+    if (dist > radius) {
+      toast.error(`Gagal Absen! Anda berada di luar area outlet. Jarak Anda: ${Math.round(dist)} meter (Maks: ${radius} meter).`);
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleClockInGPS = () => {
     if (gpsLoading) return toast.error("Menunggu GPS mengunci lokasi...");
+    if (!validateGPSDistance()) return;
     const kid = user?.role === "produksi" ? "k-produksi" : `k-${user?.outletId}-1`;
     db.addAbsensi({
       tanggal: todayISO(),
@@ -129,6 +188,8 @@ export default function Absensi() {
 
   const handleClockOutGPS = () => {
     if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
+    if (gpsLoading) return toast.error("Menunggu GPS mengunci lokasi...");
+    if (!validateGPSDistance()) return;
     const confirmOut = window.confirm("Apakah Anda yakin ingin melakukan Absen Pulang?");
     if (!confirmOut) return;
     db.updateAbsensi(todayRecord.id, {

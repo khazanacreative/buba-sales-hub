@@ -496,163 +496,184 @@ export default function StokGudang() {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Tabs defaultValue="supplier" className="w-full space-y-4">
-          <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 rounded-xl">
+      <div className="grid gap-6 md:grid-cols-2 items-stretch">
+        <Tabs defaultValue="supplier" className="w-full flex flex-col space-y-4">
+          <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 rounded-xl shrink-0">
             <TabsTrigger value="supplier" className="rounded-lg">Kiriman Supplier</TabsTrigger>
             <TabsTrigger value="rusak" className="rounded-lg">Barang Rusak</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="supplier" className="m-0">
-            <Card className="glass border-0 shadow-card">
-              <CardHeader><CardTitle>Kiriman Supplier (Pembelian)</CardTitle></CardHeader>
-              <CardContent>
-                <form onSubmit={submitSupplier} className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Tanggal Kirim</Label>
-                      <Input type="date" value={supTanggal} onChange={(e) => setSupTanggal(e.target.value)} />
+          <TabsContent value="supplier" className="m-0 flex-1 flex flex-col">
+            <Card className="glass border-0 shadow-card flex-1 flex flex-col justify-between">
+              <div>
+                <CardHeader>
+                  <CardTitle>Kiriman Supplier (Pembelian)</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mencatat pembelian bahan baku dari supplier. Menambah stok gudang (IN) dan otomatis membukukan transaksi pembayaran/hutang di jurnal keuangan.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={submitSupplier} className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Tanggal Kirim</Label>
+                        <Input type="date" value={supTanggal} onChange={(e) => setSupTanggal(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Bahan Baku</Label>
+                        <Select value={supBahanId} onValueChange={setSupBahanId}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Qty Datang</Label>
+                        <Input type="number" min={1} value={supQty} onChange={(e) => setSupQty(Number(e.target.value))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Total Biaya (Rp)</Label>
+                        <Input type="number" min={0} value={supCost} onChange={(e) => setSupCost(Number(e.target.value))} />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Bahan Baku</Label>
-                      <Select value={supBahanId} onValueChange={setSupBahanId}>
+                      <Label>Metode Pembayaran</Label>
+                      <Select value={supBayar} onValueChange={setSupBayar}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                          <SelectItem value="110000">Kas Rupiah (Cash)</SelectItem>
+                          <SelectItem value="120000">Bank (Transfer)</SelectItem>
+                          <SelectItem value="210000">Hutang Usaha (Belum Bayar)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Qty Datang</Label>
-                      <Input type="number" min={1} value={supQty} onChange={(e) => setSupQty(Number(e.target.value))} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Total Biaya (Rp)</Label>
-                      <Input type="number" min={0} value={supCost} onChange={(e) => setSupCost(Number(e.target.value))} />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Metode Pembayaran</Label>
-                    <Select value={supBayar} onValueChange={setSupBayar}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="110000">Kas Rupiah (Cash)</SelectItem>
-                        <SelectItem value="120000">Bank (Transfer)</SelectItem>
-                        <SelectItem value="210000">Hutang Usaha (Belum Bayar)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                    <Package className="mr-1 h-4 w-4" />Catat Pembelian & Posting Jurnal
-                  </Button>
-                </form>
-              </CardContent>
+                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift mt-2">
+                      <Package className="mr-1 h-4 w-4" />Catat Pembelian & Posting Jurnal
+                    </Button>
+                  </form>
+                </CardContent>
+              </div>
             </Card>
           </TabsContent>
-
-          <TabsContent value="rusak" className="m-0">
-            <Card className="glass border-0 shadow-card">
-              <CardHeader><CardTitle>Lapor Barang Rusak (Wastage)</CardTitle></CardHeader>
-              <CardContent>
-                <form onSubmit={submitRusak} className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Tanggal Lapor</Label>
-                      <Input type="date" value={rusakTanggal} onChange={(e) => setRusakTanggal(e.target.value)} />
+ 
+          <TabsContent value="rusak" className="m-0 flex-1 flex flex-col">
+            <Card className="glass border-0 shadow-card flex-1 flex flex-col justify-between">
+              <div>
+                <CardHeader>
+                  <CardTitle>Lapor Barang Rusak (Wastage)</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mencatat penyusutan bahan baku yang rusak, pecah, atau kadaluarsa. Mengurangi stok gudang (OUT) dan otomatis membukukan biaya kerugian operasional di jurnal keuangan.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={submitRusak} className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Tanggal Lapor</Label>
+                        <Input type="date" value={rusakTanggal} onChange={(e) => setRusakTanggal(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Bahan Baku</Label>
+                        <Select value={rusakBahanId} onValueChange={setRusakBahanId}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Qty Rusak</Label>
+                        <Input type="number" min={1} value={rusakQty} onChange={(e) => setRusakQty(Number(e.target.value))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Keterangan / Alasan</Label>
+                        <Input value={rusakKeterangan} onChange={(e) => setRusakKeterangan(e.target.value)} placeholder="Contoh: Pecah, Kadaluarsa, dll." />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Bahan Baku</Label>
-                      <Select value={rusakBahanId} onValueChange={setRusakBahanId}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Qty Rusak</Label>
-                      <Input type="number" min={1} value={rusakQty} onChange={(e) => setRusakQty(Number(e.target.value))} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Keterangan / Alasan</Label>
-                      <Input value={rusakKeterangan} onChange={(e) => setRusakKeterangan(e.target.value)} placeholder="Contoh: Pecah, Kadaluarsa, dll." />
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                    <AlertTriangle className="mr-1 h-4 w-4" />Catat Kerusakan & Posting Jurnal
-                  </Button>
-                </form>
-              </CardContent>
+                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift mt-2">
+                      <AlertTriangle className="mr-1 h-4 w-4" />Catat Kerusakan & Posting Jurnal
+                    </Button>
+                  </form>
+                </CardContent>
+              </div>
             </Card>
           </TabsContent>
         </Tabs>
-
-        <Card className="glass border-0 shadow-card self-start">
-          <CardHeader><CardTitle>Catat Pergerakan Stok (Manual)</CardTitle></CardHeader>
-          <CardContent>
-            <form onSubmit={submit} className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Tanggal</Label>
-                  <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+ 
+        <Card className="glass border-0 shadow-card flex flex-col justify-between h-full">
+          <div>
+            <CardHeader>
+              <CardTitle>Catat Pergerakan Stok (Manual)</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Melakukan penyesuaian stok manual (seperti stock opname atau selisih stok). Hanya memperbarui kartu stok (IN/OUT) tanpa posting jurnal keuangan pembelian/kerugian otomatis.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={submit} className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Tanggal</Label>
+                    <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Bahan</Label>
+                    <Select value={bahanId} onValueChange={setBahanId}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tipe</Label>
+                    <Select value={tipe} onValueChange={(v) => setTipe(v as any)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="IN">Masuk</SelectItem>
+                        <SelectItem value="OUT">Keluar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Qty</Label>
+                    <Input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Bahan</Label>
-                  <Select value={bahanId} onValueChange={setBahanId}>
+                  <Label>Sumber / Keterangan</Label>
+                  <Select value={selectedKetSource} onValueChange={setSelectedKetSource}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                      {tipe === "IN" ? (
+                        <>
+                          <SelectItem value="Supplier">Supplier</SelectItem>
+                          <SelectItem value="Retur Cup">Retur Cup</SelectItem>
+                          <SelectItem value="Lainnya">Lainnya (Tulis Manual)</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="Plan Produksi">Plan Produksi</SelectItem>
+                          <SelectItem value="Request Outlet">Request Outlet</SelectItem>
+                          <SelectItem value="Barang Rusak">Barang Rusak</SelectItem>
+                          <SelectItem value="Lainnya">Lainnya (Tulis Manual)</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Tipe</Label>
-                  <Select value={tipe} onValueChange={(v) => setTipe(v as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="IN">Masuk</SelectItem>
-                      <SelectItem value="OUT">Keluar</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Qty</Label>
-                  <Input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Sumber / Keterangan</Label>
-                <Select value={selectedKetSource} onValueChange={setSelectedKetSource}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {tipe === "IN" ? (
-                      <>
-                        <SelectItem value="Supplier">Supplier</SelectItem>
-                        <SelectItem value="Retur Cup">Retur Cup</SelectItem>
-                        <SelectItem value="Lainnya">Lainnya (Tulis Manual)</SelectItem>
-                      </>
-                    ) : (
-                      <>
-                        <SelectItem value="Plan Produksi">Plan Produksi</SelectItem>
-                        <SelectItem value="Request Outlet">Request Outlet</SelectItem>
-                        <SelectItem value="Barang Rusak">Barang Rusak</SelectItem>
-                        <SelectItem value="Lainnya">Lainnya (Tulis Manual)</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              {selectedKetSource === "Lainnya" && (
-                <div className="space-y-2">
-                  <Label>Keterangan Manual</Label>
-                  <Input value={customKet} onChange={(e) => setCustomKet(e.target.value)} placeholder="Masukkan keterangan..." />
-                </div>
-              )}
-              <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                <Plus className="mr-1 h-4 w-4" />Simpan Penyesuaian
-              </Button>
-            </form>
-          </CardContent>
+                {selectedKetSource === "Lainnya" && (
+                  <div className="space-y-2">
+                    <Label>Keterangan Manual</Label>
+                    <Input value={customKet} onChange={(e) => setCustomKet(e.target.value)} placeholder="Masukkan keterangan..." />
+                  </div>
+                )}
+                <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift mt-2">
+                  <Plus className="mr-1 h-4 w-4" />Simpan Penyesuaian
+                </Button>
+              </form>
+            </CardContent>
+          </div>
         </Card>
       </div>
 

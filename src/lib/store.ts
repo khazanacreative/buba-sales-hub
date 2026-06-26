@@ -591,3 +591,72 @@ export function saldoBahan(bahanId: string, state_?: DB): number {
   }
   return saldo;
 }
+
+export interface BubaSettings {
+  // Bubur
+  berasBubur: number;
+  dagingBubur: number;
+  airBubur: number;
+  sayurHijauBubur: number;
+  sayurBrokoliBubur: number;
+  sayurPutihBubur: number;
+  
+  // Nasi Tim
+  berasTim: number;
+  dagingTim: number;
+  airTim: number;
+  sayurHijauTim: number;
+  sayurBrokoliTim: number;
+  sayurPutihTim: number;
+
+  // Lainnya
+  oatmealCup: number;
+  pudingCup: number;
+  abonCup: number;
+
+  // Absensi & Operational
+  jamMasukStandar: string;
+  jamPulangStandar: string;
+  overtimeRate: number;
+  tunjanganHarian: number;
+}
+
+export const DEFAULT_SETTINGS: BubaSettings = {
+  berasBubur: 16.67,
+  dagingBubur: 13,
+  airBubur: 116.67,
+  sayurHijauBubur: 1.33,
+  sayurBrokoliBubur: 0.87,
+  sayurPutihBubur: 0.27,
+  
+  berasTim: 20.00,
+  dagingTim: 10,
+  airTim: 120.00,
+  sayurHijauTim: 1.58,
+  sayurBrokoliTim: 1.00,
+  sayurPutihTim: 0.33,
+
+  oatmealCup: 25.71,
+  pudingCup: 13.00,
+  abonCup: 10.00,
+
+  jamMasukStandar: "07:30",
+  jamPulangStandar: "15:00",
+  overtimeRate: 15000,
+  tunjanganHarian: 10000,
+};
+
+export function getBubaSettings(): BubaSettings {
+  const saved = localStorage.getItem("buba_settings");
+  if (!saved) return DEFAULT_SETTINGS;
+  try {
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export function saveBubaSettings(s: BubaSettings) {
+  localStorage.setItem("buba_settings", JSON.stringify(s));
+  window.dispatchEvent(new Event("buba_settings_changed"));
+}

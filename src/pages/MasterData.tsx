@@ -13,6 +13,9 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger
 } from "@/components/ui/tabs";
 import {
+  Accordion, AccordionItem, AccordionTrigger, AccordionContent
+} from "@/components/ui/accordion";
+import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
 import {
@@ -22,7 +25,7 @@ import {
 import { db, useDB, getBubaSettings, saveBubaSettings } from "@/lib/store";
 import { rupiah } from "@/lib/format";
 
-import { Plus, Trash2, RotateCcw, Pencil, Settings, Sliders, Warehouse } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Pencil, Settings, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { usePagination } from "@/hooks/usePagination";
@@ -230,6 +233,7 @@ export default function MasterData() {
         </Button>
       </div>
 
+      <div className="hidden md:block">
       <Tabs defaultValue="outlet" className="w-full">
         <TabsList className="mb-6 bg-muted/50 p-1 rounded-xl w-full overflow-x-auto flex-nowrap justify-start gap-1">
           <TabsTrigger value="outlet" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">Outlet ({outlets.length})</TabsTrigger>
@@ -1063,6 +1067,589 @@ export default function MasterData() {
 
       </Tabs>
     </div>
+
+      {/* ===== MOBILE ACCORDION VIEW ===== */}
+      <div className="block md:hidden space-y-3">
+        <Accordion type="single" collapsible className="space-y-2">
+          
+          {/* OUTLET */}
+          <AccordionItem value="outlet" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <Store className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Outlet</div>
+                  <div className="text-[11px] text-muted-foreground">{outlets.length} terdaftar</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="grid gap-4">
+                {/* FORM */}
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="text-sm font-bold">Tambah Outlet</h3>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!oNama) return;
+                        let lokasiCombined = oLokasi;
+                        if (oLat && oLng) {
+                          lokasiCombined += ` @ ${oLat},${oLng},${oRadius || 100}`;
+                        }
+                        db.addOutlet({ nama: oNama, lokasi: lokasiCombined });
+                        setONama("");
+                        setOLokasi("");
+                        setOLat("");
+                        setOLng("");
+                        setORadius("100");
+                        toast.success("Outlet ditambahkan");
+                      }}
+                      className="space-y-2"
+                    >
+                      <Input value={oNama} onChange={(e) => setONama(e.target.value)} placeholder="Nama Outlet" />
+                      <Input value={oLokasi} onChange={(e) => setOLokasi(e.target.value)} placeholder="Alamat" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input value={oLat} onChange={(e) => setOLat(e.target.value)} placeholder="Latitude GPS" />
+                        <Input value={oLng} onChange={(e) => setOLng(e.target.value)} placeholder="Longitude GPS" />
+                      </div>
+                      <Input type="number" value={oRadius} onChange={(e) => setORadius(e.target.value)} placeholder="Radius Absensi (M)" />
+                      <Button className="w-full h-9 text-xs gradient-primary text-primary-foreground">
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Outlet
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* TABLE */}
+                <Card className="border shadow-sm">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-bold mb-2 px-1">Daftar Outlet</h3>
+                    <div className="space-y-2">
+                      {outletPg.paged.map((o) => {
+                        const parsed = parseLokasi(o.lokasi);
+                        return (
+                          <div key={o.id} className="rounded-lg border p-3 text-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">{o.nama}</span>
+                              <div className="flex gap-1">
+                                <EditOutletDialog outlet={o} />
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                                  if (confirm(`Hapus outlet ${o.nama}?`)) db.deleteOutlet(o.id);
+                                }}>
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground">{parsed.alamat || "-"}</div>
+                            {parsed.lat && parsed.lng && (
+                              <div className="text-[10px] text-primary font-mono">
+                                GPS: {parsed.lat}, {parsed.lng} (R:{parsed.rad}m)
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {outletPg.paged.length === 0 && (
+                        <div className="text-center text-muted-foreground py-6 text-sm">Belum ada outlet</div>
+                      )}
+                    </div>
+                    <TablePagination 
+                      page={outletPg.page}
+                      totalPages={outletPg.totalPages}
+                      total={outletPg.total}
+                      pageSize={outletPg.pageSize}
+                      onChange={outletPg.setPage}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* PRODUK */}
+          <AccordionItem value="produk" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <ShoppingCart className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Produk</div>
+                  <div className="text-[11px] text-muted-foreground">{produk.length} terdaftar</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="grid gap-4">
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="text-sm font-bold">Tambah Produk</h3>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!pNama || pHarga <= 0) return;
+                        db.addProduk({ nama: pNama, harga: pHarga, satuan: pSatuan });
+                        setPNama("");
+                        setPHarga(0);
+                        toast.success("Produk ditambahkan");
+                      }}
+                      className="space-y-2"
+                    >
+                      <Input value={pNama} onChange={(e) => setPNama(e.target.value)} placeholder="Nama Produk" />
+                      <Input type="number" value={pHarga} onChange={(e) => setPHarga(Number(e.target.value))} placeholder="Harga" />
+                      <Input value={pSatuan} onChange={(e) => setPSatuan(e.target.value)} placeholder="Satuan" />
+                      <Button className="w-full h-9 text-xs">
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card className="border shadow-sm">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-bold mb-2 px-1">Daftar Produk</h3>
+                    <div className="space-y-2">
+                      {produkPg.paged.map((p) => (
+                        <div key={p.id} className="rounded-lg border p-3 text-sm flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold">{p.nama}</div>
+                            <div className="text-xs text-muted-foreground">{rupiah(p.harga)} / {p.satuan}</div>
+                          </div>
+                          <div className="flex gap-1">
+                            <EditProdukDialog produk={p} />
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => db.deleteProduk(p.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {produkPg.paged.length === 0 && (
+                        <div className="text-center text-muted-foreground py-6 text-sm">Belum ada produk</div>
+                      )}
+                    </div>
+                    <TablePagination 
+                      page={produkPg.page}
+                      totalPages={produkPg.totalPages}
+                      total={produkPg.total}
+                      pageSize={produkPg.pageSize}
+                      onChange={produkPg.setPage}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* BAHAN BAKU */}
+          <AccordionItem value="bahan" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <Warehouse className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Bahan Baku</div>
+                  <div className="text-[11px] text-muted-foreground">{bahan.length} terdaftar</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="grid gap-4">
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-2">
+                    <h3 className="text-sm font-bold">Tambah Bahan Baku</h3>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!bKode || !bNama) return toast.error("Lengkapi kode dan nama bahan!");
+                        db.addBahan({ kode: bKode, nama: bNama, satuan: bSatuan, stokMin: bStokMin, stokAwal: bStokAwal, hargaBeli: bHargaBeli });
+                        setBKode(""); setBNama(""); setBSatuan("sachet"); setBStokMin(0); setBStokAwal(0); setBHargaBeli(0);
+                        toast.success("Bahan baku ditambahkan");
+                      }}
+                      className="space-y-2"
+                    >
+                      <Input value={bKode} onChange={(e) => setBKode(e.target.value)} placeholder="Kode (contoh: BRS01)" />
+                      <Input value={bNama} onChange={(e) => setBNama(e.target.value)} placeholder="Nama Bahan" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input value={bSatuan} onChange={(e) => setBSatuan(e.target.value)} placeholder="Satuan" />
+                        <Input type="number" value={bStokMin} onChange={(e) => setBStokMin(Number(e.target.value))} placeholder="Stok Min" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input type="number" value={bStokAwal} onChange={(e) => setBStokAwal(Number(e.target.value))} placeholder="Stok Awal" />
+                        <Input type="number" value={bHargaBeli} onChange={(e) => setBHargaBeli(Number(e.target.value))} placeholder="Harga Beli" />
+                      </div>
+                      <Button className="w-full h-9 text-xs gradient-primary text-primary-foreground">
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Bahan Baku
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card className="border shadow-sm">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-bold mb-2 px-1">Daftar Bahan Baku</h3>
+                    <div className="space-y-2">
+                      {bahanPg.paged.map((b) => (
+                        <div key={b.id} className="rounded-lg border p-3 text-sm">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-mono font-bold text-xs text-primary">{b.kode}</span>
+                              <span className="font-semibold ml-2">{b.nama}</span>
+                            </div>
+                            <div className="flex gap-1">
+                              <EditBahanDialog bahan={b} />
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                                if (confirm(`Hapus ${b.nama}?`)) db.deleteBahan(b.id);
+                              }}>
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="flex gap-3 mt-1.5 text-xs text-muted-foreground">
+                            <span>Satuan: {b.satuan}</span>
+                            <span>Min: {b.stokMin}</span>
+                            <span>Awal: {b.stokAwal}</span>
+                            <span className="text-primary font-semibold">{rupiah(b.hargaBeli)}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {bahanPg.paged.length === 0 && (
+                        <div className="text-center text-muted-foreground py-6 text-sm">Belum ada bahan baku</div>
+                      )}
+                    </div>
+                    <TablePagination 
+                      page={bahanPg.page}
+                      totalPages={bahanPg.totalPages}
+                      total={bahanPg.total}
+                      pageSize={bahanPg.pageSize}
+                      onChange={bahanPg.setPage}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* COA */}
+          <AccordionItem value="coa" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <BookOpen className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">COA</div>
+                  <div className="text-[11px] text-muted-foreground">{coa.length} akun</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <Card className="border shadow-sm">
+                <CardContent className="p-3">
+                  <h3 className="text-sm font-bold mb-2 px-1">Chart of Accounts</h3>
+                  <div className="space-y-2">
+                    {coaPg.paged.map((a) => (
+                      <div key={a.kode} className="rounded-lg border p-3 text-sm flex items-center justify-between">
+                        <div>
+                          <span className="font-mono text-xs text-muted-foreground">{a.kode}</span>
+                          <span className="font-semibold ml-2">{a.nama}</span>
+                        </div>
+                        <div className="text-xs">
+                          <span className="bg-muted px-2 py-0.5 rounded-full">{a.kategori}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {coaPg.paged.length === 0 && (
+                      <div className="text-center text-muted-foreground py-6 text-sm">Belum ada COA</div>
+                    )}
+                  </div>
+                  <TablePagination 
+                    page={coaPg.page}
+                    totalPages={coaPg.totalPages}
+                    total={coaPg.total}
+                    pageSize={coaPg.pageSize}
+                    onChange={coaPg.setPage}
+                  />
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* KARYAWAN */}
+          <AccordionItem value="karyawan" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <UserCheck className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Karyawan</div>
+                  <div className="text-[11px] text-muted-foreground">{karyawan.length} terdaftar</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="grid gap-4">
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-2">
+                    <h3 className="text-sm font-bold">Tambah Karyawan</h3>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!kNama) return toast.error("Nama karyawan diperlukan");
+                        db.addKaryawan({ nama: kNama, posisi: kPosisi, outletId: kOutletId === "none" ? undefined : kOutletId, gajiPokok: kGajiPokok, bonusOmset: kBonusOmset, bonusUlasan: kBonusUlasan });
+                        setKNama(""); setKGajiPokok(17500); setKBonusOmset(0); setKBonusUlasan(0);
+                        toast.success("Karyawan ditambahkan");
+                      }}
+                      className="space-y-2"
+                    >
+                      <Input value={kNama} onChange={(e) => setKNama(e.target.value)} placeholder="Nama Karyawan" />
+                      <Select value={kPosisi} onValueChange={setKPosisi}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Kasir">Kasir</SelectItem>
+                          <SelectItem value="Produksi">Produksi</SelectItem>
+                          <SelectItem value="Helper">Helper</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={kOutletId} onValueChange={setKOutletId}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Tanpa Outlet (Pusat)</SelectItem>
+                          {outlets.map((o) => (
+                            <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input type="number" value={kGajiPokok} onChange={(e) => setKGajiPokok(Number(e.target.value))} placeholder="Gaji/hr" />
+                        <Input type="number" value={kBonusOmset} onChange={(e) => setKBonusOmset(Number(e.target.value))} placeholder="Bonus Omset" />
+                        <Input type="number" value={kBonusUlasan} onChange={(e) => setKBonusUlasan(Number(e.target.value))} placeholder="Bonus Ulasan" />
+                      </div>
+                      <Button className="w-full h-9 text-xs">
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card className="border shadow-sm">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-bold mb-2 px-1">Daftar Karyawan</h3>
+                    <div className="space-y-2">
+                      {karyawanPg.paged.map((k) => {
+                        const o = outlets.find((x) => x.id === k.outletId);
+                        return (
+                          <div key={k.id} className="rounded-lg border p-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">{k.nama}</span>
+                              <div className="flex gap-1">
+                                <EditKaryawanDialog karyawan={k} outlets={outlets} />
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                                  if (confirm(`Hapus ${k.nama}?`)) db.deleteKaryawan(k.id);
+                                }}>
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
+                              <span>{k.posisi}</span>
+                              <span>•</span>
+                              <span>{o?.nama ?? "Pusat"}</span>
+                              <span>•</span>
+                              <span className="font-semibold">{rupiah(k.gajiPokok)}/hr</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {karyawanPg.paged.length === 0 && (
+                        <div className="text-center text-muted-foreground py-6 text-sm">Belum ada karyawan</div>
+                      )}
+                    </div>
+                    <TablePagination 
+                      page={karyawanPg.page}
+                      totalPages={karyawanPg.totalPages}
+                      total={karyawanPg.total}
+                      pageSize={karyawanPg.pageSize}
+                      onChange={karyawanPg.setPage}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* PENGGUNA */}
+          <AccordionItem value="pengguna" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <Users className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Pengguna</div>
+                  <div className="text-[11px] text-muted-foreground">{users.length} akun</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="grid gap-4">
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-2">
+                    <h3 className="text-sm font-bold">Tambah Pengguna</h3>
+                    <form onSubmit={handleAddUser} className="space-y-2">
+                      <Input value={uUsername} onChange={(e) => setUUsername(e.target.value.toLowerCase().trim())} placeholder="Username" />
+                      <Input type="text" value={uPassword} onChange={(e) => setUPassword(e.target.value)} placeholder="Password" />
+                      <Input value={uNama} onChange={(e) => setUNama(e.target.value)} placeholder="Nama Lengkap" />
+                      <Select value={uRole} onValueChange={(v) => setURole(v as "admin" | "outlet")}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="outlet">Outlet (Cabang)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {uRole === "outlet" && (
+                        <Select value={uOutletId} onValueChange={setUOutletId}>
+                          <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Tanpa Outlet</SelectItem>
+                            {outlets.map((o) => (
+                              <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <Button type="submit" className="w-full h-9 text-xs gradient-primary text-primary-foreground">
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah User
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card className="border shadow-sm">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-bold mb-2 px-1">Daftar Akun</h3>
+                    <div className="space-y-2">
+                      {usersPg.paged.map((u: any) => {
+                        const o = outlets.find((x: any) => x.id === u.outletId);
+                        return (
+                          <div key={u.username} className="rounded-lg border p-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="font-semibold">{u.username}</span>
+                                <span className="text-xs text-muted-foreground ml-2">{u.nama}</span>
+                              </div>
+                              <div className="flex gap-1">
+                                <EditUserDialog userAccount={u} outlets={outlets} />
+                                <Button size="icon" variant="ghost" className="h-7 w-7" disabled={u.username === "admin" || u.username === "khazana"}
+                                  onClick={() => {
+                                    if (confirm(`Hapus akun ${u.username}?`)) { db.deleteUser(u.username); toast.success("Akun dihapus"); }
+                                  }}>
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
+                              <span className="capitalize bg-muted px-1.5 py-0.5 rounded">{u.role}</span>
+                              <span>PW: {u.password}</span>
+                              <span>{o?.nama ?? "-"}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {usersPg.paged.length === 0 && (
+                        <div className="text-center text-muted-foreground py-6 text-sm">Belum ada akun</div>
+                      )}
+                    </div>
+                    <TablePagination 
+                      page={usersPg.page}
+                      totalPages={usersPg.totalPages}
+                      total={usersPg.total}
+                      pageSize={usersPg.pageSize}
+                      onChange={usersPg.setPage}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* PENGATURAN */}
+          <AccordionItem value="pengaturan" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <Settings className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Pengaturan</div>
+                  <div className="text-[11px] text-muted-foreground">Gramasi & Absensi</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <form onSubmit={handleSaveSettings} className="space-y-4">
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2">
+                      <Sliders className="h-4 w-4 text-primary" /> Konversi Gramasi
+                    </h3>
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-amber-600">Varian Bubur</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div><Label className="text-[10px]">Beras</Label><Input type="number" step="any" value={sBerasBubur} onChange={(e) => setSBerasBubur(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">Air</Label><Input type="number" step="any" value={sAirBubur} onChange={(e) => setSAirBubur(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">Daging</Label><Input type="number" step="any" value={sDagingBubur} onChange={(e) => setSDagingBubur(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">S.Hijau</Label><Input type="number" step="any" value={sSayurHijauBubur} onChange={(e) => setSSayurHijauBubur(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">S.Brokoli</Label><Input type="number" step="any" value={sSayurBrokoliBubur} onChange={(e) => setSSayurBrokoliBubur(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">S.Putih</Label><Input type="number" step="any" value={sSayurPutihBubur} onChange={(e) => setSSayurPutihBubur(Number(e.target.value))} /></div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-blue-600">Varian Nasi Tim</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div><Label className="text-[10px]">Beras</Label><Input type="number" step="any" value={sBerasTim} onChange={(e) => setSBerasTim(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">Air</Label><Input type="number" step="any" value={sAirTim} onChange={(e) => setSAirTim(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">Daging</Label><Input type="number" step="any" value={sDagingTim} onChange={(e) => setSDagingTim(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">S.Hijau</Label><Input type="number" step="any" value={sSayurHijauTim} onChange={(e) => setSSayurHijauTim(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">S.Brokoli</Label><Input type="number" step="any" value={sSayurBrokoliTim} onChange={(e) => setSSayurBrokoliTim(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">S.Putih</Label><Input type="number" step="any" value={sSayurPutihTim} onChange={(e) => setSSayurPutihTim(Number(e.target.value))} /></div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-muted-foreground">Menu Lainnya</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div><Label className="text-[10px]">Oatmeal</Label><Input type="number" step="any" value={sOatmealCup} onChange={(e) => setSOatmealCup(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">Puding</Label><Input type="number" step="any" value={sPudingCup} onChange={(e) => setSPudingCup(Number(e.target.value))} /></div>
+                        <div><Label className="text-[10px]">Abon</Label><Input type="number" step="any" value={sAbonCup} onChange={(e) => setSAbonCup(Number(e.target.value))} /></div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-primary" /> Jam & Absensi
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-[10px]">Jam Masuk</Label><Input type="text" value={sJamMasukStandar} onChange={(e) => setSJamMasukStandar(e.target.value)} /></div>
+                      <div><Label className="text-[10px]">Jam Pulang</Label><Input type="text" value={sJamPulangStandar} onChange={(e) => setSJamPulangStandar(e.target.value)} /></div>
+                    </div>
+                    <div><Label className="text-[10px]">Lembur/Jam</Label><Input type="number" value={sOvertimeRate} onChange={(e) => setSOvertimeRate(Number(e.target.value))} /></div>
+                    <div><Label className="text-[10px]">Tunjangan Harian</Label><Input type="number" value={sTunjanganHarian} onChange={(e) => setSTunjanganHarian(Number(e.target.value))} /></div>
+                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground text-xs">Simpan Semua Pengaturan</Button>
+                  </CardContent>
+                </Card>
+              </form>
+            </AccordionContent>
+          </AccordionItem>
+
+        </Accordion>
+      </div>
   );
 }
 

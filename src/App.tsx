@@ -9,7 +9,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
-import Penjualan from "./pages/Penjualan";
 import Produksi from "./pages/Produksi";
 import Laporan from "./pages/Laporan";
 import Keuangan from "./pages/Keuangan";
@@ -41,12 +40,11 @@ const App = () => (
 
                 {/* Pages accessible to Admin and Outlet */}
                 <Route element={<ProtectedRoute allowedRoles={["admin", "outlet"]} />}>
-                  <Route path="/penjualan" element={<Penjualan />} />
+                  <Route path="/laporan" element={<Laporan />} />
                 </Route>
                 
                 {/* Pages accessible to Admin only */}
                 <Route element={<ProtectedRoute adminOnly />}>
-                  <Route path="/laporan" element={<Laporan />} />
                   <Route path="/keuangan" element={<Keuangan />} />
                   <Route path="/master" element={<MasterData />} />
                 </Route>

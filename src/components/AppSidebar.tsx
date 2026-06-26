@@ -18,7 +18,6 @@ export function AppSidebar() {
       return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
-        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
         { title: "Produksi", url: "/produksi", icon: ChefHat },
         { title: "Stok Gudang", url: "/stok", icon: Warehouse },
         { title: "Laporan", url: "/laporan", icon: FileBarChart },
@@ -37,7 +36,7 @@ export function AppSidebar() {
     } else { // outlet
       return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
-        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Permohonan", url: "/stok", icon: Warehouse },
         { title: "Profile", url: "/profile", icon: User },

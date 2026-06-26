@@ -16,7 +16,6 @@ export function BottomNav() {
     if (user?.role === "admin") {
       return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
-        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
         { title: "Absensi", url: "/absensi", icon: UserCheck, highlighted: true },
         {
           title: "Logistik",
@@ -46,7 +45,7 @@ export function BottomNav() {
     } else { // outlet
       return [
         { title: "Home", url: "/", icon: LayoutDashboard },
-        { title: "Penjualan", url: "/penjualan", icon: ShoppingCart },
+        { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Absen", url: "/absensi", icon: UserCheck, highlighted: true },
         { title: "Stok", url: "/stok", icon: Warehouse },
         { title: "Profile", url: "/profile", icon: User },

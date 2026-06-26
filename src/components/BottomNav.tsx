@@ -16,8 +16,15 @@ export function BottomNav() {
     if (user?.role === "admin") {
       return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
-        { title: "Produksi", url: "/produksi", icon: ChefHat, highlighted: true },
-        { title: "Stok", url: "/stok", icon: Warehouse },
+        {
+          title: "Produksi",
+          icon: ChefHat,
+          highlighted: true,
+          subItems: [
+            { title: "Produksi", url: "/produksi" },
+            { title: "Stok Gudang", url: "/stok" },
+          ]
+        },
         { title: "Absensi", url: "/absensi", icon: UserCheck, highlighted: true },
         {
           title: "Laporan",
@@ -27,6 +34,7 @@ export function BottomNav() {
             { title: "Keuangan", url: "/keuangan" },
           ]
         },
+        { title: "Master Data", url: "/master", icon: Settings },
       ];
     } else if (user?.role === "produksi") {
       return [

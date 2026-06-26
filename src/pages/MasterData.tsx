@@ -231,14 +231,14 @@ export default function MasterData() {
       </div>
 
       <Tabs defaultValue="outlet" className="w-full">
-        <TabsList className="flex flex-wrap gap-1 mb-6 bg-muted/50 p-1 rounded-xl w-full max-w-[900px]">
-          <TabsTrigger value="outlet" className="rounded-lg font-semibold flex-1 sm:flex-initial">Outlet ({outlets.length})</TabsTrigger>
-          <TabsTrigger value="produk" className="rounded-lg font-semibold flex-1 sm:flex-initial">Produk ({produk.length})</TabsTrigger>
-          <TabsTrigger value="bahan" className="rounded-lg font-semibold flex-1 sm:flex-initial">Bahan Baku ({bahan.length})</TabsTrigger>
-          <TabsTrigger value="coa" className="rounded-lg font-semibold flex-1 sm:flex-initial">COA ({coa.length})</TabsTrigger>
-          <TabsTrigger value="karyawan" className="rounded-lg font-semibold flex-1 sm:flex-initial">Karyawan ({karyawan.length})</TabsTrigger>
-          <TabsTrigger value="users" className="rounded-lg font-semibold flex-1 sm:flex-initial">Pengguna ({users.length})</TabsTrigger>
-          <TabsTrigger value="pengaturan" className="rounded-lg font-semibold flex-1 sm:flex-initial">Pengaturan</TabsTrigger>
+        <TabsList className="mb-6 bg-muted/50 p-1 rounded-xl w-full overflow-x-auto flex-nowrap justify-start gap-1">
+          <TabsTrigger value="outlet" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">Outlet ({outlets.length})</TabsTrigger>
+          <TabsTrigger value="produk" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">Produk ({produk.length})</TabsTrigger>
+          <TabsTrigger value="bahan" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">Bahan Baku ({bahan.length})</TabsTrigger>
+          <TabsTrigger value="coa" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">COA ({coa.length})</TabsTrigger>
+          <TabsTrigger value="karyawan" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">Karyawan ({karyawan.length})</TabsTrigger>
+          <TabsTrigger value="users" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">Pengguna ({users.length})</TabsTrigger>
+          <TabsTrigger value="pengaturan" className="rounded-lg font-semibold shrink-0 px-3.5 py-1.5 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 transition-all">Pengaturan</TabsTrigger>
         </TabsList>
 
         {/* ================= OUTLET ================= */}

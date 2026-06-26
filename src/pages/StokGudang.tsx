@@ -498,7 +498,7 @@ export default function StokGudang() {
 
       <div className="grid gap-6 md:grid-cols-2 items-stretch">
         <Tabs defaultValue="supplier" className="w-full flex flex-col space-y-4">
-          <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 rounded-xl shrink-0">
+          <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-xl shrink-0">
             <TabsTrigger value="supplier" className="rounded-lg">Kiriman Supplier</TabsTrigger>
             <TabsTrigger value="rusak" className="rounded-lg">Barang Rusak</TabsTrigger>
           </TabsList>

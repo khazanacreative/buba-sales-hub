@@ -16,6 +16,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // === SUBCOMPONENT: OUTLET VIEW FOR REQUESTING STOCK ===
 function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
@@ -305,12 +306,19 @@ export default function StokGudang() {
   const [supCost, setSupCost] = useState(0);
   const [supBayar, setSupBayar] = useState("110000"); // Kas Rupiah as default
 
+  // States for Barang Rusak Form
+  const [rusakTanggal, setRusakTanggal] = useState(todayISO());
+  const [rusakBahanId, setRusakBahanId] = useState("");
+  const [rusakQty, setRusakQty] = useState(1);
+  const [rusakKeterangan, setRusakKeterangan] = useState("");
+
   useEffect(() => {
     if (bahan.length > 0) {
       if (!bahanId) setBahanId(bahan[0].id);
       if (!supBahanId) setSupBahanId(bahan[0].id);
+      if (!rusakBahanId) setRusakBahanId(bahan[0].id);
     }
-  }, [bahan, bahanId, supBahanId]);
+  }, [bahan, bahanId, supBahanId, rusakBahanId]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -381,6 +389,61 @@ export default function StokGudang() {
     setSupCost(0);
   };
 
+  const submitRusak = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rusakBahanId || rusakQty <= 0) {
+      return toast.error("Lengkapi data barang rusak dengan benar");
+    }
+
+    const selectedBahan = bahan.find(b => b.id === rusakBahanId);
+    if (!selectedBahan) return toast.error("Bahan baku tidak ditemukan");
+
+    const currentStock = saldoMap[rusakBahanId] || 0;
+    if (rusakQty > currentStock) {
+      return toast.error(`Stok tidak mencukupi! Stok saat ini: ${currentStock} ${selectedBahan.satuan}`);
+    }
+
+    const labelBahan = selectedBahan.nama;
+    const totalLoss = rusakQty * selectedBahan.hargaBeli;
+
+    // 1. Catat pergerakan stok keluar
+    await db.addStokMov({
+      tanggal: rusakTanggal,
+      bahanId: rusakBahanId,
+      tipe: "OUT",
+      qty: rusakQty,
+      keterangan: `Barang Rusak: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`
+    });
+
+    // 2. Posting ke Jurnal (Debit Beban Operasional / Kredit Persediaan)
+    await db.addJurnalBulk([
+      {
+        tanggal: rusakTanggal,
+        ref: "OUT-RUSAK",
+        keterangan: `Kerusakan Persediaan: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`,
+        kodeAkun: "510000",
+        akun: "Operasional",
+        tipe: "Debit",
+        jumlah: totalLoss,
+        kategori: "Beban"
+      },
+      {
+        tanggal: rusakTanggal,
+        ref: "OUT-RUSAK",
+        keterangan: `Kerusakan Persediaan: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`,
+        kodeAkun: "140000",
+        akun: "Persediaan",
+        tipe: "Kredit",
+        jumlah: totalLoss,
+        kategori: "Aset"
+      }
+    ]);
+
+    toast.success("Laporan barang rusak berhasil dicatat dan jurnal otomatis terposting!");
+    setRusakQty(1);
+    setRusakKeterangan("");
+  };
+
   const saldoMap = useMemo(() => {
     const m: Record<string, number> = {};
     bahan.forEach((b) => (m[b.id] = saldoBahan(b.id, dbState)));
@@ -434,7 +497,97 @@ export default function StokGudang() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="glass border-0 shadow-card">
+        <Tabs defaultValue="supplier" className="w-full space-y-4">
+          <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 rounded-xl">
+            <TabsTrigger value="supplier" className="rounded-lg">Kiriman Supplier</TabsTrigger>
+            <TabsTrigger value="rusak" className="rounded-lg">Barang Rusak</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="supplier" className="m-0">
+            <Card className="glass border-0 shadow-card">
+              <CardHeader><CardTitle>Kiriman Supplier (Pembelian)</CardTitle></CardHeader>
+              <CardContent>
+                <form onSubmit={submitSupplier} className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Tanggal Kirim</Label>
+                      <Input type="date" value={supTanggal} onChange={(e) => setSupTanggal(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bahan Baku</Label>
+                      <Select value={supBahanId} onValueChange={setSupBahanId}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Qty Datang</Label>
+                      <Input type="number" min={1} value={supQty} onChange={(e) => setSupQty(Number(e.target.value))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Total Biaya (Rp)</Label>
+                      <Input type="number" min={0} value={supCost} onChange={(e) => setSupCost(Number(e.target.value))} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Metode Pembayaran</Label>
+                    <Select value={supBayar} onValueChange={setSupBayar}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="110000">Kas Rupiah (Cash)</SelectItem>
+                        <SelectItem value="120000">Bank (Transfer)</SelectItem>
+                        <SelectItem value="210000">Hutang Usaha (Belum Bayar)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                    <Package className="mr-1 h-4 w-4" />Catat Pembelian & Posting Jurnal
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="rusak" className="m-0">
+            <Card className="glass border-0 shadow-card">
+              <CardHeader><CardTitle>Lapor Barang Rusak (Wastage)</CardTitle></CardHeader>
+              <CardContent>
+                <form onSubmit={submitRusak} className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Tanggal Lapor</Label>
+                      <Input type="date" value={rusakTanggal} onChange={(e) => setRusakTanggal(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bahan Baku</Label>
+                      <Select value={rusakBahanId} onValueChange={setRusakBahanId}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Qty Rusak</Label>
+                      <Input type="number" min={1} value={rusakQty} onChange={(e) => setRusakQty(Number(e.target.value))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Keterangan / Alasan</Label>
+                      <Input value={rusakKeterangan} onChange={(e) => setRusakKeterangan(e.target.value)} placeholder="Contoh: Pecah, Kadaluarsa, dll." />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                    <AlertTriangle className="mr-1 h-4 w-4" />Catat Kerusakan & Posting Jurnal
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <Card className="glass border-0 shadow-card self-start">
           <CardHeader><CardTitle>Catat Pergerakan Stok (Manual)</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={submit} className="space-y-4">
@@ -497,51 +650,6 @@ export default function StokGudang() {
               )}
               <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
                 <Plus className="mr-1 h-4 w-4" />Simpan Penyesuaian
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card className="glass border-0 shadow-card">
-          <CardHeader><CardTitle>Kiriman Supplier (Pembelian)</CardTitle></CardHeader>
-          <CardContent>
-            <form onSubmit={submitSupplier} className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Tanggal Kirim</Label>
-                  <Input type="date" value={supTanggal} onChange={(e) => setSupTanggal(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Bahan Baku</Label>
-                  <Select value={supBahanId} onValueChange={setSupBahanId}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Qty Datang</Label>
-                  <Input type="number" min={1} value={supQty} onChange={(e) => setSupQty(Number(e.target.value))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total Biaya (Rp)</Label>
-                  <Input type="number" min={0} value={supCost} onChange={(e) => setSupCost(Number(e.target.value))} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Metode Pembayaran</Label>
-                <Select value={supBayar} onValueChange={setSupBayar}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="110000">Kas Rupiah (Cash)</SelectItem>
-                    <SelectItem value="120000">Bank (Transfer)</SelectItem>
-                    <SelectItem value="210000">Hutang Usaha (Belum Bayar)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                <Package className="mr-1 h-4 w-4" />Catat Pembelian & Posting Jurnal
               </Button>
             </form>
           </CardContent>

@@ -211,16 +211,18 @@ export default function Produksi() {
   const [range, setRange] = useState<DateRange>({});
 
   const [step1OutletId, setStep1OutletId] = useState("");
+  const [step2OutletId, setStep2OutletId] = useState("");
   const [step4OutletId, setStep4OutletId] = useState("");
   const [step5OutletId, setStep5OutletId] = useState("");
 
   useEffect(() => {
     if (outlets.length > 0) {
       if (!step1OutletId) setStep1OutletId(outlets[0].id);
+      if (!step2OutletId) setStep2OutletId(outlets[0].id);
       if (!step4OutletId) setStep4OutletId(outlets[0].id);
       if (!step5OutletId) setStep5OutletId(outlets[0].id);
     }
-  }, [outlets, step1OutletId, step4OutletId, step5OutletId]);
+  }, [outlets, step1OutletId, step2OutletId, step4OutletId, step5OutletId]);
 
   const pendingCount = useMemo(() => {
     return permohonanStok.filter((r: any) => r.status === "Pending").length;
@@ -406,19 +408,23 @@ export default function Produksi() {
       const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
       const dGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
-        dGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+        dGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
       dayReqs.forEach((r: any) => {
         if (!dGrid[r.outletId]) return;
-        let key = "";
-        if (r.produkId === "p-bubur") key = "bubur";
-        else if (r.produkId === "p-nasitim") key = "tim";
-        else if (r.produkId === "p-oatmeal") key = "oatmeal";
-        else if (r.produkId === "p-puding") key = "puding";
-        else if (r.produkId === "p-abon") key = "abon";
-
-        if (key) {
-          dGrid[r.outletId][key] = r.qty;
+        const split = parseSplit(r.catatan || "");
+        if (r.produkId === "p-bubur") {
+          dGrid[r.outletId].bubur_d = split.d || r.qty;
+          dGrid[r.outletId].bubur_i = split.i || 0;
+        } else if (r.produkId === "p-nasitim") {
+          dGrid[r.outletId].tim_d = split.d || r.qty;
+          dGrid[r.outletId].tim_i = split.i || 0;
+        } else if (r.produkId === "p-oatmeal") {
+          dGrid[r.outletId].oatmeal = r.qty;
+        } else if (r.produkId === "p-puding") {
+          dGrid[r.outletId].puding = r.qty;
+        } else if (r.produkId === "p-abon") {
+          dGrid[r.outletId].abon = r.qty;
         }
       });
       setDistGrid(dGrid);
@@ -709,8 +715,10 @@ export default function Produksi() {
     outlets.forEach(o => {
       const plan = planGrid[o.id] || {};
       grid[o.id] = {
-        bubur: (plan.bubur_d || 0) + (plan.bubur_i || 0),
-        tim: (plan.tim_d || 0) + (plan.tim_i || 0),
+        bubur_d: plan.bubur_d || 0,
+        bubur_i: plan.bubur_i || 0,
+        tim_d: plan.tim_d || 0,
+        tim_i: plan.tim_i || 0,
         oatmeal: plan.oatmeal || 0,
         puding: plan.puding || 0,
         abon: plan.abon || 0
@@ -723,19 +731,28 @@ export default function Produksi() {
   const saveStep4 = async () => {
     const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
     await Promise.all(dayReqs.map(async (r: any) => {
-      const outletAlloc = distGrid[r.outletId];
-      if (!outletAlloc) return;
-
+      const outletAlloc = distGrid[r.outletId] || {};
       let sentQty = 0;
-      if (r.produkId === "p-bubur") sentQty = outletAlloc.bubur || 0;
-      else if (r.produkId === "p-nasitim") sentQty = outletAlloc.tim || 0;
-      else if (r.produkId === "p-oatmeal") sentQty = outletAlloc.oatmeal || 0;
-      else if (r.produkId === "p-puding") sentQty = outletAlloc.puding || 0;
-      else if (r.produkId === "p-abon") sentQty = outletAlloc.abon || 0;
+      let notes = r.catatan || "";
+
+      if (r.produkId === "p-bubur") {
+        sentQty = (outletAlloc.bubur_d || 0) + (outletAlloc.bubur_i || 0);
+        notes = serializeSplit(outletAlloc.bubur_d || 0, outletAlloc.bubur_i || 0, r.catatan);
+      } else if (r.produkId === "p-nasitim") {
+        sentQty = (outletAlloc.tim_d || 0) + (outletAlloc.tim_i || 0);
+        notes = serializeSplit(outletAlloc.tim_d || 0, outletAlloc.tim_i || 0, r.catatan);
+      } else if (r.produkId === "p-oatmeal") {
+        sentQty = outletAlloc.oatmeal || 0;
+      } else if (r.produkId === "p-puding") {
+        sentQty = outletAlloc.puding || 0;
+      } else if (r.produkId === "p-abon") {
+        sentQty = outletAlloc.abon || 0;
+      }
 
       await db.updatePermohonanStok(r.id, {
         qty: sentQty,
-        status: "Disetujui"
+        status: "Disetujui",
+        catatan: notes
       });
     }));
 
@@ -744,7 +761,7 @@ export default function Produksi() {
     // Initialize returGrid to 0
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => {
-      rGrid[o.id] = { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+      rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
     });
     setReturGrid(rGrid);
     setStep(5);
@@ -763,57 +780,156 @@ export default function Produksi() {
     };
 
     // Calculate sales and return ingredients directly from local distGrid and returGrid states
-    const productKeys = ["bubur", "tim", "oatmeal", "puding", "abon"] as const;
-    const dbProductIds: Record<string, string> = {
-      bubur: "p-bubur",
-      tim: "p-nasitim",
-      oatmeal: "p-oatmeal",
-      puding: "p-puding",
-      abon: "p-abon"
-    };
-
     outlets.forEach((o) => {
       const sent = distGrid[o.id] || {};
       const retur = returGrid[o.id] || {};
 
-      productKeys.forEach((key) => {
-        const sentQty = sent[key] || 0;
-        const returQty = retur[key] || 0;
-
-        if (sentQty > 0) {
-          const actualRetur = Math.min(returQty, sentQty);
-          const terjual = sentQty - actualRetur;
-
-          const dbProductId = dbProductIds[key];
-          const prod = produk.find(p => p.id === dbProductId);
-          const harga = prod?.harga || 0;
-
-          if (terjual > 0) {
-            salesToPost.push({
-              tanggal,
-              outletId: o.id,
-              produkId: dbProductId,
-              qty: terjual,
-              harga: harga
-            });
-            totalSalesRevenue += terjual * harga;
-          }
-
-          if (actualRetur > 0) {
-            if (dbProductId === "p-bubur") {
-              recoveredIngredients.beras += actualRetur * 16.67;
-            } else if (dbProductId === "p-nasitim") {
-              recoveredIngredients.beras += actualRetur * 20.00;
-            } else if (dbProductId === "p-puding") {
-              recoveredIngredients.puding += actualRetur * 13.00;
-            } else if (dbProductId === "p-oatmeal") {
-              recoveredIngredients.oat += actualRetur * 25.71;
-            } else if (dbProductId === "p-abon") {
-              recoveredIngredients.abon += actualRetur * 10.00;
-            }
-          }
+      // 1. Bubur 1 (Daging)
+      if (sent.bubur_d > 0) {
+        const actualRetur = Math.min(retur.bubur_d || 0, sent.bubur_d);
+        const terjual = sent.bubur_d - actualRetur;
+        const prod = produk.find(p => p.id === "p-bubur");
+        const harga = prod?.harga || 0;
+        if (terjual > 0) {
+          salesToPost.push({
+            tanggal,
+            outletId: o.id,
+            produkId: "p-bubur",
+            qty: terjual,
+            harga: harga
+          });
+          totalSalesRevenue += terjual * harga;
         }
-      });
+        if (actualRetur > 0) {
+          recoveredIngredients.beras += actualRetur * 16.67;
+        }
+      }
+
+      // 2. Bubur 2 (Salmon)
+      if (sent.bubur_i > 0) {
+        const actualRetur = Math.min(retur.bubur_i || 0, sent.bubur_i);
+        const terjual = sent.bubur_i - actualRetur;
+        const prod = produk.find(p => p.id === "p-bubur");
+        const harga = prod?.harga || 0;
+        if (terjual > 0) {
+          salesToPost.push({
+            tanggal,
+            outletId: o.id,
+            produkId: "p-bubur",
+            qty: terjual,
+            harga: harga
+          });
+          totalSalesRevenue += terjual * harga;
+        }
+        if (actualRetur > 0) {
+          recoveredIngredients.beras += actualRetur * 16.67;
+        }
+      }
+
+      // 3. Tim 1 (Daging)
+      if (sent.tim_d > 0) {
+        const actualRetur = Math.min(retur.tim_d || 0, sent.tim_d);
+        const terjual = sent.tim_d - actualRetur;
+        const prod = produk.find(p => p.id === "p-nasitim");
+        const harga = prod?.harga || 0;
+        if (terjual > 0) {
+          salesToPost.push({
+            tanggal,
+            outletId: o.id,
+            produkId: "p-nasitim",
+            qty: terjual,
+            harga: harga
+          });
+          totalSalesRevenue += terjual * harga;
+        }
+        if (actualRetur > 0) {
+          recoveredIngredients.beras += actualRetur * 20.00;
+        }
+      }
+
+      // 4. Tim 2 (Salmon)
+      if (sent.tim_i > 0) {
+        const actualRetur = Math.min(retur.tim_i || 0, sent.tim_i);
+        const terjual = sent.tim_i - actualRetur;
+        const prod = produk.find(p => p.id === "p-nasitim");
+        const harga = prod?.harga || 0;
+        if (terjual > 0) {
+          salesToPost.push({
+            tanggal,
+            outletId: o.id,
+            produkId: "p-nasitim",
+            qty: terjual,
+            harga: harga
+          });
+          totalSalesRevenue += terjual * harga;
+        }
+        if (actualRetur > 0) {
+          recoveredIngredients.beras += actualRetur * 20.00;
+        }
+      }
+
+      // 5. Oatmeal
+      if (sent.oatmeal > 0) {
+        const actualRetur = Math.min(retur.oatmeal || 0, sent.oatmeal);
+        const terjual = sent.oatmeal - actualRetur;
+        const prod = produk.find(p => p.id === "p-oatmeal");
+        const harga = prod?.harga || 0;
+        if (terjual > 0) {
+          salesToPost.push({
+            tanggal,
+            outletId: o.id,
+            produkId: "p-oatmeal",
+            qty: terjual,
+            harga: harga
+          });
+          totalSalesRevenue += terjual * harga;
+        }
+        if (actualRetur > 0) {
+          recoveredIngredients.oat += actualRetur * 25.71;
+        }
+      }
+
+      // 6. Puding
+      if (sent.puding > 0) {
+        const actualRetur = Math.min(retur.puding || 0, sent.puding);
+        const terjual = sent.puding - actualRetur;
+        const prod = produk.find(p => p.id === "p-puding");
+        const harga = prod?.harga || 0;
+        if (terjual > 0) {
+          salesToPost.push({
+            tanggal,
+            outletId: o.id,
+            produkId: "p-puding",
+            qty: terjual,
+            harga: harga
+          });
+          totalSalesRevenue += terjual * harga;
+        }
+        if (actualRetur > 0) {
+          recoveredIngredients.puding += actualRetur * 13.00;
+        }
+      }
+
+      // 7. Abon
+      if (sent.abon > 0) {
+        const actualRetur = Math.min(retur.abon || 0, sent.abon);
+        const terjual = sent.abon - actualRetur;
+        const prod = produk.find(p => p.id === "p-abon");
+        const harga = prod?.harga || 0;
+        if (terjual > 0) {
+          salesToPost.push({
+            tanggal,
+            outletId: o.id,
+            produkId: "p-abon",
+            qty: terjual,
+            harga: harga
+          });
+          totalSalesRevenue += terjual * harga;
+        }
+        if (actualRetur > 0) {
+          recoveredIngredients.abon += actualRetur * 10.00;
+        }
+      }
     });
 
     if (salesToPost.length > 0) {
@@ -884,158 +1000,66 @@ export default function Produksi() {
       <Card className="glass border-0 shadow-card">
         <CardHeader>
           <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi rencana target produksi, ringkasan seluruh outlet akan muncul di tabel bawah.</p>
+          <p className="text-xs text-muted-foreground mt-1">Gunakan tabel/form di bawah untuk mengisi rencana target produksi tiap outlet secara langsung.</p>
         </CardHeader>
         <CardContent className="space-y-6">
           
-          {/* Dropdown Selector & Row Form */}
-          <div className="bg-muted/30 p-5 rounded-2xl border space-y-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="space-y-1.5 flex-1 min-w-[200px]">
-                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pilih Outlet</Label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      const idx = outlets.findIndex(o => o.id === step1OutletId);
-                      if (idx > 0) setStep1OutletId(outlets[idx - 1].id);
-                    }}
-                    disabled={outlets.findIndex(o => o.id === step1OutletId) <= 0}
-                    className="h-11 w-11"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <Select value={step1OutletId} onValueChange={setStep1OutletId}>
-                    <SelectTrigger className="h-11 font-semibold text-sm">
-                      <SelectValue placeholder="Pilih Outlet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {outlets.map((o: any) => (
-                        <SelectItem key={o.id} value={o.id} className="font-medium text-xs">{o.nama}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      const idx = outlets.findIndex(o => o.id === step1OutletId);
-                      if (idx < outlets.length - 1) setStep1OutletId(outlets[idx + 1].id);
-                    }}
-                    disabled={outlets.findIndex(o => o.id === step1OutletId) >= outlets.length - 1}
-                    className="h-11 w-11"
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
+          {/* Read-only Total Summary Dashboard */}
+          <div className="bg-muted/35 p-5 rounded-2xl border space-y-4 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Rencana Produksi Hari Ini (Seluruh Outlet)</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
+              <div className="space-y-1 bg-amber-500/5 p-3 rounded-xl border border-amber-300/30 text-center">
+                <div className="text-[10px] font-bold text-amber-600 truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.buburD} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.buburD * 118).toLocaleString()} g)</span>
+              </div>
+              <div className="space-y-1 bg-blue-500/5 p-3 rounded-xl border border-blue-300/30 text-center">
+                <div className="text-[10px] font-bold text-blue-600 truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.buburI} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.buburI * 118).toLocaleString()} g)</span>
+              </div>
+              <div className="space-y-1 bg-amber-500/5 p-3 rounded-xl border border-amber-300/30 text-center">
+                <div className="text-[10px] font-bold text-amber-600 truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.timD} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.timD * 108).toLocaleString()} g)</span>
+              </div>
+              <div className="space-y-1 bg-blue-500/5 p-3 rounded-xl border border-blue-300/30 text-center">
+                <div className="text-[10px] font-bold text-blue-600 truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.timI} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.timI * 108).toLocaleString()} g)</span>
+              </div>
+              <div className="space-y-1 bg-card p-3 rounded-xl border text-center">
+                <div className="text-[10px] font-bold text-muted-foreground truncate">Oatmeal</div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.oatmeal} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.oatmeal * 100).toLocaleString()} g)</span>
+              </div>
+              <div className="space-y-1 bg-card p-3 rounded-xl border text-center">
+                <div className="text-[10px] font-bold text-muted-foreground truncate">Puding</div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.puding} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.puding * 80).toLocaleString()} g)</span>
+              </div>
+              <div className="space-y-1 bg-card p-3 rounded-xl border text-center">
+                <div className="text-[10px] font-bold text-muted-foreground truncate">Abon</div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.abon} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.abon * 10).toLocaleString()} g)</span>
               </div>
             </div>
-
-            {/* Input fields laid out as a row (grid that fits as one row on large screen, wraps on mobile) */}
-            {(() => {
-              const row = planGrid[step1OutletId] || {
-                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
-                oatmeal: 0, puding: 0, abon: 0
-              };
-              return (
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
-                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
-                    <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.bubur_d || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "bubur_d", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
-                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.bubur_i || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "bubur_i", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
-                    <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.tim_d || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "tim_d", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
-                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.tim_i || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "tim_i", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.oatmeal || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "oatmeal", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center font-medium"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.puding || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "puding", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center font-medium"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={row.abon || ""}
-                      onChange={(e) => handlePlanChange(step1OutletId, "abon", parseInt(e.target.value))}
-                      className="h-9 text-xs text-center font-medium"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              );
-            })()}
           </div>
 
-          {/* Consolidated Table at the Bottom */}
-          <div className="space-y-2 pt-2">
+          {/* Consolidated Table/Cards at the Bottom */}
+          <div className="space-y-4 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Ringkasan Rencana Seluruh Outlet (Klik baris untuk edit)</Label>
+              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Target Rencana Produksi Per Outlet (Edit Langsung)</Label>
               <Input
-                placeholder="Cari outlet di tabel..."
+                placeholder="Cari outlet..."
                 value={searchOutlet}
                 onChange={(e) => setSearchOutlet(e.target.value)}
                 className="w-full sm:w-[220px] h-9 text-xs"
               />
             </div>
-            <div className="rounded-2xl border overflow-hidden">
+
+            {/* DESKTOP VIEW: TABLE WITH INPUT CELLS */}
+            <div className="hidden md:block rounded-2xl border overflow-hidden">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -1056,28 +1080,88 @@ export default function Produksi() {
                         bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
                         oatmeal: 0, puding: 0, abon: 0
                       };
-                      const isSelected = o.id === step1OutletId;
                       return (
-                        <TableRow 
-                          key={o.id}
-                          onClick={() => setStep1OutletId(o.id)}
-                          className={`cursor-pointer transition-colors ${
-                            isSelected 
-                              ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" 
-                              : "hover:bg-muted/30"
-                          }`}
-                        >
-                          <TableCell className="font-semibold py-3 flex items-center gap-1.5 whitespace-nowrap">
+                        <TableRow key={o.id} className="hover:bg-muted/20">
+                          <TableCell className="font-semibold py-3 whitespace-nowrap">
                             {o.nama}
-                            {isSelected && <Badge className="text-[9px] bg-primary/10 text-primary hover:bg-primary/20 border-primary/20" variant="outline">Edit</Badge>}
                           </TableCell>
-                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">{row.bubur_d || 0}</TableCell>
-                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">{row.bubur_i || 0}</TableCell>
-                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">{row.tim_d || 0}</TableCell>
-                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">{row.tim_i || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.oatmeal || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.puding || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.abon || 0}</TableCell>
+                          <TableCell className="bg-amber-500/5 text-center py-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.bubur_d || ""}
+                              onChange={(e) => handlePlanChange(o.id, "bubur_d", parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center text-xs p-1 mx-auto font-semibold border-amber-300/80 focus-visible:ring-amber-500 bg-amber-500/5"
+                              placeholder="0"
+                            />
+                            <div className="text-[9px] text-muted-foreground mt-1">{(row.bubur_d || 0) * 118} g</div>
+                          </TableCell>
+                          <TableCell className="bg-blue-500/5 text-center py-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.bubur_i || ""}
+                              onChange={(e) => handlePlanChange(o.id, "bubur_i", parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center text-xs p-1 mx-auto font-semibold border-blue-300/80 focus-visible:ring-blue-500 bg-blue-500/5"
+                              placeholder="0"
+                            />
+                            <div className="text-[9px] text-muted-foreground mt-1">{(row.bubur_i || 0) * 118} g</div>
+                          </TableCell>
+                          <TableCell className="bg-amber-500/5 text-center py-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.tim_d || ""}
+                              onChange={(e) => handlePlanChange(o.id, "tim_d", parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center text-xs p-1 mx-auto font-semibold border-amber-300/80 focus-visible:ring-amber-500 bg-amber-500/5"
+                              placeholder="0"
+                            />
+                            <div className="text-[9px] text-muted-foreground mt-1">{(row.tim_d || 0) * 108} g</div>
+                          </TableCell>
+                          <TableCell className="bg-blue-500/5 text-center py-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.tim_i || ""}
+                              onChange={(e) => handlePlanChange(o.id, "tim_i", parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center text-xs p-1 mx-auto font-semibold border-blue-300/80 focus-visible:ring-blue-500 bg-blue-500/5"
+                              placeholder="0"
+                            />
+                            <div className="text-[9px] text-muted-foreground mt-1">{(row.tim_i || 0) * 108} g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2 font-medium">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.oatmeal || ""}
+                              onChange={(e) => handlePlanChange(o.id, "oatmeal", parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center text-xs p-1 mx-auto font-medium"
+                              placeholder="0"
+                            />
+                            <div className="text-[9px] text-muted-foreground mt-1">{(row.oatmeal || 0) * 100} g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2 font-medium">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.puding || ""}
+                              onChange={(e) => handlePlanChange(o.id, "puding", parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center text-xs p-1 mx-auto font-medium"
+                              placeholder="0"
+                            />
+                            <div className="text-[9px] text-muted-foreground mt-1">{(row.puding || 0) * 80} g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2 font-medium">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.abon || ""}
+                              onChange={(e) => handlePlanChange(o.id, "abon", parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center text-xs p-1 mx-auto font-medium"
+                              placeholder="0"
+                            />
+                            <div className="text-[9px] text-muted-foreground mt-1">{(row.abon || 0) * 10} g</div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -1085,6 +1169,176 @@ export default function Produksi() {
                 </Table>
               </div>
             </div>
+
+            {/* MOBILE VIEW: RESPONSIVE CARDS CONTAINER */}
+            <div className="block md:hidden space-y-4">
+              {filteredOutlets.map((o) => {
+                const row = planGrid[o.id] || {
+                  bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                  oatmeal: 0, puding: 0, abon: 0
+                };
+                const totalOutletCups = (row.bubur_d || 0) + (row.bubur_i || 0) + (row.tim_d || 0) + (row.tim_i || 0) + (row.oatmeal || 0) + (row.puding || 0) + (row.abon || 0);
+
+                return (
+                  <div key={o.id} className="p-4 bg-card rounded-2xl border shadow-sm space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="font-bold text-sm text-foreground">{o.nama}</span>
+                      <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">{totalOutletCups} cup</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1 bg-amber-500/5 p-2 rounded-xl border border-amber-300/30">
+                        <Label className="text-[9px] font-bold text-amber-600 block truncate">B. {bubur1Name}</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={row.bubur_d || ""}
+                          onChange={(e) => handlePlanChange(o.id, "bubur_d", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                          placeholder="0"
+                        />
+                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.bubur_d || 0) * 118} g)</span>
+                      </div>
+                      <div className="space-y-1 bg-blue-500/5 p-2 rounded-xl border border-blue-300/30">
+                        <Label className="text-[9px] font-bold text-blue-600 block truncate">B. {bubur2Name}</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={row.bubur_i || ""}
+                          onChange={(e) => handlePlanChange(o.id, "bubur_i", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                          placeholder="0"
+                        />
+                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.bubur_i || 0) * 118} g)</span>
+                      </div>
+                      <div className="space-y-1 bg-amber-500/5 p-2 rounded-xl border border-amber-300/30">
+                        <Label className="text-[9px] font-bold text-amber-600 block truncate">T. {tim1Name}</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={row.tim_d || ""}
+                          onChange={(e) => handlePlanChange(o.id, "tim_d", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                          placeholder="0"
+                        />
+                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.tim_d || 0) * 108} g)</span>
+                      </div>
+                      <div className="space-y-1 bg-blue-500/5 p-2 rounded-xl border border-blue-300/30">
+                        <Label className="text-[9px] font-bold text-blue-600 block truncate">T. {tim2Name}</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={row.tim_i || ""}
+                          onChange={(e) => handlePlanChange(o.id, "tim_i", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                          placeholder="0"
+                        />
+                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.tim_i || 0) * 108} g)</span>
+                      </div>
+                      <div className="space-y-1 bg-muted/20 p-2 rounded-xl border">
+                        <Label className="text-[9px] font-bold text-muted-foreground block truncate">Oatmeal</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={row.oatmeal || ""}
+                          onChange={(e) => handlePlanChange(o.id, "oatmeal", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs text-center"
+                          placeholder="0"
+                        />
+                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.oatmeal || 0) * 100} g)</span>
+                      </div>
+                      <div className="space-y-1 bg-muted/20 p-2 rounded-xl border">
+                        <Label className="text-[9px] font-bold text-muted-foreground block truncate">Puding</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={row.puding || ""}
+                          onChange={(e) => handlePlanChange(o.id, "puding", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs text-center"
+                          placeholder="0"
+                        />
+                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.puding || 0) * 80} g)</span>
+                      </div>
+                      <div className="space-y-1 bg-muted/20 p-2 rounded-xl border col-span-2">
+                        <Label className="text-[9px] font-bold text-muted-foreground block truncate">Abon</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={row.abon || ""}
+                          onChange={(e) => handlePlanChange(o.id, "abon", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs text-center"
+                          placeholder="0"
+                        />
+                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.abon || 0) * 10} g)</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Keterangan Gramasi & Estimasi Kebutuhan Bahan Baku Total */}
+          <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-inner">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Calculator className="h-4 w-4 text-primary" /> Estimasi Kebutuhan Bahan Baku Total (Seluruh Outlet)
+            </h3>
+            {(() => {
+              // Calculate ingredients for all outlets combined
+              const totalBeras = (totals.buburD * 16.67) + (totals.buburI * 16.67) + (totals.timD * 20.00) + (totals.timI * 20.00);
+              const totalAyamBubur = totals.buburD * (13/15);
+              const totalSalmonBubur = totals.buburI * (13/15);
+              const totalAyamTim = totals.timD * (10/12);
+              const totalSalmonTim = totals.timI * (10/12);
+              const totalOatmeal = totals.oatmeal * 25.71;
+              const totalPuding = totals.puding * 13.00;
+              const totalAbon = totals.abon * 10.00;
+              
+              // Sayur
+              const totalShBubur = (totals.buburD + totals.buburI) * (20/15);
+              const totalSbBubur = (totals.buburD + totals.buburI) * (13/15);
+              const totalSpBubur = (totals.buburD + totals.buburI) * (4/15);
+              
+              const totalShTim = (totals.timD + totals.timI) * (19/12);
+              const totalSbTim = (totals.timD + totals.timI) * (12/12);
+              const totalSpTim = (totals.timD + totals.timI) * (4/12);
+
+              const hasPlan = totalBeras > 0 || totalOatmeal > 0 || totalPuding > 0 || totalAbon > 0;
+              if (!hasPlan) {
+                return (
+                  <p className="text-xs text-muted-foreground italic">
+                    Belum ada target porsi yang dimasukkan untuk hari ini. Estimasi bahan akan terhitung otomatis.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  <div className="text-xs font-semibold text-primary">
+                    Detail Kebutuhan Bahan Baku untuk Rencana Produksi Hari Ini:
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 text-xs">
+                    {totalBeras > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Beras:</strong> {Math.round(totalBeras).toLocaleString()} gr</div>}
+                    {totalAyamBubur > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Daging/Ayam Bubur ({bubur1Name}):</strong> {Math.round(totalAyamBubur * 10) / 10} gr</div>}
+                    {totalSalmonBubur > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Ikan/Salmon Bubur ({bubur2Name}):</strong> {Math.round(totalSalmonBubur * 10) / 10} gr</div>}
+                    {totalAyamTim > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Daging/Ayam Tim ({tim1Name}):</strong> {Math.round(totalAyamTim * 10) / 10} gr</div>}
+                    {totalSalmonTim > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Ikan/Salmon Tim ({tim2Name}):</strong> {Math.round(totalSalmonTim * 10) / 10} gr</div>}
+                    {totalOatmeal > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Oatmeal:</strong> {Math.round(totalOatmeal).toLocaleString()} gr</div>}
+                    {totalPuding > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Puding:</strong> {Math.round(totalPuding).toLocaleString()} gr</div>}
+                    {totalAbon > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Abon:</strong> {Math.round(totalAbon).toLocaleString()} gr</div>}
+                    {(totalShBubur > 0 || totalSbBubur > 0 || totalSpBubur > 0) && (
+                      <div className="p-3 bg-card rounded-xl border shadow-sm sm:col-span-2">
+                        • <strong>Sayur Bubur (SH/SB/SP):</strong> {Math.round(totalShBubur)}g / {Math.round(totalSbBubur)}g / {Math.round(totalSpBubur)}g
+                      </div>
+                    )}
+                    {(totalShTim > 0 || totalSbTim > 0 || totalSpTim > 0) && (
+                      <div className="p-3 bg-card rounded-xl border shadow-sm sm:col-span-2">
+                        • <strong>Sayur Tim (SH/SB/SP):</strong> {Math.round(totalShTim)}g / {Math.round(totalSbTim)}g / {Math.round(totalSpTim)}g
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex justify-end">
@@ -1183,6 +1437,120 @@ export default function Produksi() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Detailed Recipe Breakdown per Outlet */}
+          <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-inner">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Calculator className="h-4 w-4 text-primary" /> Detail Komposisi Bahan Masak Per Outlet (Langkah 2)
+              </h3>
+              <div className="w-full sm:w-[240px]">
+                <Select value={step2OutletId} onValueChange={setStep2OutletId}>
+                  <SelectTrigger className="h-9 font-semibold text-xs">
+                    <SelectValue placeholder="Pilih Outlet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {outlets.map((o: any) => (
+                      <SelectItem key={o.id} value={o.id} className="text-xs">{o.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {(() => {
+              const selectedOutlet = outlets.find(o => o.id === step2OutletId);
+              const oPlan = planGrid[step2OutletId] || {
+                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                oatmeal: 0, puding: 0, abon: 0
+              };
+              
+              const outletHasPlan = Object.values(oPlan).some(v => v > 0);
+              if (!outletHasPlan) {
+                return (
+                  <p className="text-xs text-muted-foreground italic text-center py-4">
+                    Tidak ada rencana produksi untuk outlet {selectedOutlet?.nama ?? ""}.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Bubur 1 */}
+                  {oPlan.bubur_d > 0 && (
+                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
+                      <div className="font-bold text-xs text-amber-600">Bubur 1 ({bubur1Name})</div>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.bubur_d} cup</span></div>
+                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * 16.67)} gr</span></div>
+                        <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * (13 / 15) * 10) / 10} gr</span></div>
+                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * (1750 / 15))} ml</span></div>
+                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * (20 / 15) * 10) / 10} gr</span></div>
+                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * (13 / 15) * 10) / 10} gr</span></div>
+                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * (4 / 15) * 10) / 10} gr</span></div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Bubur 2 */}
+                  {oPlan.bubur_i > 0 && (
+                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
+                      <div className="font-bold text-xs text-blue-600">Bubur 2 ({bubur2Name})</div>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.bubur_i} cup</span></div>
+                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * 16.67)} gr</span></div>
+                        <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * (13 / 15) * 10) / 10} gr</span></div>
+                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * (1750 / 15))} ml</span></div>
+                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * (20 / 15) * 10) / 10} gr</span></div>
+                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * (13 / 15) * 10) / 10} gr</span></div>
+                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * (4 / 15) * 10) / 10} gr</span></div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Tim 1 */}
+                  {oPlan.tim_d > 0 && (
+                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
+                      <div className="font-bold text-xs text-amber-600">Nasi Tim 1 ({tim1Name})</div>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.tim_d} cup</span></div>
+                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * 20)} gr</span></div>
+                        <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * (10 / 12) * 10) / 10} gr</span></div>
+                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * (1440 / 12))} ml</span></div>
+                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * (19 / 12) * 10) / 10} gr</span></div>
+                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * (12 / 12) * 10) / 10} gr</span></div>
+                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * (4 / 12) * 10) / 10} gr</span></div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Tim 2 */}
+                  {oPlan.tim_i > 0 && (
+                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
+                      <div className="font-bold text-xs text-blue-600">Nasi Tim 2 ({tim2Name})</div>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.tim_i} cup</span></div>
+                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * 20)} gr</span></div>
+                        <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * (10 / 12) * 10) / 10} gr</span></div>
+                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * (1440 / 12))} ml</span></div>
+                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * (19 / 12) * 10) / 10} gr</span></div>
+                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * (12 / 12) * 10) / 10} gr</span></div>
+                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * (4 / 12) * 10) / 10} gr</span></div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Others */}
+                  {(oPlan.oatmeal > 0 || oPlan.puding > 0 || oPlan.abon > 0) && (
+                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
+                      <div className="font-bold text-xs text-muted-foreground">Menu Lainnya</div>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        {oPlan.oatmeal > 0 && <div>• Oatmeal: <span className="font-semibold text-foreground">{Math.round(oPlan.oatmeal * 25.71)} gr</span> ({oPlan.oatmeal} cup)</div>}
+                        {oPlan.puding > 0 && <div>• Puding: <span className="font-semibold text-foreground">{Math.round(oPlan.puding * 13.00)} gr</span> ({oPlan.puding} cup)</div>}
+                        {oPlan.abon > 0 && <div>• Abon: <span className="font-semibold text-foreground">{Math.round(oPlan.abon * 10.00)} gr</span> ({oPlan.abon} cup)</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="space-y-3">
@@ -1296,7 +1664,7 @@ export default function Produksi() {
                   <div className="flex justify-between items-start">
                     <span className="font-bold text-sm">{p.label}</span>
                     <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                      Target: {p.targetCups} cup
+                      Target: {p.targetCups} cup ({(p.targetCups * p.unitWeight).toLocaleString("id-ID")} g)
                     </Badge>
                   </div>
                   
@@ -1421,33 +1789,62 @@ export default function Produksi() {
 
             {/* Input fields laid out as a row */}
             {(() => {
-              const row = distGrid[step4OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+              const row = distGrid[step4OutletId] || {
+                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                oatmeal: 0, puding: 0, abon: 0
+              };
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
-                    <Label className="text-[10px] font-bold text-amber-600 block truncate">Bubur (Cup)</Label>
+                    <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</Label>
                     <Input
                       type="number"
                       min={0}
-                      value={row.bubur || ""}
-                      onChange={(e) => handleDistChange(step4OutletId, "bubur", parseInt(e.target.value))}
+                      value={row.bubur_d || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "bubur_d", parseInt(e.target.value))}
                       className="h-9 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
                       placeholder="0"
                     />
+                    <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({(row.bubur_d || 0) * 118} g)</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
-                    <Label className="text-[10px] font-bold text-blue-600 block truncate">Nasi Tim (Cup)</Label>
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</Label>
                     <Input
                       type="number"
                       min={0}
-                      value={row.tim || ""}
-                      onChange={(e) => handleDistChange(step4OutletId, "tim", parseInt(e.target.value))}
+                      value={row.bubur_i || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "bubur_i", parseInt(e.target.value))}
                       className="h-9 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
                       placeholder="0"
                     />
+                    <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({(row.bubur_i || 0) * 118} g)</span>
+                  </div>
+                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
+                    <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.tim_d || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "tim_d", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({(row.tim_d || 0) * 108} g)</span>
+                  </div>
+                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={row.tim_i || ""}
+                      onChange={(e) => handleDistChange(step4OutletId, "tim_i", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({(row.tim_i || 0) * 108} g)</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal (Cup)</Label>
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</Label>
                     <Input
                       type="number"
                       min={0}
@@ -1456,9 +1853,10 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
+                    <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({(row.oatmeal || 0) * 100} g)</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding (Cup)</Label>
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding</Label>
                     <Input
                       type="number"
                       min={0}
@@ -1467,9 +1865,10 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
+                    <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({(row.puding || 0) * 80} g)</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
-                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon (Cup)</Label>
+                    <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon</Label>
                     <Input
                       type="number"
                       min={0}
@@ -1478,6 +1877,7 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
+                    <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({(row.abon || 0) * 10} g)</span>
                   </div>
                 </div>
               );
@@ -1493,16 +1893,21 @@ export default function Produksi() {
                   <TableHeader>
                     <TableRow className="bg-muted/40">
                       <TableHead>Outlet</TableHead>
-                      <TableHead className="text-center font-semibold text-xs text-amber-600 bg-amber-500/5">Bubur (Cup)</TableHead>
-                      <TableHead className="text-center font-semibold text-xs text-blue-600 bg-blue-500/5">Nasi Tim (Cup)</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Oatmeal (Cup)</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Puding (Cup)</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Abon (Cup)</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Bubur {bubur1Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5 font-semibold">Tim {tim1Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name}</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Oatmeal</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Puding</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Abon</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {outlets.map((o) => {
-                      const row = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+                      const row = distGrid[o.id] || {
+                        bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                        oatmeal: 0, puding: 0, abon: 0
+                      };
                       const isSelected = o.id === step4OutletId;
                       return (
                         <TableRow 
@@ -1518,11 +1923,34 @@ export default function Produksi() {
                             {o.nama}
                             {isSelected && <Badge className="text-[9px] bg-primary/10 text-primary hover:bg-primary/20 border-primary/20" variant="outline">Edit</Badge>}
                           </TableCell>
-                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">{row.bubur || 0}</TableCell>
-                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">{row.tim || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.oatmeal || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.puding || 0}</TableCell>
-                          <TableCell className="text-center font-medium text-xs">{row.abon || 0}</TableCell>
+                          <TableCell className="bg-amber-500/5 text-center py-2.5">
+                            <div className="font-semibold text-xs">{row.bubur_d || 0} cup</div>
+                            <div className="text-[9px] text-muted-foreground">{(row.bubur_d || 0) * 118} g</div>
+                          </TableCell>
+                          <TableCell className="bg-blue-500/5 text-center py-2.5">
+                            <div className="font-semibold text-xs">{row.bubur_i || 0} cup</div>
+                            <div className="text-[9px] text-muted-foreground">{(row.bubur_i || 0) * 118} g</div>
+                          </TableCell>
+                          <TableCell className="bg-amber-500/5 text-center py-2.5">
+                            <div className="font-semibold text-xs">{row.tim_d || 0} cup</div>
+                            <div className="text-[9px] text-muted-foreground">{(row.tim_d || 0) * 108} g</div>
+                          </TableCell>
+                          <TableCell className="bg-blue-500/5 text-center py-2.5">
+                            <div className="font-semibold text-xs">{row.tim_i || 0} cup</div>
+                            <div className="text-[9px] text-muted-foreground">{(row.tim_i || 0) * 108} g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2.5 font-medium">
+                            <div className="text-xs">{row.oatmeal || 0} cup</div>
+                            <div className="text-[9px] text-muted-foreground">{(row.oatmeal || 0) * 100} g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2.5 font-medium">
+                            <div className="text-xs">{row.puding || 0} cup</div>
+                            <div className="text-[9px] text-muted-foreground">{(row.puding || 0) * 80} g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2.5 font-medium">
+                            <div className="text-xs">{row.abon || 0} cup</div>
+                            <div className="text-[9px] text-muted-foreground">{(row.abon || 0) * 10} g</div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -1603,35 +2031,71 @@ export default function Produksi() {
 
             {/* Input fields laid out as a row with maximum constraints based on sent qty */}
             {(() => {
-              const row = returGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
-              const sent = distGrid[step5OutletId] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+              const row = returGrid[step5OutletId] || {
+                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                oatmeal: 0, puding: 0, abon: 0
+              };
+              const sent = distGrid[step5OutletId] || {
+                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                oatmeal: 0, puding: 0, abon: 0
+              };
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
-                    <Label className="text-[10px] font-bold text-blue-600 block truncate">Bubur Retur</Label>
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur1Name} Retur`}>B. {bubur1Name}</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={sent.bubur}
-                      value={row.bubur || ""}
-                      onChange={(e) => handleReturChange(step5OutletId, "bubur", parseInt(e.target.value))}
+                      max={sent.bubur_d}
+                      value={row.bubur_d || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "bubur_d", parseInt(e.target.value))}
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="0"
                     />
-                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.bubur}</span>
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.bubur_d} ({sent.bubur_d * 118}g)</span>
+                    <span className="text-[9px] text-destructive block text-center">Retur: {row.bubur_d * 118}g</span>
                   </div>
-                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
-                    <Label className="text-[10px] font-bold text-amber-600 block truncate">Tim Retur</Label>
+                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name} Retur`}>B. {bubur2Name}</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={sent.tim}
-                      value={row.tim || ""}
-                      onChange={(e) => handleReturChange(step5OutletId, "tim", parseInt(e.target.value))}
+                      max={sent.bubur_i}
+                      value={row.bubur_i || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "bubur_i", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.bubur_i} ({sent.bubur_i * 118}g)</span>
+                    <span className="text-[9px] text-destructive block text-center">Retur: {row.bubur_i * 118}g</span>
+                  </div>
+                  <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
+                    <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name} Retur`}>T. {tim1Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.tim_d}
+                      value={row.tim_d || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "tim_d", parseInt(e.target.value))}
                       className="h-9 text-xs text-center border-amber-300 focus-visible:ring-amber-500 font-semibold"
                       placeholder="0"
                     />
-                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.tim}</span>
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.tim_d} ({sent.tim_d * 108}g)</span>
+                    <span className="text-[9px] text-destructive block text-center">Retur: {row.tim_d * 108}g</span>
+                  </div>
+                  <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
+                    <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name} Retur`}>T. {tim2Name}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={sent.tim_i}
+                      value={row.tim_i || ""}
+                      onChange={(e) => handleReturChange(step5OutletId, "tim_i", parseInt(e.target.value))}
+                      className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.tim_i} ({sent.tim_i * 108}g)</span>
+                    <span className="text-[9px] text-destructive block text-center">Retur: {row.tim_i * 108}g</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal Retur</Label>
@@ -1644,7 +2108,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
-                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.oatmeal}</span>
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.oatmeal} ({sent.oatmeal * 100}g)</span>
+                    <span className="text-[9px] text-destructive block text-center">Retur: {row.oatmeal * 100}g</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding Retur</Label>
@@ -1657,7 +2122,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
-                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.puding}</span>
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.puding} ({sent.puding * 80}g)</span>
+                    <span className="text-[9px] text-destructive block text-center">Retur: {row.puding * 80}g</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon Retur</Label>
@@ -1670,7 +2136,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
-                    <span className="text-[10px] text-muted-foreground block text-center mt-0.5">Dikirim: {sent.abon}</span>
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.abon} ({sent.abon * 10}g)</span>
+                    <span className="text-[9px] text-destructive block text-center">Retur: {row.abon * 10}g</span>
                   </div>
                 </div>
               );
@@ -1686,8 +2153,10 @@ export default function Produksi() {
                   <TableHeader>
                     <TableRow className="bg-muted/40">
                       <TableHead>Outlet</TableHead>
-                      <TableHead className="text-center font-semibold text-xs text-blue-600 bg-blue-500/5">Bubur Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-semibold text-xs text-amber-600 bg-amber-500/5">Tim Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur1Name} Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name} Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim {tim1Name} Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name} Retur/Kirim</TableHead>
                       <TableHead className="text-center font-semibold text-xs">Oatmeal Retur/Kirim</TableHead>
                       <TableHead className="text-center font-semibold text-xs">Puding Retur/Kirim</TableHead>
                       <TableHead className="text-center font-semibold text-xs">Abon Retur/Kirim</TableHead>
@@ -1695,8 +2164,14 @@ export default function Produksi() {
                   </TableHeader>
                   <TableBody>
                     {outlets.map((o) => {
-                      const row = returGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
-                      const sent = distGrid[o.id] || { bubur: 0, tim: 0, oatmeal: 0, puding: 0, abon: 0 };
+                      const row = returGrid[o.id] || {
+                        bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                        oatmeal: 0, puding: 0, abon: 0
+                      };
+                      const sent = distGrid[o.id] || {
+                        bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                        oatmeal: 0, puding: 0, abon: 0
+                      };
                       const isSelected = o.id === step5OutletId;
                       return (
                         <TableRow 
@@ -1714,25 +2189,54 @@ export default function Produksi() {
                               {isSelected && <Badge className="text-[9px] bg-primary/10 text-primary hover:bg-primary/20 border-primary/20" variant="outline">Edit</Badge>}
                             </div>
                           </TableCell>
-                          <TableCell className="bg-blue-500/5 text-center font-semibold text-xs">
-                            <span className="text-destructive">{row.bubur || 0}</span>
-                            <span className="text-muted-foreground/60">/{sent.bubur}</span>
+                          <TableCell className="bg-blue-500/5 text-center py-2">
+                            <div className="font-semibold text-xs">
+                              <span className="text-destructive">{row.bubur_d || 0}</span>
+                              <span className="text-muted-foreground/60">/{sent.bubur_d || 0}</span>
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">{(row.bubur_d || 0) * 118}g / {(sent.bubur_d || 0) * 118}g</div>
                           </TableCell>
-                          <TableCell className="bg-amber-500/5 text-center font-semibold text-xs">
-                            <span className="text-destructive">{row.tim || 0}</span>
-                            <span className="text-muted-foreground/60">/{sent.tim}</span>
+                          <TableCell className="bg-blue-500/5 text-center py-2">
+                            <div className="font-semibold text-xs">
+                              <span className="text-destructive">{row.bubur_i || 0}</span>
+                              <span className="text-muted-foreground/60">/{sent.bubur_i || 0}</span>
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">{(row.bubur_i || 0) * 118}g / {(sent.bubur_i || 0) * 118}g</div>
                           </TableCell>
-                          <TableCell className="text-center font-medium text-xs">
-                            <span className="text-destructive">{row.oatmeal || 0}</span>
-                            <span className="text-muted-foreground/60">/{sent.oatmeal}</span>
+                          <TableCell className="bg-amber-500/5 text-center py-2">
+                            <div className="font-semibold text-xs">
+                              <span className="text-destructive">{row.tim_d || 0}</span>
+                              <span className="text-muted-foreground/60">/{sent.tim_d || 0}</span>
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">{(row.tim_d || 0) * 108}g / {(sent.tim_d || 0) * 108}g</div>
                           </TableCell>
-                          <TableCell className="text-center font-medium text-xs">
-                            <span className="text-destructive">{row.puding || 0}</span>
-                            <span className="text-muted-foreground/60">/{sent.puding}</span>
+                          <TableCell className="bg-amber-500/5 text-center py-2">
+                            <div className="font-semibold text-xs">
+                              <span className="text-destructive">{row.tim_i || 0}</span>
+                              <span className="text-muted-foreground/60">/{sent.tim_i || 0}</span>
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">{(row.tim_i || 0) * 108}g / {(sent.tim_i || 0) * 108}g</div>
                           </TableCell>
-                          <TableCell className="text-center font-medium text-xs">
-                            <span className="text-destructive">{row.abon || 0}</span>
-                            <span className="text-muted-foreground/60">/{sent.abon}</span>
+                          <TableCell className="text-center py-2">
+                            <div className="font-medium text-xs">
+                              <span className="text-destructive">{row.oatmeal || 0}</span>
+                              <span className="text-muted-foreground/60">/{sent.oatmeal || 0}</span>
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">{(row.oatmeal || 0) * 100}g / {(sent.oatmeal || 0) * 100}g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2">
+                            <div className="font-medium text-xs">
+                              <span className="text-destructive">{row.puding || 0}</span>
+                              <span className="text-muted-foreground/60">/{sent.puding || 0}</span>
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">{(row.puding || 0) * 80}g / {(sent.puding || 0) * 80}g</div>
+                          </TableCell>
+                          <TableCell className="text-center py-2">
+                            <div className="font-medium text-xs">
+                              <span className="text-destructive">{row.abon || 0}</span>
+                              <span className="text-muted-foreground/60">/{sent.abon || 0}</span>
+                            </div>
+                            <div className="text-[9px] text-muted-foreground">{(row.abon || 0) * 10}g / {(sent.abon || 0) * 10}g</div>
                           </TableCell>
                         </TableRow>
                       );

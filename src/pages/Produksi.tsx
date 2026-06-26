@@ -557,6 +557,26 @@ export default function Produksi() {
     };
   }, [planGrid]);
 
+  const distTotals = useMemo(() => {
+    let buburD = 0, buburI = 0, timD = 0, timI = 0;
+    let oatmeal = 0, puding = 0, abon = 0;
+
+    Object.values(distGrid).forEach((v: any) => {
+      buburD += v.bubur_d || 0;
+      buburI += v.bubur_i || 0;
+      timD += v.tim_d || 0;
+      timI += v.tim_i || 0;
+      oatmeal += v.oatmeal || 0;
+      puding += v.puding || 0;
+      abon += v.abon || 0;
+    });
+
+    return {
+      buburD, buburI, timD, timI,
+      oatmeal, puding, abon
+    };
+  }, [distGrid]);
+
   const materialReqs = useMemo(() => {
     const reqs: { bahanId: string; kode: string; nama: string; qty: number; rawQtyGrams: number; satuan: string }[] = [];
 
@@ -730,6 +750,29 @@ export default function Produksi() {
 
   // STEP 4 Action
   const saveStep4 = async () => {
+    // Validation: check if distributed exceeds actual cooked
+    if (distTotals.buburD > actualCups.bubur_1) {
+      return toast.error(`Distribusi Bubur 1 (${bubur1Name}) melebihi hasil masak aktual! (Terdistribusi: ${distTotals.buburD} cup, Masak: ${actualCups.bubur_1} cup)`);
+    }
+    if (distTotals.buburI > actualCups.bubur_2) {
+      return toast.error(`Distribusi Bubur 2 (${bubur2Name}) melebihi hasil masak aktual! (Terdistribusi: ${distTotals.buburI} cup, Masak: ${actualCups.bubur_2} cup)`);
+    }
+    if (distTotals.timD > actualCups.tim_1) {
+      return toast.error(`Distribusi Nasi Tim 1 (${tim1Name}) melebihi hasil masak aktual! (Terdistribusi: ${distTotals.timD} cup, Masak: ${actualCups.tim_1} cup)`);
+    }
+    if (distTotals.timI > actualCups.tim_2) {
+      return toast.error(`Distribusi Nasi Tim 2 (${tim2Name}) melebihi hasil masak aktual! (Terdistribusi: ${distTotals.timI} cup, Masak: ${actualCups.tim_2} cup)`);
+    }
+    if (distTotals.oatmeal > actualCups.oatmeal) {
+      return toast.error(`Distribusi Oatmeal melebihi hasil masak aktual! (Terdistribusi: ${distTotals.oatmeal} cup, Masak: ${actualCups.oatmeal} cup)`);
+    }
+    if (distTotals.puding > actualCups.puding) {
+      return toast.error(`Distribusi Puding melebihi hasil masak aktual! (Terdistribusi: ${distTotals.puding} cup, Masak: ${actualCups.puding} cup)`);
+    }
+    if (distTotals.abon > actualCups.abon) {
+      return toast.error(`Distribusi Abon melebihi hasil masak aktual! (Terdistribusi: ${distTotals.abon} cup, Masak: ${actualCups.abon} cup)`);
+    }
+
     const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
     await Promise.all(dayReqs.map(async (r: any) => {
       const outletAlloc = distGrid[r.outletId] || {};
@@ -1777,6 +1820,55 @@ export default function Produksi() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+
+          {/* Sisa Hasil Masak (Undistributed Stock) */}
+          <div className="bg-muted/15 p-4 rounded-2xl border border-dashed space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sisa Hasil Masak (Belum Didistribusikan)</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.bubur_1 - distTotals.buburD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.bubur_1 - distTotals.buburD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_1}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.bubur_2 - distTotals.buburI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.bubur_2 - distTotals.buburI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_2}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.tim_1 - distTotals.timD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.tim_1 - distTotals.timD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_1}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.tim_2 - distTotals.timI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.tim_2 - distTotals.timI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_2}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</span>
+                <span className={`text-sm font-bold block ${actualCups.oatmeal - distTotals.oatmeal < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.oatmeal - distTotals.oatmeal} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.oatmeal}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-muted-foreground block truncate">Puding</span>
+                <span className={`text-sm font-bold block ${actualCups.puding - distTotals.puding < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.puding - distTotals.puding} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.puding}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-muted-foreground block truncate">Abon</span>
+                <span className={`text-sm font-bold block ${actualCups.abon - distTotals.abon < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.abon - distTotals.abon} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.abon}</span>
+                </span>
+              </div>
+            </div>
+          </div>
 
           {/* Dropdown Selector & Row Form */}
           <div className="bg-muted/30 p-5 rounded-2xl border space-y-4 shadow-sm">

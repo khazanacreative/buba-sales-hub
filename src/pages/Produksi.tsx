@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { db, useDB, saldoBahan } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ImportExcelButton } from "@/components/ImportExcelButton";
@@ -211,6 +211,7 @@ export default function Produksi() {
   const [range, setRange] = useState<DateRange>({});
 
   const [step1OutletId, setStep1OutletId] = useState("");
+  const [expandedOutlets, setExpandedOutlets] = useState<Record<string, boolean>>({});
   const [step2OutletId, setStep2OutletId] = useState("");
   const [step4OutletId, setStep4OutletId] = useState("");
   const [step5OutletId, setStep5OutletId] = useState("");
@@ -1049,7 +1050,33 @@ export default function Produksi() {
           {/* Consolidated Table/Cards at the Bottom */}
           <div className="space-y-4 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Target Rencana Produksi Per Outlet (Edit Langsung)</Label>
+              <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Target Rencana Produksi Per Outlet (Edit Langsung)</Label>
+                <div className="flex items-center gap-1.5 md:hidden">
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      const expanded: Record<string, boolean> = {};
+                      outlets.forEach(o => expanded[o.id] = true);
+                      setExpandedOutlets(expanded);
+                    }}
+                    className="h-7 text-[10px] px-2"
+                  >
+                    Buka Semua
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setExpandedOutlets({})}
+                    className="h-7 text-[10px] px-2 text-destructive hover:text-destructive"
+                  >
+                    Tutup Semua
+                  </Button>
+                </div>
+              </div>
               <Input
                 placeholder="Cari outlet..."
                 value={searchOutlet}
@@ -1178,99 +1205,109 @@ export default function Produksi() {
                   oatmeal: 0, puding: 0, abon: 0
                 };
                 const totalOutletCups = (row.bubur_d || 0) + (row.bubur_i || 0) + (row.tim_d || 0) + (row.tim_i || 0) + (row.oatmeal || 0) + (row.puding || 0) + (row.abon || 0);
+                const isExpanded = !!expandedOutlets[o.id];
 
                 return (
                   <div key={o.id} className="p-4 bg-card rounded-2xl border shadow-sm space-y-3">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <span className="font-bold text-sm text-foreground">{o.nama}</span>
+                    <div 
+                      onClick={() => setExpandedOutlets(prev => ({ ...prev, [o.id]: !prev[o.id] }))}
+                      className="flex items-center justify-between cursor-pointer select-none"
+                    >
+                      <span className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                        {o.nama}
+                        {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </span>
                       <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">{totalOutletCups} cup</Badge>
                     </div>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="space-y-1 bg-amber-500/5 p-2 rounded-xl border border-amber-300/30">
-                        <Label className="text-[9px] font-bold text-amber-600 block truncate">B. {bubur1Name}</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={row.bubur_d || ""}
-                          onChange={(e) => handlePlanChange(o.id, "bubur_d", parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
-                          placeholder="0"
-                        />
-                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.bubur_d || 0) * 118} g)</span>
+                    
+                    {isExpanded && (
+                      <div className="grid grid-cols-2 gap-2.5 pt-2 border-t">
+                        <div className="space-y-1 bg-amber-500/5 p-2 rounded-xl border border-amber-300/30">
+                          <Label className="text-[9px] font-bold text-amber-600 block truncate">B. {bubur1Name}</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.bubur_d || ""}
+                            onChange={(e) => handlePlanChange(o.id, "bubur_d", parseInt(e.target.value) || 0)}
+                            className="h-8 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                            placeholder="0"
+                          />
+                          <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.bubur_d || 0) * 118} g)</span>
+                        </div>
+                        <div className="space-y-1 bg-blue-500/5 p-2 rounded-xl border border-blue-300/30">
+                          <Label className="text-[9px] font-bold text-blue-600 block truncate">B. {bubur2Name}</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.bubur_i || ""}
+                            onChange={(e) => handlePlanChange(o.id, "bubur_i", parseInt(e.target.value) || 0)}
+                            className="h-8 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                            placeholder="0"
+                          />
+                          <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.bubur_i || 0) * 118} g)</span>
+                        </div>
+                        <div className="space-y-1 bg-amber-500/5 p-2 rounded-xl border border-amber-300/30">
+                          <Label className="text-[9px] font-bold text-amber-600 block truncate">T. {tim1Name}</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.tim_d || ""}
+                            onChange={(e) => handlePlanChange(o.id, "tim_d", parseInt(e.target.value) || 0)}
+                            className="h-8 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
+                            placeholder="0"
+                          />
+                          <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.tim_d || 0) * 108} g)</span>
+                        </div>
+                        <div className="space-y-1 bg-blue-500/5 p-2 rounded-xl border border-blue-300/30">
+                          <Label className="text-[9px] font-bold text-blue-600 block truncate">T. {tim2Name}</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.tim_i || ""}
+                            onChange={(e) => handlePlanChange(o.id, "tim_i", parseInt(e.target.value) || 0)}
+                            className="h-8 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
+                            placeholder="0"
+                          />
+                          <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.tim_i || 0) * 108} g)</span>
+                        </div>
+                        <div className="space-y-1 bg-muted/20 p-2 rounded-xl border">
+                          <Label className="text-[9px] font-bold text-muted-foreground block truncate">Oatmeal</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.oatmeal || ""}
+                            onChange={(e) => handlePlanChange(o.id, "oatmeal", parseInt(e.target.value) || 0)}
+                            className="h-8 text-xs text-center"
+                            placeholder="0"
+                          />
+                          <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.oatmeal || 0) * 100} g)</span>
+                        </div>
+                        <div className="space-y-1 bg-muted/20 p-2 rounded-xl border">
+                          <Label className="text-[9px] font-bold text-muted-foreground block truncate">Puding</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.puding || ""}
+                            onChange={(e) => handlePlanChange(o.id, "puding", parseInt(e.target.value) || 0)}
+                            className="h-8 text-xs text-center"
+                            placeholder="0"
+                          />
+                          <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.puding || 0) * 80} g)</span>
+                        </div>
+                        <div className="space-y-1 bg-muted/20 p-2 rounded-xl border col-span-2">
+                          <Label className="text-[9px] font-bold text-muted-foreground block truncate">Abon</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={row.abon || ""}
+                            onChange={(e) => handlePlanChange(o.id, "abon", parseInt(e.target.value) || 0)}
+                            className="h-8 text-xs text-center"
+                            placeholder="0"
+                          />
+                          <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.abon || 0) * 10} g)</span>
+                        </div>
                       </div>
-                      <div className="space-y-1 bg-blue-500/5 p-2 rounded-xl border border-blue-300/30">
-                        <Label className="text-[9px] font-bold text-blue-600 block truncate">B. {bubur2Name}</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={row.bubur_i || ""}
-                          onChange={(e) => handlePlanChange(o.id, "bubur_i", parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
-                          placeholder="0"
-                        />
-                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.bubur_i || 0) * 118} g)</span>
-                      </div>
-                      <div className="space-y-1 bg-amber-500/5 p-2 rounded-xl border border-amber-300/30">
-                        <Label className="text-[9px] font-bold text-amber-600 block truncate">T. {tim1Name}</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={row.tim_d || ""}
-                          onChange={(e) => handlePlanChange(o.id, "tim_d", parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs text-center border-amber-300/80 focus-visible:ring-amber-500 font-semibold"
-                          placeholder="0"
-                        />
-                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.tim_d || 0) * 108} g)</span>
-                      </div>
-                      <div className="space-y-1 bg-blue-500/5 p-2 rounded-xl border border-blue-300/30">
-                        <Label className="text-[9px] font-bold text-blue-600 block truncate">T. {tim2Name}</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={row.tim_i || ""}
-                          onChange={(e) => handlePlanChange(o.id, "tim_i", parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs text-center border-blue-300/80 focus-visible:ring-blue-500 font-semibold"
-                          placeholder="0"
-                        />
-                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.tim_i || 0) * 108} g)</span>
-                      </div>
-                      <div className="space-y-1 bg-muted/20 p-2 rounded-xl border">
-                        <Label className="text-[9px] font-bold text-muted-foreground block truncate">Oatmeal</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={row.oatmeal || ""}
-                          onChange={(e) => handlePlanChange(o.id, "oatmeal", parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs text-center"
-                          placeholder="0"
-                        />
-                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.oatmeal || 0) * 100} g)</span>
-                      </div>
-                      <div className="space-y-1 bg-muted/20 p-2 rounded-xl border">
-                        <Label className="text-[9px] font-bold text-muted-foreground block truncate">Puding</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={row.puding || ""}
-                          onChange={(e) => handlePlanChange(o.id, "puding", parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs text-center"
-                          placeholder="0"
-                        />
-                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.puding || 0) * 80} g)</span>
-                      </div>
-                      <div className="space-y-1 bg-muted/20 p-2 rounded-xl border col-span-2">
-                        <Label className="text-[9px] font-bold text-muted-foreground block truncate">Abon</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={row.abon || ""}
-                          onChange={(e) => handlePlanChange(o.id, "abon", parseInt(e.target.value) || 0)}
-                          className="h-8 text-xs text-center"
-                          placeholder="0"
-                        />
-                        <span className="text-[8px] text-muted-foreground/80 block text-center mt-0.5">({(row.abon || 0) * 10} g)</span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}

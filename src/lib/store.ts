@@ -112,7 +112,8 @@ export async function fetchFromSupabase() {
         satuan: b.satuan,
         stokMin: b.stok_min,
         stokAwal: b.stok_awal,
-        hargaBeli: Number(b.harga_beli)
+        hargaBeli: Number(b.harga_beli),
+        konversiGram: b.konversi_gram ?? undefined
       })),
       stokMov: (stokMovRes.data || []).map((m: any) => ({
         id: m.id,
@@ -322,7 +323,8 @@ export const db = {
       satuan: b.satuan,
       stok_min: b.stokMin,
       stok_awal: b.stokAwal,
-      harga_beli: b.hargaBeli
+      harga_beli: b.hargaBeli,
+      konversi_gram: b.konversiGram ?? null
     }]);
     fetchFromSupabase();
   },
@@ -334,6 +336,7 @@ export const db = {
     if (b.stokMin !== undefined) mapped.stok_min = b.stokMin;
     if (b.stokAwal !== undefined) mapped.stok_awal = b.stokAwal;
     if (b.hargaBeli !== undefined) mapped.harga_beli = b.hargaBeli;
+    if (b.konversiGram !== undefined) mapped.konversi_gram = b.konversiGram;
     await supabase.from("bahan_baku").update(mapped).eq("id", id);
     fetchFromSupabase();
   },
@@ -545,7 +548,8 @@ export const db = {
         satuan: b.satuan,
         stok_min: b.stokMin,
         stok_awal: b.stokAwal,
-        harga_beli: b.hargaBeli
+        harga_beli: b.hargaBeli,
+        konversi_gram: b.konversiGram ?? null
       }));
       await supabase.from("bahan_baku").insert(seedBahanMapped);
       

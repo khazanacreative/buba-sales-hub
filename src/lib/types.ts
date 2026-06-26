@@ -74,6 +74,7 @@ export interface BahanBaku {
   stokMin: number;
   stokAwal: number;
   hargaBeli: number;
+  konversiGram?: number;
 }
 
 export type StokMovementType = 'IN' | 'OUT';

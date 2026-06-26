@@ -689,6 +689,7 @@ export default function StokGudang() {
                     <TableHead>Nama</TableHead>
                     <TableHead>Satuan</TableHead>
                     <TableHead className="text-right">Saldo</TableHead>
+                    <TableHead className="text-right">Konv. Gram</TableHead>
                     <TableHead className="text-right">Min</TableHead>
                     <TableHead className="text-right">Nilai</TableHead>
                     <TableHead>Status</TableHead>
@@ -697,7 +698,7 @@ export default function StokGudang() {
                 <TableBody>
                   {bahanPg.paged.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                         Belum ada saldo bahan baku
                       </TableCell>
                     </TableRow>
@@ -705,12 +706,18 @@ export default function StokGudang() {
                   {bahanPg.paged.map((b) => {
                     const saldo = saldoMap[b.id] || 0;
                     const low = saldo <= b.stokMin;
+                    const totalGram = b.konversiGram ? saldo * b.konversiGram : null;
                     return (
                       <TableRow key={b.id}>
                         <TableCell className="whitespace-nowrap font-mono text-xs">{b.kode}</TableCell>
                         <TableCell className="whitespace-nowrap">{b.nama}</TableCell>
                         <TableCell>{b.satuan}</TableCell>
                         <TableCell className="text-right font-semibold">{saldo}</TableCell>
+                        <TableCell className="text-right text-xs">
+                          {totalGram !== null
+                            ? <><span className="font-medium">{totalGram.toLocaleString()} gr</span><br /><span className="text-muted-foreground">{b.konversiGram} gr/{b.satuan}</span></>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
                         <TableCell className="text-right text-muted-foreground">{b.stokMin}</TableCell>
                         <TableCell className="text-right">{rupiah(saldo * b.hargaBeli)}</TableCell>
                         <TableCell>

@@ -104,7 +104,8 @@ async function runSeed() {
       satuan: b.satuan,
       stok_min: b.stokMin,
       stok_awal: b.stokAwal,
-      harga_beli: b.hargaBeli
+      harga_beli: b.hargaBeli,
+      konversi_gram: b.konversiGram ?? null
     }));
     const { error: bahanErr } = await supabase.from("bahan_baku").insert(seedBahanMapped);
     if (bahanErr) throw bahanErr;

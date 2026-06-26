@@ -77,6 +77,7 @@ export default function MasterData() {
   const [bStokMin, setBStokMin] = useState(0);
   const [bStokAwal, setBStokAwal] = useState(0);
   const [bHargaBeli, setBHargaBeli] = useState(0);
+  const [bKonversiGram, setBKonversiGram] = useState(0);
 
   // Karyawan form state
   const [kNama, setKNama] = useState("");
@@ -146,9 +147,11 @@ export default function MasterData() {
     return () => window.removeEventListener("buba_settings_changed", handler);
   }, []);
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveGramasi = (e: React.FormEvent) => {
     e.preventDefault();
-    const newSettings = {
+    const current = getBubaSettings();
+    saveBubaSettings({
+      ...current,
       berasBubur: Number(sBerasBubur),
       dagingBubur: Number(sDagingBubur),
       airBubur: Number(sAirBubur),
@@ -166,14 +169,30 @@ export default function MasterData() {
       oatmealCup: Number(sOatmealCup),
       pudingCup: Number(sPudingCup),
       abonCup: Number(sAbonCup),
+    });
+    toast.success("Pengaturan gramasi berhasil disimpan!");
+  };
 
+  const handleSaveAbsensi = (e: React.FormEvent) => {
+    e.preventDefault();
+    const current = getBubaSettings();
+    saveBubaSettings({
+      ...current,
       jamMasukStandar: sJamMasukStandar,
       jamPulangStandar: sJamPulangStandar,
+    });
+    toast.success("Pengaturan jam absensi berhasil disimpan!");
+  };
+
+  const handleSaveKaryawanSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const current = getBubaSettings();
+    saveBubaSettings({
+      ...current,
       overtimeRate: Number(sOvertimeRate),
       tunjanganHarian: Number(sTunjanganHarian),
-    };
-    saveBubaSettings(newSettings);
-    toast.success("Pengaturan global berhasil disimpan!");
+    });
+    toast.success("Pengaturan lembur & tunjangan berhasil disimpan!");
   };
 
   const resetUserForm = () => {
@@ -398,7 +417,7 @@ export default function MasterData() {
                 <Card className="border shadow-sm">
                   <CardContent className="p-4 space-y-2">
                     <h3 className="text-sm font-bold">Tambah Bahan Baku</h3>
-                    <form onSubmit={(e) => { e.preventDefault(); if (!bKode || !bNama) return toast.error("Lengkapi kode dan nama bahan!"); db.addBahan({ kode: bKode, nama: bNama, satuan: bSatuan, stokMin: bStokMin, stokAwal: bStokAwal, hargaBeli: bHargaBeli }); setBKode(""); setBNama(""); setBSatuan("sachet"); setBStokMin(0); setBStokAwal(0); setBHargaBeli(0); toast.success("Bahan baku ditambahkan"); }} className="space-y-2">
+                    <form onSubmit={(e) => { e.preventDefault(); if (!bKode || !bNama) return toast.error("Lengkapi kode dan nama bahan!"); db.addBahan({ kode: bKode, nama: bNama, satuan: bSatuan, stokMin: bStokMin, stokAwal: bStokAwal, hargaBeli: bHargaBeli, konversiGram: bKonversiGram || undefined }); setBKode(""); setBNama(""); setBSatuan("sachet"); setBStokMin(0); setBStokAwal(0); setBHargaBeli(0); setBKonversiGram(0); toast.success("Bahan baku ditambahkan"); }} className="space-y-2">
                       <Input value={bKode} onChange={(e) => setBKode(e.target.value)} placeholder="Kode (contoh: BRS01)" />
                       <Input value={bNama} onChange={(e) => setBNama(e.target.value)} placeholder="Nama Bahan" />
                       <div className="grid grid-cols-2 gap-2">
@@ -408,6 +427,10 @@ export default function MasterData() {
                       <div className="grid grid-cols-2 gap-2">
                         <Input type="number" value={bStokAwal} onChange={(e) => setBStokAwal(Number(e.target.value))} placeholder="Stok Awal" />
                         <Input type="number" value={bHargaBeli} onChange={(e) => setBHargaBeli(Number(e.target.value))} placeholder="Harga Beli" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input type="number" value={bKonversiGram} onChange={(e) => setBKonversiGram(Number(e.target.value))} placeholder="Konversi Gram" />
+                        <div className="text-[10px] text-muted-foreground flex items-center px-1">gr / {bSatuan || "satuan"}</div>
                       </div>
                       <Button className="w-full h-9 text-xs gradient-primary text-primary-foreground"><Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Bahan Baku</Button>
                     </form>
@@ -426,8 +449,9 @@ export default function MasterData() {
                               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm(`Hapus ${b.nama}?`)) db.deleteBahan(b.id); }}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                             </div>
                           </div>
-                          <div className="flex gap-3 mt-1.5 text-xs text-muted-foreground">
+                          <div className="flex gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
                             <span>Satuan: {b.satuan}</span><span>Min: {b.stokMin}</span><span>Awal: {b.stokAwal}</span><span className="text-primary font-semibold">{rupiah(b.hargaBeli)}</span>
+                            {b.konversiGram ? <span className="text-amber-600 font-medium">Konv: {b.konversiGram} gr/{b.satuan}</span> : null}
                           </div>
                         </div>
                       ))}
@@ -545,6 +569,25 @@ export default function MasterData() {
                     <TablePagination page={karyawanPg.page} totalPages={karyawanPg.totalPages} total={karyawanPg.total} pageSize={karyawanPg.pageSize} onChange={karyawanPg.setPage} />
                   </CardContent>
                 </Card>
+                {/* PENGATURAN LEMBUR & TUNJANGAN */}
+                <Card className="border shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2"><Settings className="h-4 w-4 text-primary" /> Pengaturan Lembur & Tunjangan</h3>
+                    <form onSubmit={handleSaveKaryawanSettings} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-[10px]">Lembur / Jam (Rp)</Label>
+                          <Input type="number" value={sOvertimeRate} onChange={(e) => setSOvertimeRate(Number(e.target.value))} />
+                        </div>
+                        <div>
+                          <Label className="text-[10px]">Tunjangan Harian (Rp)</Label>
+                          <Input type="number" value={sTunjanganHarian} onChange={(e) => setSTunjanganHarian(Number(e.target.value))} />
+                        </div>
+                      </div>
+                      <Button type="submit" className="w-full h-9 text-xs gradient-primary text-primary-foreground">Simpan Pengaturan</Button>
+                    </form>
+                  </CardContent>
+                </Card>
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -624,21 +667,21 @@ export default function MasterData() {
               </div>
             </AccordionContent>
           </AccordionItem>
-          {/* PENGATURAN */}
-          <AccordionItem value="pengaturan" className="rounded-xl border bg-card overflow-hidden">
+          {/* GRAMASI */}
+          <AccordionItem value="gramasi" className="rounded-xl border bg-card overflow-hidden">
             <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-                  <Settings className="h-4 w-4 text-primary-foreground" />
+                  <Sliders className="h-4 w-4 text-primary-foreground" />
                 </div>
                 <div className="text-left">
-                  <div className="font-semibold text-sm">Pengaturan</div>
-                  <div className="text-[11px] text-muted-foreground">Gramasi & Absensi</div>
+                  <div className="font-semibold text-sm">Gramasi</div>
+                  <div className="text-[11px] text-muted-foreground">Konversi berat per cup</div>
                 </div>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
-              <form onSubmit={handleSaveSettings} className="space-y-4">
+              <form onSubmit={handleSaveGramasi} className="space-y-4">
                 <Card className="border shadow-sm">
                   <CardContent className="p-4 space-y-3">
                     <h3 className="text-sm font-bold flex items-center gap-2"><Sliders className="h-4 w-4 text-primary" /> Konversi Gramasi</h3>
@@ -672,18 +715,35 @@ export default function MasterData() {
                         <div><Label className="text-[10px]">Abon</Label><Input type="number" step="any" value={sAbonCup} onChange={(e) => setSAbonCup(Number(e.target.value))} /></div>
                       </div>
                     </div>
+                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground text-xs">Simpan Pengaturan Gramasi</Button>
                   </CardContent>
                 </Card>
+              </form>
+            </AccordionContent>
+          </AccordionItem>
+          {/* ABSENSI */}
+          <AccordionItem value="absensi" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <Settings className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Absensi</div>
+                  <div className="text-[11px] text-muted-foreground">Jam kerja & tunjangan</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <form onSubmit={handleSaveAbsensi} className="space-y-4">
                 <Card className="border shadow-sm">
                   <CardContent className="p-4 space-y-3">
-                    <h3 className="text-sm font-bold flex items-center gap-2"><Settings className="h-4 w-4 text-primary" /> Jam & Absensi</h3>
+                    <h3 className="text-sm font-bold flex items-center gap-2"><Settings className="h-4 w-4 text-primary" /> Pengaturan Jam Absensi</h3>
                     <div className="grid grid-cols-2 gap-2">
                       <div><Label className="text-[10px]">Jam Masuk</Label><Input type="text" value={sJamMasukStandar} onChange={(e) => setSJamMasukStandar(e.target.value)} /></div>
                       <div><Label className="text-[10px]">Jam Pulang</Label><Input type="text" value={sJamPulangStandar} onChange={(e) => setSJamPulangStandar(e.target.value)} /></div>
                     </div>
-                    <div><Label className="text-[10px]">Lembur/Jam</Label><Input type="number" value={sOvertimeRate} onChange={(e) => setSOvertimeRate(Number(e.target.value))} /></div>
-                    <div><Label className="text-[10px]">Tunjangan Harian</Label><Input type="number" value={sTunjanganHarian} onChange={(e) => setSTunjanganHarian(Number(e.target.value))} /></div>
-                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground text-xs">Simpan Semua Pengaturan</Button>
+                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground text-xs">Simpan Pengaturan Jam Absensi</Button>
                   </CardContent>
                 </Card>
               </form>
@@ -772,6 +832,7 @@ function EditBahanDialog({ bahan }) {
   const [stokMin, setStokMin] = useState(bahan.stokMin);
   const [stokAwal, setStokAwal] = useState(bahan.stokAwal);
   const [hargaBeli, setHargaBeli] = useState(bahan.hargaBeli);
+  const [konversiGram, setKonversiGram] = useState(bahan.konversiGram ?? 0);
 
   return (
     <>
@@ -786,7 +847,7 @@ function EditBahanDialog({ bahan }) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              db.updateBahan(bahan.id, { kode, nama, satuan, stokMin, stokAwal, hargaBeli });
+              db.updateBahan(bahan.id, { kode, nama, satuan, stokMin, stokAwal, hargaBeli, konversiGram: konversiGram || undefined });
               toast.success("Bahan baku diperbarui");
               setOpen(false);
             }}
@@ -815,6 +876,15 @@ function EditBahanDialog({ bahan }) {
             <div>
               <Label>Harga Beli (Rp)</Label>
               <Input type="number" value={hargaBeli} onChange={(e) => setHargaBeli(Number(e.target.value))} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Konversi Gram</Label>
+                <Input type="number" value={konversiGram} onChange={(e) => setKonversiGram(Number(e.target.value))} />
+              </div>
+              <div className="flex items-end pb-1">
+                <span className="text-xs text-muted-foreground">gr / {satuan}</span>
+              </div>
             </div>
 
             <DialogFooter>

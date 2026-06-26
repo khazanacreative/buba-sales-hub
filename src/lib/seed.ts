@@ -163,16 +163,16 @@ export const SEED_USERS: UserAccount[] = [
 ];
 
 const RAW_BAHAN = [
-  { kode: "BRS01", nama: "BERAS", satuan: "Pack", stokMin: 15, stokAwal: 150, hargaBeli: 15500 },
+  { kode: "BRS01", nama: "BERAS", satuan: "Pack", stokMin: 15, stokAwal: 150, hargaBeli: 15500, konversiGram: 600 },
   { kode: "DG01", nama: "DAGING", satuan: "sachet", stokMin: 3, stokAwal: 3, hargaBeli: 12000 },
   { kode: "AY01", nama: "AYAM", satuan: "sachet", stokMin: 3, stokAwal: 24, hargaBeli: 9000 },
-  { kode: "TN01", nama: "TUNA", satuan: "sachet", stokMin: 2, stokAwal: 22, hargaBeli: 9000 },
-  { kode: "TG01", nama: "TENGIRI", satuan: "sachet", stokMin: 2, stokAwal: 1, hargaBeli: 9000 },
-  { kode: "SL01", nama: "SALMON", satuan: "sachet", stokMin: 2, stokAwal: 6, hargaBeli: 13000 },
-  { kode: "GR01", nama: "GURAMI", satuan: "sachet", stokMin: 2, stokAwal: 0, hargaBeli: 12000 },
+  { kode: "TN01", nama: "TUNA", satuan: "sachet", stokMin: 2, stokAwal: 22, hargaBeli: 9000, konversiGram: 35 },
+  { kode: "TG01", nama: "TENGIRI", satuan: "sachet", stokMin: 2, stokAwal: 1, hargaBeli: 9000, konversiGram: 35 },
+  { kode: "SL01", nama: "SALMON", satuan: "sachet", stokMin: 2, stokAwal: 6, hargaBeli: 13000, konversiGram: 35 },
+  { kode: "GR01", nama: "GURAMI", satuan: "sachet", stokMin: 2, stokAwal: 0, hargaBeli: 12000, konversiGram: 35 },
   { kode: "CK01", nama: "CEKER", satuan: "sachet", stokMin: 2, stokAwal: 16, hargaBeli: 9000 },
-  { kode: "KK01", nama: "KAKAP", satuan: "sachet", stokMin: 2, stokAwal: 0, hargaBeli: 12000 },
-  { kode: "DR01", nama: "DORI", satuan: "sachet", stokMin: 2, stokAwal: 17, hargaBeli: 9000 },
+  { kode: "KK01", nama: "KAKAP", satuan: "sachet", stokMin: 2, stokAwal: 0, hargaBeli: 12000, konversiGram: 35 },
+  { kode: "DR01", nama: "DORI", satuan: "sachet", stokMin: 2, stokAwal: 17, hargaBeli: 9000, konversiGram: 35 },
   { kode: "PUD01", nama: "PUDING", satuan: "sachet", stokMin: 5, stokAwal: 34, hargaBeli: 10000 },
   { kode: "OAT01", nama: "OAT", satuan: "sachet", stokMin: 5, stokAwal: 25, hargaBeli: 10000 },
   { kode: "CB01", nama: "CUP BUBUR", satuan: "biji", stokMin: 200, stokAwal: 1865, hargaBeli: 530 },

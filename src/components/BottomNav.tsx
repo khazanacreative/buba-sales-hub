@@ -16,15 +16,9 @@ export function BottomNav() {
     if (user?.role === "admin") {
       return [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        { title: "Produksi", url: "/produksi", icon: ChefHat, highlighted: true },
+        { title: "Stok", url: "/stok", icon: Warehouse },
         { title: "Absensi", url: "/absensi", icon: UserCheck, highlighted: true },
-        {
-          title: "Logistik",
-          icon: Warehouse,
-          subItems: [
-            { title: "Stok Gudang", url: "/stok" },
-            { title: "Produksi", url: "/produksi" },
-          ]
-        },
         {
           title: "Laporan",
           icon: FileBarChart,
@@ -168,13 +162,9 @@ export function BottomNav() {
 
             const targetUrl = hasSub ? filteredSubItems[0].url : item.url!;
             let displayTitle = item.title;
-            if (item.title === "Logistik" && hasSub && filteredSubItems.length === 1) {
-              displayTitle = "Stok";
-            } else if (item.title === "Laporan" && hasSub && filteredSubItems.length === 1) {
+            if (item.title === "Laporan" && hasSub && filteredSubItems.length === 1) {
               displayTitle = "Laporan";
             }
-
-
 
             return (
               <li key={item.title} className="flex-1 min-w-[64px]">

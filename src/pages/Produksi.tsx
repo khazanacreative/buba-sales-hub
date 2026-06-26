@@ -2525,7 +2525,7 @@ export default function Produksi() {
             {[
               { num: 1, label: "Pra-Produksi" },
               { num: 2, label: "Request Bahan" },
-              { num: 3, label: "Aktual Masak" },
+              { num: 3, label: "Pasca-Produksi" },
               { num: 4, label: "Distribusi" },
               { num: 5, label: "Retur & Penjualan" }
             ].map((s) => {
@@ -2563,7 +2563,7 @@ export default function Produksi() {
             {[
               { num: 1, label: "Pra-Produksi" },
               { num: 2, label: "Request Bahan" },
-              { num: 3, label: "Aktual Masak" },
+              { num: 3, label: "Pasca-Produksi" },
               { num: 4, label: "Distribusi" },
               { num: 5, label: "Retur & Penjualan" }
             ].map((s, index, arr) => {

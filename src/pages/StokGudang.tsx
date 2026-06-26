@@ -289,8 +289,14 @@ export default function StokGudang() {
   const [bahanId, setBahanId] = useState("");
   const [tipe, setTipe] = useState<"IN" | "OUT">("IN");
   const [qty, setQty] = useState(1);
-  const [ket, setKet] = useState("");
+  const [selectedKetSource, setSelectedKetSource] = useState("Supplier");
+  const [customKet, setCustomKet] = useState("");
   const [range, setRange] = useState<DateRange>({});
+
+  useEffect(() => {
+    setSelectedKetSource(tipe === "IN" ? "Supplier" : "Plan Produksi");
+    setCustomKet("");
+  }, [tipe]);
 
   // States for Kiriman Supplier Form
   const [supTanggal, setSupTanggal] = useState(todayISO());
@@ -309,9 +315,10 @@ export default function StokGudang() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!bahanId || qty <= 0) return toast.error("Lengkapi data");
-    db.addStokMov({ tanggal, bahanId, tipe, qty, keterangan: ket || (tipe === "IN" ? "Pembelian" : "Pemakaian") });
+    const finalKet = selectedKetSource === "Lainnya" ? customKet : selectedKetSource;
+    db.addStokMov({ tanggal, bahanId, tipe, qty, keterangan: finalKet || (tipe === "IN" ? "Pembelian" : "Pemakaian") });
     toast.success(`Stok ${tipe === "IN" ? "masuk" : "keluar"} dicatat`);
-    setQty(1); setKet("");
+    setQty(1); setCustomKet("");
   };
 
   const submitSupplier = async (e: React.FormEvent) => {
@@ -461,9 +468,33 @@ export default function StokGudang() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Keterangan</Label>
-                <Input value={ket} onChange={(e) => setKet(e.target.value)} placeholder="opsional" />
+                <Label>Sumber / Keterangan</Label>
+                <Select value={selectedKetSource} onValueChange={setSelectedKetSource}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {tipe === "IN" ? (
+                      <>
+                        <SelectItem value="Supplier">Supplier</SelectItem>
+                        <SelectItem value="Retur Cup">Retur Cup</SelectItem>
+                        <SelectItem value="Lainnya">Lainnya (Tulis Manual)</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="Plan Produksi">Plan Produksi</SelectItem>
+                        <SelectItem value="Request Outlet">Request Outlet</SelectItem>
+                        <SelectItem value="Barang Rusak">Barang Rusak</SelectItem>
+                        <SelectItem value="Lainnya">Lainnya (Tulis Manual)</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
+              {selectedKetSource === "Lainnya" && (
+                <div className="space-y-2">
+                  <Label>Keterangan Manual</Label>
+                  <Input value={customKet} onChange={(e) => setCustomKet(e.target.value)} placeholder="Masukkan keterangan..." />
+                </div>
+              )}
               <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
                 <Plus className="mr-1 h-4 w-4" />Simpan Penyesuaian
               </Button>

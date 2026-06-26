@@ -47,21 +47,38 @@ export default function SlipGaji() {
 
   const stats = useMemo(() => {
     const hadir = monthlyAbsensi.filter((a) => a.status === "Hadir").length;
-    const izin = monthlyAbsensi.filter((a) => a.status === "Izin").length;
-    const sakit = monthlyAbsensi.filter((a) => a.status === "Sakit").length;
-    const alpha = monthlyAbsensi.filter((a) => a.status === "Alpha").length;
-    return { hadir, izin, sakit, alpha };
+    const lateLogs = monthlyAbsensi.filter((a) => a.jamMasuk && a.jamMasuk > "07:00");
+    const terlambat = lateLogs.length;
+    return { hadir, terlambat };
   }, [monthlyAbsensi]);
 
   // Calculate salary details
   const payroll = useMemo(() => {
-    if (!activeKaryawan) return { pokok: 0, bonusOmset: 0, bonusUlasan: 0, total: 0 };
+    if (!activeKaryawan) return { pokok: 0, tunjangan: 0, bonusHarian: 0, bonusOmset: 0, bonusUlasan: 0, overtimeHours: 0, overtimePay: 0, total: 0 };
+    
     const pokok = stats.hadir * activeKaryawan.gajiPokok;
+    
+    const tunjangan = monthlyAbsensi.reduce((sum, a) => sum + (a.tunjangan ?? 0), 0);
+    const bonusHarian = monthlyAbsensi.reduce((sum, a) => sum + (a.bonus ?? 0), 0);
+    const overtimeHours = monthlyAbsensi.reduce((sum, a) => sum + (a.overtime ?? 0), 0);
+    const overtimePay = Math.round(overtimeHours * (activeKaryawan.gajiPokok / 8) * 1.5);
+    
     const bonusOmset = activeKaryawan.bonusOmset ?? 0;
     const bonusUlasan = activeKaryawan.bonusUlasan ?? 0;
-    const total = pokok + bonusOmset + bonusUlasan;
-    return { pokok, bonusOmset, bonusUlasan, total };
-  }, [activeKaryawan, stats]);
+    
+    const total = pokok + tunjangan + bonusHarian + bonusOmset + bonusUlasan + overtimePay;
+    
+    return {
+      pokok,
+      tunjangan,
+      bonusHarian,
+      bonusOmset,
+      bonusUlasan,
+      overtimeHours,
+      overtimePay,
+      total
+    };
+  }, [activeKaryawan, stats, monthlyAbsensi]);
 
   // Get available months from absensi dates to populate selector
   const availableMonths = useMemo(() => {
@@ -185,24 +202,20 @@ export default function SlipGaji() {
           <div className="space-y-6">
             <div>
               <h3 className="text-sm font-bold uppercase text-muted-foreground tracking-wider mb-3 flex items-center gap-1.5">
-                <CalendarDays className="h-4 w-4 text-primary" /> Kehadiran
+                <CalendarDays className="h-4 w-4 text-primary" /> Kehadiran & Kedisiplinan
               </h3>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="border rounded-xl p-2.5">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="border rounded-xl p-2.5 bg-muted/10">
                   <div className="text-[10px] text-muted-foreground font-bold">Hadir</div>
-                  <div className="text-lg font-bold text-success">{stats.hadir}</div>
+                  <div className="text-lg font-bold text-success">{stats.hadir} hari</div>
                 </div>
-                <div className="border rounded-xl p-2.5">
-                  <div className="text-[10px] text-muted-foreground font-bold">Izin</div>
-                  <div className="text-lg font-bold text-accent-foreground">{stats.izin}</div>
+                <div className="border rounded-xl p-2.5 bg-muted/10">
+                  <div className="text-[10px] text-muted-foreground font-bold">Terlambat</div>
+                  <div className={`text-lg font-bold ${stats.terlambat > 0 ? "text-destructive" : "text-muted-foreground"}`}>{stats.terlambat}x</div>
                 </div>
-                <div className="border rounded-xl p-2.5">
-                  <div className="text-[10px] text-muted-foreground font-bold">Sakit</div>
-                  <div className="text-lg font-bold text-secondary-foreground">{stats.sakit}</div>
-                </div>
-                <div className="border rounded-xl p-2.5">
-                  <div className="text-[10px] text-muted-foreground font-bold">Alpha</div>
-                  <div className="text-lg font-bold text-destructive">{stats.alpha}</div>
+                <div className="border rounded-xl p-2.5 bg-muted/10">
+                  <div className="text-[10px] text-muted-foreground font-bold">Lembur (Overtime)</div>
+                  <div className="text-lg font-bold text-primary">{payroll.overtimeHours} jam</div>
                 </div>
               </div>
             </div>
@@ -218,14 +231,38 @@ export default function SlipGaji() {
                   </span>
                   <span className="font-medium">{rupiah(payroll.pokok)}</span>
                 </div>
-                <div className="flex justify-between py-2.5">
-                  <span className="text-muted-foreground">Bonus Pencapaian Omset</span>
-                  <span className="font-medium text-success">+{rupiah(payroll.bonusOmset)}</span>
-                </div>
-                <div className="flex justify-between py-2.5">
-                  <span className="text-muted-foreground">Bonus Ulasan Bintang 5</span>
-                  <span className="font-medium text-success">+{rupiah(payroll.bonusUlasan)}</span>
-                </div>
+                {payroll.tunjangan > 0 && (
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-muted-foreground">Total Tunjangan</span>
+                    <span className="font-medium text-success">+{rupiah(payroll.tunjangan)}</span>
+                  </div>
+                )}
+                {payroll.bonusHarian > 0 && (
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-muted-foreground">Bonus Harian (Absensi)</span>
+                    <span className="font-medium text-success">+{rupiah(payroll.bonusHarian)}</span>
+                  </div>
+                )}
+                {payroll.bonusOmset > 0 && (
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-muted-foreground">Bonus Pencapaian Omset</span>
+                    <span className="font-medium text-success">+{rupiah(payroll.bonusOmset)}</span>
+                  </div>
+                )}
+                {payroll.bonusUlasan > 0 && (
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-muted-foreground">Bonus Ulasan Bintang 5</span>
+                    <span className="font-medium text-success">+{rupiah(payroll.bonusUlasan)}</span>
+                  </div>
+                )}
+                {payroll.overtimePay > 0 && (
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-muted-foreground">
+                      Uang Lembur <span className="text-[10px] text-muted-foreground">({payroll.overtimeHours} Jam @ 1.5x upah/jam)</span>
+                    </span>
+                    <span className="font-medium text-success">+{rupiah(payroll.overtimePay)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-3 text-sm sm:text-base font-bold bg-muted/40 rounded-lg px-3 mt-2">
                   <span className="text-foreground">Total Gaji Diterima (Take Home Pay)</span>
                   <span className="text-primary">{rupiah(payroll.total)}</span>

@@ -18,7 +18,7 @@ import { useAuth } from "@/lib/auth";
 import { StatusAbsen } from "@/lib/types";
 import { useNavigate } from "react-router-dom";
 
-const STATUSES: StatusAbsen[] = ["Hadir", "Izin", "Sakit", "Alpha"];
+const STATUSES: StatusAbsen[] = ["Hadir"];
 
 export default function Absensi() {
   const { user } = useAuth();
@@ -36,6 +36,9 @@ export default function Absensi() {
   const [jamMasuk, setJamMasuk] = useState("07:00");
   const [jamPulang, setJamPulang] = useState("15:00");
   const [status, setStatus] = useState<StatusAbsen>("Hadir");
+  const [bonusInput, setBonusInput] = useState(0);
+  const [tunjanganInput, setTunjanganInput] = useState(0);
+  const [overtimeInput, setOvertimeInput] = useState(0);
   const [range, setRange] = useState<DateRange>({});
 
   // GPS State
@@ -84,8 +87,20 @@ export default function Absensi() {
     e.preventDefault();
     const kid = karyawanId || visibleKaryawan[0]?.id;
     if (!kid) return toast.error("Pilih karyawan");
-    db.addAbsensi({ tanggal, karyawanId: kid, jamMasuk: status === "Hadir" ? jamMasuk : undefined, jamPulang: status === "Hadir" ? jamPulang : undefined, status });
+    db.addAbsensi({
+      tanggal,
+      karyawanId: kid,
+      jamMasuk: status === "Hadir" ? jamMasuk : undefined,
+      jamPulang: status === "Hadir" ? jamPulang : undefined,
+      status,
+      bonus: bonusInput,
+      tunjangan: tunjanganInput,
+      overtime: overtimeInput
+    });
     toast.success("Absensi disimpan");
+    setBonusInput(0);
+    setTunjanganInput(0);
+    setOvertimeInput(0);
   };
 
   const currentTime = () => {
@@ -145,18 +160,6 @@ export default function Absensi() {
     toast.success("Berhasil Absen Pulang!");
   };
 
-  const handleSakitIzin = (st: "Sakit" | "Izin") => {
-    const kid = karyawanId || visibleKaryawan[0]?.id;
-    if (!kid) return toast.error("Pilih karyawan terlebih dahulu");
-    db.addAbsensi({
-      tanggal: todayISO(),
-      karyawanId: kid,
-      status: st,
-      catatan: `Dilaporkan oleh outlet via tombol cepat`
-    });
-    toast.success(`Berhasil mencatat status ${st}`);
-  };
-
   const visibleIds = new Set(visibleKaryawan.map((k) => k.id));
   const filtered = useMemo(
     () => absensi.filter((a) => visibleIds.has(a.karyawanId) && inRange(a.tanggal, range)).sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
@@ -168,11 +171,37 @@ export default function Absensi() {
     return visibleKaryawan.map((k) => {
       const list = filtered.filter((a) => a.karyawanId === k.id);
       const hadir = list.filter((a) => a.status === "Hadir").length;
-      const izin = list.filter((a) => a.status === "Izin").length;
-      const sakit = list.filter((a) => a.status === "Sakit").length;
-      const alpha = list.filter((a) => a.status === "Alpha").length;
-      const totalGaji = hadir * k.gajiPokok;
-      return { k, hadir, izin, sakit, alpha, totalGaji };
+      
+      // Calculate lateness
+      const lateLogs = list.filter((a) => a.jamMasuk && a.jamMasuk > "07:00");
+      const terlambatCount = lateLogs.length;
+      const terlambatDates = lateLogs.map((a) => a.tanggal.slice(-2)).join(", "); // e.g. "15, 18"
+      
+      // Sum daily inputs
+      const overtimeHours = list.reduce((sum, a) => sum + (a.overtime ?? 0), 0);
+      const tunjanganTotal = list.reduce((sum, a) => sum + (a.tunjangan ?? 0), 0);
+      const dailyBonusTotal = list.reduce((sum, a) => sum + (a.bonus ?? 0), 0);
+      
+      // Calculate overtime pay: overtime_hours * (gajiPokok / 8) * 1.5
+      const overtimePay = Math.round(overtimeHours * (k.gajiPokok / 8) * 1.5);
+      
+      // Flat monthly bonuses
+      const flatBonusOmset = k.bonusOmset ?? 0;
+      const flatBonusUlasan = k.bonusUlasan ?? 0;
+      
+      const totalBonus = dailyBonusTotal + flatBonusOmset + flatBonusUlasan;
+      const totalGaji = (hadir * k.gajiPokok) + tunjanganTotal + totalBonus + overtimePay;
+      
+      return {
+        k,
+        hadir,
+        terlambatCount,
+        terlambatDates,
+        overtimeHours,
+        tunjanganTotal,
+        totalBonus,
+        totalGaji
+      };
     });
   }, [visibleKaryawan, filtered]);
 
@@ -225,8 +254,20 @@ export default function Absensi() {
                 <Label>Jam Pulang</Label>
                 <Input type="time" value={jamPulang} onChange={(e) => setJamPulang(e.target.value)} disabled={status !== "Hadir"} />
               </div>
-              <Button type="submit" className="gradient-primary text-primary-foreground hover-lift">
-                <Plus className="mr-1 h-4 w-4" />Simpan
+              <div className="space-y-2">
+                <Label>Bonus (Rp)</Label>
+                <Input type="number" min={0} value={bonusInput || ""} onChange={(e) => setBonusInput(Number(e.target.value))} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Tunjangan (Rp)</Label>
+                <Input type="number" min={0} value={tunjanganInput || ""} onChange={(e) => setTunjanganInput(Number(e.target.value))} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Overtime (Jam)</Label>
+                <Input type="number" min={0} value={overtimeInput || ""} onChange={(e) => setOvertimeInput(Number(e.target.value))} placeholder="0" />
+              </div>
+              <Button type="submit" className="gradient-primary text-primary-foreground hover-lift lg:col-span-2">
+                <Plus className="mr-1 h-4 w-4" />Simpan Absensi
               </Button>
             </form>
           </CardContent>
@@ -398,38 +439,18 @@ export default function Absensi() {
 
               <div className="w-full space-y-3">
                 {!todayRecord ? (
-                  <div className="grid grid-cols-3 gap-2 w-full">
-                    <Button 
-                      onClick={handleClockIn} 
-                      className="h-12 gradient-primary text-primary-foreground hover-lift font-bold text-xs sm:text-sm"
-                    >
-                      <Plus className="mr-1 h-4 w-4 shrink-0" /> Masuk
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => handleSakitIzin("Sakit")} 
-                      className="h-12 border-destructive/30 text-destructive hover:bg-destructive/10 font-bold text-xs sm:text-sm"
-                    >
-                      Sakit
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => handleSakitIzin("Izin")} 
-                      className="h-12 border-amber-600/30 text-amber-600 hover:bg-amber-50 font-bold text-xs sm:text-sm"
-                    >
-                      Izin
-                    </Button>
-                  </div>
-                ) : todayRecord.status !== "Hadir" ? (
-                  <div className="h-12 w-full flex items-center justify-center bg-muted/60 border rounded-xl text-sm font-semibold text-muted-foreground">
-                    Status Hari Ini: <Badge className="ml-2 bg-warning">{todayRecord.status}</Badge>
-                  </div>
+                  <Button 
+                    onClick={handleClockIn} 
+                    className="h-12 w-full gradient-primary text-primary-foreground hover-lift font-bold text-sm"
+                  >
+                    <Plus className="mr-2 h-5 w-5 shrink-0" /> Absen Masuk
+                  </Button>
                 ) : !todayRecord.jamPulang ? (
                   <Button 
                     onClick={handleClockOut} 
                     className="h-12 w-full bg-success text-success-foreground hover:bg-success/90 hover-lift font-bold text-sm"
                   >
-                    <CheckCircle2 className="mr-2 h-5 w-5 shrink-0" /> Pulang
+                    <CheckCircle2 className="mr-2 h-5 w-5 shrink-0" /> Absen Pulang
                   </Button>
                 ) : (
                   <div className="h-12 w-full flex items-center justify-center bg-success/10 border border-success/30 rounded-xl text-sm font-semibold text-success">
@@ -495,9 +516,11 @@ export default function Absensi() {
                     <TableHead>Karyawan</TableHead>
                     <TableHead>Posisi</TableHead>
                     <TableHead className="text-right">Hadir</TableHead>
-                    <TableHead className="text-right">Izin</TableHead>
-                    <TableHead className="text-right">Sakit</TableHead>
-                    <TableHead className="text-right">Alpha</TableHead>
+                    <TableHead className="text-right">Terlambat</TableHead>
+                    <TableHead>Tgl Terlambat</TableHead>
+                    <TableHead className="text-right">Lembur (Jam)</TableHead>
+                    <TableHead className="text-right">Tunjangan</TableHead>
+                    <TableHead className="text-right">Bonus</TableHead>
                     <TableHead className="text-right">Gaji Pokok</TableHead>
                     <TableHead className="text-right">Total Gaji</TableHead>
                   </TableRow>
@@ -505,21 +528,27 @@ export default function Absensi() {
                 <TableBody>
                   {rekapPg.paged.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-6">
                         Belum ada data rekap gaji
                       </TableCell>
                     </TableRow>
                   )}
                   {rekapPg.paged.map((r) => (
                     <TableRow key={r.k.id}>
-                      <TableCell className="whitespace-nowrap">{r.k.nama}</TableCell>
-                      <TableCell>{r.k.posisi}</TableCell>
-                      <TableCell className="text-right">{r.hadir}</TableCell>
-                      <TableCell className="text-right">{r.izin}</TableCell>
-                      <TableCell className="text-right">{r.sakit}</TableCell>
-                      <TableCell className="text-right">{r.alpha}</TableCell>
-                      <TableCell className="text-right">{rupiah(r.k.gajiPokok)}</TableCell>
-                      <TableCell className="text-right font-semibold">{rupiah(r.totalGaji)}</TableCell>
+                      <TableCell className="whitespace-nowrap font-semibold">{r.k.nama}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{r.k.posisi}</TableCell>
+                      <TableCell className="text-right font-semibold text-success">{r.hadir} hari</TableCell>
+                      <TableCell className={`text-right font-semibold ${r.terlambatCount > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                        {r.terlambatCount}x
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate" title={r.terlambatDates}>
+                        {r.terlambatDates || "-"}
+                      </TableCell>
+                      <TableCell className="text-right">{r.overtimeHours} jam</TableCell>
+                      <TableCell className="text-right text-success">+{rupiah(r.tunjanganTotal)}</TableCell>
+                      <TableCell className="text-right text-success">+{rupiah(r.totalBonus)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{rupiah(r.k.gajiPokok)}/hr</TableCell>
+                      <TableCell className="text-right font-bold text-primary">{rupiah(r.totalGaji)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -549,12 +578,6 @@ export default function Absensi() {
 
 function AbsensiTable({ filtered, karyawan, outlets }: any) {
   const { paged, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
-  const colorFor = (s: StatusAbsen) => {
-    if (s === "Hadir") return "bg-success text-success-foreground";
-    if (s === "Izin") return "bg-accent text-accent-foreground";
-    if (s === "Sakit") return "bg-secondary text-secondary-foreground";
-    return "";
-  };
   return (
     <div className="rounded-2xl border overflow-hidden max-w-full">
       <div className="overflow-x-auto">
@@ -564,33 +587,39 @@ function AbsensiTable({ filtered, karyawan, outlets }: any) {
               <TableHead>Tgl</TableHead>
               <TableHead>Karyawan</TableHead>
               <TableHead>Outlet</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead>Masuk</TableHead>
               <TableHead>Pulang</TableHead>
-              <TableHead></TableHead>
+              <TableHead className="text-right">Bonus</TableHead>
+              <TableHead className="text-right">Tunjangan</TableHead>
+              <TableHead className="text-right">Lembur</TableHead>
+              <TableHead>Catatan</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Belum ada absensi</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Belum ada absensi</TableCell></TableRow>
             )}
             {paged.map((a: any) => {
               const k = karyawan.find((x: any) => x.id === a.karyawanId);
               const o = outlets.find((x: any) => x.id === k?.outletId);
+              const isLate = a.jamMasuk && a.jamMasuk > "07:00";
               return (
                 <TableRow key={a.id}>
                   <TableCell className="whitespace-nowrap">{a.tanggal}</TableCell>
-                  <TableCell className="whitespace-nowrap">{k?.nama ?? "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{o?.nama ?? "-"}</TableCell>
-                  <TableCell>
-                    {a.status === "Alpha"
-                      ? <Badge variant="destructive">{a.status}</Badge>
-                      : <Badge className={colorFor(a.status)}>{a.status}</Badge>}
+                  <TableCell className="whitespace-nowrap font-medium">{k?.nama ?? "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground text-xs">{o?.nama ?? "-"}</TableCell>
+                  <TableCell className={isLate ? "text-destructive font-semibold" : ""}>
+                    {a.jamMasuk ?? "-"}
+                    {isLate && <Badge variant="destructive" className="ml-1 text-[8px] px-1 py-0 h-3.5">Telat</Badge>}
                   </TableCell>
-                  <TableCell>{a.jamMasuk ?? "-"}</TableCell>
                   <TableCell>{a.jamPulang ?? "-"}</TableCell>
+                  <TableCell className="text-right text-success">+{rupiah(a.bonus ?? 0)}</TableCell>
+                  <TableCell className="text-right text-success">+{rupiah(a.tunjangan ?? 0)}</TableCell>
+                  <TableCell className="text-right font-medium">{a.overtime ?? 0} jam</TableCell>
+                  <TableCell className="max-w-[150px] truncate text-xs text-muted-foreground" title={a.catatan}>{a.catatan || "-"}</TableCell>
                   <TableCell>
-                    <Button size="icon" variant="ghost" onClick={() => db.deleteAbsensi(a.id)}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => db.deleteAbsensi(a.id)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>

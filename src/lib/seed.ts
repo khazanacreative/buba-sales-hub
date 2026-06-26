@@ -184,7 +184,10 @@ const RAW_BAHAN = [
   { kode: "TS01", nama: "TISU", satuan: "pcs", stokMin: 5, stokAwal: 7, hargaBeli: 6500 },
   { kode: "KRS01", nama: "KRESEK", satuan: "PACK", stokMin: 5, stokAwal: 37, hargaBeli: 4000 },
   { kode: "BL01", nama: "BALON + Stik", satuan: "biji", stokMin: 10, stokAwal: 0, hargaBeli: 1200 },
-  { kode: "PLAS01", nama: "PLASTIK SELER", satuan: "pcs", stokMin: 1, stokAwal: 0, hargaBeli: 66000 }
+  { kode: "PLAS01", nama: "PLASTIK SELER", satuan: "pcs", stokMin: 1, stokAwal: 0, hargaBeli: 66000 },
+  { kode: "SH01", nama: "SAYUR HIJAU", satuan: "gr", stokMin: 100, stokAwal: 5000, hargaBeli: 50 },
+  { kode: "SB01", nama: "SAYUR BROKOLI", satuan: "gr", stokMin: 100, stokAwal: 5000, hargaBeli: 50 },
+  { kode: "SP01", nama: "SAYUR PUTIH", satuan: "gr", stokMin: 100, stokAwal: 5000, hargaBeli: 50 }
 ];
 
 export const SEED_BAHAN: BahanBaku[] = RAW_BAHAN.map((b) => ({ ...b, id: `b-${slug(b.kode)}` }));

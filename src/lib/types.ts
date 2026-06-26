@@ -109,6 +109,9 @@ export interface Absensi {
   jamPulang?: string;
   status: StatusAbsen;
   catatan?: string;
+  bonus?: number;
+  tunjangan?: number;
+  overtime?: number; // hours
 }
 
 // === Permohonan Stok ===

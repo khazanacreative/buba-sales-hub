@@ -139,7 +139,10 @@ export async function fetchFromSupabase() {
         jamMasuk: a.jam_masuk,
         jamPulang: a.jam_pulang,
         status: a.status,
-        catatan: a.catatan
+        catatan: a.catatan,
+        bonus: a.bonus ? Number(a.bonus) : 0,
+        tunjangan: a.tunjangan ? Number(a.tunjangan) : 0,
+        overtime: a.overtime ? Number(a.overtime) : 0
       })),
       permohonanStok: (permohonanRes.data || []).map((p: any) => ({
         id: p.id,
@@ -395,7 +398,10 @@ export const db = {
       jam_masuk: a.jamMasuk,
       jam_pulang: a.jamPulang,
       status: a.status,
-      catatan: a.catatan
+      catatan: a.catatan,
+      bonus: a.bonus ?? 0,
+      tunjangan: a.tunjangan ?? 0,
+      overtime: a.overtime ?? 0
     }]);
     fetchFromSupabase();
   },
@@ -411,6 +417,9 @@ export const db = {
     if (a.jamPulang !== undefined) mapped.jam_pulang = a.jamPulang;
     if (a.status !== undefined) mapped.status = a.status;
     if (a.catatan !== undefined) mapped.catatan = a.catatan;
+    if (a.bonus !== undefined) mapped.bonus = a.bonus;
+    if (a.tunjangan !== undefined) mapped.tunjangan = a.tunjangan;
+    if (a.overtime !== undefined) mapped.overtime = a.overtime;
     await supabase.from("absensi").update(mapped).eq("id", id);
     fetchFromSupabase();
   },

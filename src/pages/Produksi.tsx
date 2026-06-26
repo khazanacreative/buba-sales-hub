@@ -149,8 +149,17 @@ function AdminPermohonanStok({ dbState }: { dbState: any }) {
                               size="sm"
                               variant="outline"
                               className="h-8 border-success/35 text-success hover:bg-success/10 hover:text-success hover:border-success/60 font-semibold"
-                              onClick={() => {
-                                db.updatePermohonanStokStatus(r.id, "Disetujui");
+                              onClick={async () => {
+                                await db.updatePermohonanStokStatus(r.id, "Disetujui");
+                                if (r.produkId.startsWith("b-")) {
+                                  await db.addStokMov({
+                                    tanggal: todayISO(),
+                                    bahanId: r.produkId,
+                                    tipe: "OUT",
+                                    qty: r.qty,
+                                    keterangan: `Request Outlet: ${outlet?.nama ?? "Outlet"}`
+                                  });
+                                }
                                 toast.success(`Permohonan stok dari ${outlet?.nama} disetujui`);
                               }}
                             >
@@ -542,53 +551,111 @@ export default function Produksi() {
   }, [planGrid]);
 
   const materialReqs = useMemo(() => {
-    const reqs: { bahanId: string; kode: string; nama: string; qty: number; satuan: string }[] = [];
+    const reqs: { bahanId: string; kode: string; nama: string; qty: number; rawQtyGrams: number; satuan: string }[] = [];
 
-    const berasQty = Math.round((totals.totalBubur * 16.67) + (totals.totalTim * 20.00));
-    if (berasQty > 0) reqs.push({ bahanId: "b-brs01", kode: "BRS01", nama: "BERAS", qty: berasQty, satuan: "gram" });
-
-    const pudingQty = Math.round(totals.puding * 13.00);
-    if (pudingQty > 0) reqs.push({ bahanId: "b-pud01", kode: "PUD01", nama: "PUDING", qty: pudingQty, satuan: "gram" });
-
-    const oatQty = Math.round(totals.oatmeal * 25.71);
-    if (oatQty > 0) reqs.push({ bahanId: "b-oat01", kode: "OAT01", nama: "OAT", qty: oatQty, satuan: "gram" });
-
-    const abonQty = Math.round(totals.abon * 10.00);
-    if (abonQty > 0) reqs.push({ bahanId: "b-ab01", kode: "AB01", nama: "ABON", qty: abonQty, satuan: "gram" });
-
-    const variantReqs: Record<string, number> = {};
-
-    if (totals.buburD > 0 && bubur1Variant) {
-      variantReqs[bubur1Variant] = (variantReqs[bubur1Variant] || 0) + Math.ceil(totals.buburD / 10);
-    }
-    if (totals.buburI > 0 && bubur2Variant) {
-      variantReqs[bubur2Variant] = (variantReqs[bubur2Variant] || 0) + Math.ceil(totals.buburI / 10);
-    }
-    if (totals.timD > 0 && tim1Variant) {
-      variantReqs[tim1Variant] = (variantReqs[tim1Variant] || 0) + Math.ceil(totals.timD / 10);
-    }
-    if (totals.timI > 0 && tim2Variant) {
-      variantReqs[tim2Variant] = (variantReqs[tim2Variant] || 0) + Math.ceil(totals.timI / 10);
+    // 1. Beras
+    const berasGr = Math.round((totals.buburD * 16.67) + (totals.buburI * 16.67) + (totals.timD * 20.00) + (totals.timI * 20.00));
+    if (berasGr > 0) {
+      reqs.push({
+        bahanId: "b-brs01",
+        kode: "BRS01",
+        nama: "BERAS",
+        qty: Math.round((berasGr / 1000) * 100) / 100, // Pack
+        rawQtyGrams: berasGr,
+        satuan: "Pack"
+      });
     }
 
-    Object.entries(variantReqs).forEach(([variantId, qtySachets]) => {
+    // Helper to add meat variant
+    const addVariant = (variantId: string, grams: number) => {
       const b = bahan.find(x => x.id === variantId);
-      if (b) {
-        reqs.push({ bahanId: b.id, kode: b.kode, nama: b.nama, qty: qtySachets, satuan: b.satuan });
+      if (b && grams > 0) {
+        const existing = reqs.find(r => r.bahanId === variantId);
+        const qtyPcs = Math.round((grams / 100) * 100) / 100; // 1 sachet = 100g
+        if (existing) {
+          existing.qty = Math.round((existing.qty + qtyPcs) * 100) / 100;
+          existing.rawQtyGrams += grams;
+        } else {
+          reqs.push({
+            bahanId: variantId,
+            kode: b.kode,
+            nama: b.nama,
+            qty: qtyPcs,
+            rawQtyGrams: grams,
+            satuan: b.satuan
+          });
+        }
       }
-    });
+    };
 
-    const cupBuburQty = totals.totalBubur + totals.totalTim;
-    if (cupBuburQty > 0) reqs.push({ bahanId: "b-cb01", kode: "CB01", nama: "CUP BUBUR", qty: cupBuburQty, satuan: "biji" });
+    // Meats
+    if (totals.buburD > 0 && bubur1Variant) addVariant(bubur1Variant, totals.buburD * 13);
+    if (totals.buburI > 0 && bubur2Variant) addVariant(bubur2Variant, totals.buburI * 13);
+    if (totals.timD > 0 && tim1Variant) addVariant(tim1Variant, totals.timD * 10);
+    if (totals.timI > 0 && tim2Variant) addVariant(tim2Variant, totals.timI * 10);
 
-    const tutupQty = totals.totalBubur + totals.totalTim + totals.puding;
-    if (tutupQty > 0) reqs.push({ bahanId: "b-ttp01", kode: "TTP01", nama: "TUTUP", qty: tutupQty, satuan: "biji" });
+    // Puding
+    const pudingGr = Math.round(totals.puding * 13.00);
+    if (pudingGr > 0) {
+      reqs.push({
+        bahanId: "b-pud01",
+        kode: "PUD01",
+        nama: "PUDING",
+        qty: Math.round((pudingGr / 100) * 100) / 100, // sachet
+        rawQtyGrams: pudingGr,
+        satuan: "sachet"
+      });
+    }
 
-    const sendokQty = totals.totalBubur + totals.totalTim + totals.oatmeal + totals.puding;
-    if (sendokQty > 0) reqs.push({ bahanId: "b-sen01", kode: "SEN01", nama: "SENDOK", qty: sendokQty, satuan: "pcs" });
+    // Oat
+    const oatGr = Math.round(totals.oatmeal * 25.71);
+    if (oatGr > 0) {
+      reqs.push({
+        bahanId: "b-oat01",
+        kode: "OAT01",
+        nama: "OAT",
+        qty: Math.round((oatGr / 100) * 100) / 100, // sachet
+        rawQtyGrams: oatGr,
+        satuan: "sachet"
+      });
+    }
 
-    if (totals.oatmeal > 0) reqs.push({ bahanId: "b-cupoat1", kode: "CUPOAT1", nama: "CUP OAT", qty: totals.oatmeal, satuan: "biji" });
-    if (totals.puding > 0) reqs.push({ bahanId: "b-cuppud01", kode: "CUPPUD01", nama: "CUP PUDING", qty: totals.puding, satuan: "biji" });
+    // Abon
+    const abonGr = Math.round(totals.abon * 10.00);
+    if (abonGr > 0) {
+      reqs.push({
+        bahanId: "b-ab01",
+        kode: "AB01",
+        nama: "ABON",
+        qty: Math.round((abonGr / 100) * 100) / 100, // cup
+        rawQtyGrams: abonGr,
+        satuan: "cup"
+      });
+    }
+
+    // Cup Puding
+    if (totals.puding > 0) {
+      reqs.push({
+        bahanId: "b-cuppud01",
+        kode: "CUPPUD01",
+        nama: "CUP PUDING",
+        qty: totals.puding,
+        rawQtyGrams: totals.puding, // 1:1
+        satuan: "biji"
+      });
+    }
+
+    // Cup Oat
+    if (totals.oatmeal > 0) {
+      reqs.push({
+        bahanId: "b-cupoat1",
+        kode: "CUPOAT1",
+        nama: "CUP OAT",
+        qty: totals.oatmeal,
+        rawQtyGrams: totals.oatmeal, // 1:1
+        satuan: "biji"
+      });
+    }
 
     return reqs;
   }, [totals, bubur1Variant, bubur2Variant, tim1Variant, tim2Variant, bahan]);
@@ -781,22 +848,22 @@ export default function Produksi() {
     const movPromises: Promise<any>[] = [];
     if (recoveredIngredients.beras > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-brs01", tipe: "IN", qty: Math.round(recoveredIngredients.beras), keterangan: "Retur Bahan Baku (Gram)"
+        tanggal, bahanId: "b-brs01", tipe: "IN", qty: Math.round((recoveredIngredients.beras / 1000) * 100) / 100, keterangan: "Retur Bahan Baku (Pack)"
       }));
     }
     if (recoveredIngredients.puding > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-pud01", tipe: "IN", qty: Math.round(recoveredIngredients.puding), keterangan: "Retur Bahan Baku (Gram)"
+        tanggal, bahanId: "b-pud01", tipe: "IN", qty: Math.round((recoveredIngredients.puding / 100) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
       }));
     }
     if (recoveredIngredients.oat > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-oat01", tipe: "IN", qty: Math.round(recoveredIngredients.oat), keterangan: "Retur Bahan Baku (Gram)"
+        tanggal, bahanId: "b-oat01", tipe: "IN", qty: Math.round((recoveredIngredients.oat / 100) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
       }));
     }
     if (recoveredIngredients.abon > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.round(recoveredIngredients.abon), keterangan: "Retur Bahan Baku (Gram)"
+        tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.round((recoveredIngredients.abon / 100) * 100) / 100, keterangan: "Retur Bahan Baku (cup)"
       }));
     }
 
@@ -1039,51 +1106,140 @@ export default function Produksi() {
           <p className="text-xs text-muted-foreground mt-1">Review kebutuhan gramasi bahan baku dan potong otomatis dari gudang utama</p>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="rounded-2xl border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead>Bahan Baku</TableHead>
-                  <TableHead>Kode</TableHead>
-                  <TableHead className="text-right">Kebutuhan Produksi</TableHead>
-                  <TableHead className="text-right">Stok Gudang Saat Ini</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {materialReqs.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      Tidak ada bahan baku yang dibutuhkan. Silakan isi rencana pra-produksi di Langkah 1.
-                    </TableCell>
-                  </TableRow>
-                )}
-                {materialReqs.map((r) => {
-                  const saldo = saldoBahan(r.bahanId, dbState);
-                  const isSufficient = saldo >= r.qty;
-                  return (
-                    <TableRow key={r.bahanId}>
-                      <TableCell className="font-semibold">{r.nama}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{r.kode}</TableCell>
-                      <TableCell className="text-right font-bold">{r.qty} {r.satuan}</TableCell>
-                      <TableCell className="text-right">{saldo} {r.satuan}</TableCell>
-                      <TableCell className="text-center">
-                        {isSufficient ? (
-                          <Badge className="bg-success text-success-foreground">Aman</Badge>
-                        ) : (
-                          <Badge variant="destructive" className="gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Kurang {r.qty - saldo}
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          
+          {/* Detailed Recipe Breakdown for Cooking */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Detail Komposisi Bahan Masak (Resep / Batch)</h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Bubur 1 */}
+              {totals.buburD > 0 && (
+                <div className="p-4 rounded-2xl border bg-muted/20 space-y-2">
+                  <div className="font-bold text-xs text-amber-600">Bubur 1 ({bubur1Name})</div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>• Target: <span className="font-semibold text-foreground">{totals.buburD} cup</span></div>
+                    <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.buburD * 16.67)} gr</span></div>
+                    <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(totals.buburD * (13 / 15) * 10) / 10} gr</span></div>
+                    <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.buburD * (1750 / 15))} ml</span></div>
+                    <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.buburD * (20 / 15) * 10) / 10} gr</span></div>
+                    <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.buburD * (13 / 15) * 10) / 10} gr</span></div>
+                    <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(totals.buburD * (4 / 15) * 10) / 10} gr</span></div>
+                  </div>
+                </div>
+              )}
+              {/* Bubur 2 */}
+              {totals.buburI > 0 && (
+                <div className="p-4 rounded-2xl border bg-muted/20 space-y-2">
+                  <div className="font-bold text-xs text-blue-600">Bubur 2 ({bubur2Name})</div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>• Target: <span className="font-semibold text-foreground">{totals.buburI} cup</span></div>
+                    <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.buburI * 16.67)} gr</span></div>
+                    <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(totals.buburI * (13 / 15) * 10) / 10} gr</span></div>
+                    <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.buburI * (1750 / 15))} ml</span></div>
+                    <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.buburI * (20 / 15) * 10) / 10} gr</span></div>
+                    <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.buburI * (13 / 15) * 10) / 10} gr</span></div>
+                    <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(totals.buburI * (4 / 15) * 10) / 10} gr</span></div>
+                  </div>
+                </div>
+              )}
+              {/* Tim 1 */}
+              {totals.timD > 0 && (
+                <div className="p-4 rounded-2xl border bg-muted/20 space-y-2">
+                  <div className="font-bold text-xs text-amber-600">Nasi Tim 1 ({tim1Name})</div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>• Target: <span className="font-semibold text-foreground">{totals.timD} cup</span></div>
+                    <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.timD * 20)} gr</span></div>
+                    <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(totals.timD * (10 / 12) * 10) / 10} gr</span></div>
+                    <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.timD * (1440 / 12))} ml</span></div>
+                    <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.timD * (19 / 12) * 10) / 10} gr</span></div>
+                    <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.timD * (12 / 12) * 10) / 10} gr</span></div>
+                    <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(totals.timD * (4 / 12) * 10) / 10} gr</span></div>
+                  </div>
+                </div>
+              )}
+              {/* Tim 2 */}
+              {totals.timI > 0 && (
+                <div className="p-4 rounded-2xl border bg-muted/20 space-y-2">
+                  <div className="font-bold text-xs text-blue-600">Nasi Tim 2 ({tim2Name})</div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>• Target: <span className="font-semibold text-foreground">{totals.timI} cup</span></div>
+                    <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.timI * 20)} gr</span></div>
+                    <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(totals.timI * (10 / 12) * 10) / 10} gr</span></div>
+                    <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.timI * (1440 / 12))} ml</span></div>
+                    <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.timI * (19 / 12) * 10) / 10} gr</span></div>
+                    <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.timI * (12 / 12) * 10) / 10} gr</span></div>
+                    <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(totals.timI * (4 / 12) * 10) / 10} gr</span></div>
+                  </div>
+                </div>
+              )}
+              {/* Others (Oat, Puding, Abon) */}
+              {(totals.oatmeal > 0 || totals.puding > 0 || totals.abon > 0) && (
+                <div className="p-4 rounded-2xl border bg-muted/20 space-y-2">
+                  <div className="font-bold text-xs text-muted-foreground">Menu Lainnya</div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {totals.oatmeal > 0 && <div>• Oatmeal: <span className="font-semibold text-foreground">{Math.round(totals.oatmeal * 25.71)} gr</span> ({totals.oatmeal} cup)</div>}
+                    {totals.puding > 0 && <div>• Puding: <span className="font-semibold text-foreground">{Math.round(totals.puding * 13.00)} gr</span> ({totals.puding} cup)</div>}
+                    {totals.abon > 0 && <div>• Abon: <span className="font-semibold text-foreground">{Math.round(totals.abon * 10.00)} gr</span> ({totals.abon} cup)</div>}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex justify-between items-center">
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ringkasan Pemotongan Stok Gudang (Pcs/Sachet/Pack)</h3>
+            <div className="rounded-2xl border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Bahan Baku</TableHead>
+                    <TableHead>Kode</TableHead>
+                    <TableHead className="text-right">Kebutuhan (Gram/ml)</TableHead>
+                    <TableHead className="text-right">Konversi (Stok)</TableHead>
+                    <TableHead className="text-right">Stok Gudang</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {materialReqs.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Tidak ada bahan baku yang dibutuhkan. Silakan isi rencana pra-produksi di Langkah 1.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {materialReqs.map((r) => {
+                    const saldo = saldoBahan(r.bahanId, dbState);
+                    const isSufficient = saldo >= r.qty;
+                    const hasGram = r.satuan !== "biji" && r.satuan !== "pcs";
+                    return (
+                      <TableRow key={r.bahanId}>
+                        <TableCell className="font-semibold">{r.nama}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{r.kode}</TableCell>
+                        <TableCell className="text-right font-medium">
+                          {hasGram ? `${r.rawQtyGrams} g` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-primary">
+                          {r.qty} {r.satuan}
+                        </TableCell>
+                        <TableCell className="text-right">{saldo} {r.satuan}</TableCell>
+                        <TableCell className="text-center">
+                          {isSufficient ? (
+                            <Badge className="bg-success text-success-foreground">Aman</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="gap-1 justify-center">
+                              <AlertTriangle className="h-3 w-3" /> Kurang {Math.round((r.qty - saldo) * 100) / 100}
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center border-t pt-6">
             <Button variant="outline" onClick={() => setStep(1)} className="h-10">
               <ArrowLeft className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Kembali ke Langkah 1</span>

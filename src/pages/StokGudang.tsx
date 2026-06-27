@@ -453,9 +453,9 @@ export default function StokGudang() {
       return { gramPerUnit: 600, label: `600 gr/${b.satuan}` };
     }
 
-    // Ikan (sachet) -> 35gr per unit
-    const ikanList = ["tuna", "tengiri", "salmon", "gurami", "kakap", "dori"];
-    if (ikanList.some((ik) => nama.includes(ik))) {
+    // Ikan, daging, ayam (sachet) -> 35gr per unit
+    const sachet35List = ["tuna", "tengiri", "salmon", "gurami", "kakap", "dori", "daging", "ayam"];
+    if (sachet35List.some((ik) => nama.includes(ik))) {
       return { gramPerUnit: 35, label: `35 gr/${b.satuan}` };
     }
 

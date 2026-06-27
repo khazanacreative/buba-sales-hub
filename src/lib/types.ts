@@ -63,6 +63,7 @@ export interface UserAccount {
   nama: string;
   role: Role;
   outletId?: string;
+  karyawanId?: string;
 }
 
 // === Stok Gudang ===

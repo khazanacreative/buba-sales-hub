@@ -164,7 +164,8 @@ export async function fetchFromSupabase() {
         password: u.password,
         nama: u.nama,
         role: u.username === "produksi" ? "produksi" : u.role,
-        outletId: u.outlet_id
+        outletId: u.outlet_id,
+        karyawanId: u.karyawan_id
       }))
     };
     notify();
@@ -367,7 +368,7 @@ export const db = {
     fetchFromSupabase();
   },
 
-  async addKaryawan(k: Omit<Karyawan, "id">) {
+  async addKaryawan(k: Omit<Karyawan, "id">, userAccount?: { username: string; password: string }) {
     const id = uid();
     await supabase.from("karyawan").insert([{
       id,
@@ -382,9 +383,21 @@ export const db = {
       jam_masuk: k.jamMasuk ?? null,
       jam_pulang: k.jamPulang ?? null
     }]);
+    // Auto-create user account if username & password provided
+    if (userAccount) {
+      const role = k.posisi.toLowerCase().includes("produksi") ? "produksi" : "outlet";
+      await supabase.from("users").insert([{
+        username: userAccount.username,
+        password: userAccount.password,
+        nama: k.nama,
+        role,
+        outlet_id: k.outletId ?? null,
+        karyawan_id: id
+      }]);
+    }
     fetchFromSupabase();
   },
-  async updateKaryawan(id: string, k: Partial<Karyawan>) {
+  async updateKaryawan(id: string, k: Partial<Karyawan>, newPassword?: string) {
     const mapped: any = {};
     if (k.nama !== undefined) mapped.nama = k.nama;
     if (k.posisi !== undefined) mapped.posisi = k.posisi;
@@ -397,9 +410,18 @@ export const db = {
     if (k.jamMasuk !== undefined) mapped.jam_masuk = k.jamMasuk;
     if (k.jamPulang !== undefined) mapped.jam_pulang = k.jamPulang;
     await supabase.from("karyawan").update(mapped).eq("id", id);
+    // Sync changes to linked user account
+    const userMapped: any = {};
+    if (k.nama !== undefined) userMapped.nama = k.nama;
+    if (newPassword !== undefined) userMapped.password = newPassword;
+    if (Object.keys(userMapped).length > 0) {
+      await supabase.from("users").update(userMapped).eq("karyawan_id", id);
+    }
     fetchFromSupabase();
   },
   async deleteKaryawan(id: string) {
+    // Delete associated user account first
+    await supabase.from("users").delete().eq("karyawan_id", id);
     await supabase.from("karyawan").delete().eq("id", id);
     fetchFromSupabase();
   },
@@ -530,17 +552,18 @@ export const db = {
       await supabase.from("outlets").insert(SEED_OUTLETS);
       await supabase.from("produk").insert(SEED_PRODUK);
       
-      // Seed users
+      // Seed users (including karyawan_id link)
       const seedUsers = [
-        { username: "admin", password: "admin123", nama: "Administrator", role: "admin", outlet_id: null },
-        { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin", outlet_id: null },
-        { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin", outlet_id: null },
+        { username: "admin", password: "admin123", nama: "Administrator", role: "admin", outlet_id: null, karyawan_id: null },
+        { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin", outlet_id: null, karyawan_id: null },
+        { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin", outlet_id: null, karyawan_id: "k-produksi" },
         ...SEED_OUTLETS.map((o) => ({
           username: o.nama.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
           password: "buba123",
           nama: o.nama,
           role: "outlet",
-          outlet_id: o.id
+          outlet_id: o.id,
+          karyawan_id: `k-${o.id}-1`
         }))
       ];
       await supabase.from("users").insert(seedUsers);

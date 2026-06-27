@@ -152,14 +152,18 @@ export const SEED_PRODUKSI: Produksi[] = [];
 export const SEED_USERS: UserAccount[] = [
   { username: "admin", password: "admin123", nama: "Administrator", role: "admin" },
   { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin" },
-  { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin" },
-  ...SEED_OUTLETS.map((o) => ({
-    username: o.id.replace("o-", ""),
-    password: "buba123",
-    nama: o.nama,
-    role: "outlet" as const,
-    outletId: o.id
-  }))
+  { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin", karyawanId: "k-produksi" },
+  ...SEED_OUTLETS.map((o) => {
+    const username = o.id.replace("o-", "");
+    return {
+      username,
+      password: "buba123",
+      nama: o.nama,
+      role: "outlet" as const,
+      outletId: o.id,
+      karyawanId: `k-${o.id}-1`
+    };
+  })
 ];
 
 const RAW_BAHAN = [

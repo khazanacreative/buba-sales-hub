@@ -480,7 +480,7 @@ export default function MasterData() {
             <AccordionContent className="px-4 pb-4">
               <div className="grid gap-4">
                 <div className="flex justify-end">
-                  <TambahKaryawanDialog outlets={outlets} />
+                  <TambahKaryawanDialog outlets={outlets} users={users} />
                 </div>
                 <Card className="border shadow-sm">
                   <CardContent className="p-3">
@@ -488,18 +488,25 @@ export default function MasterData() {
                     <div className="space-y-2">
                       {karyawanPg.paged.map((k) => {
                         const o = outlets.find((x) => x.id === k.outletId);
+                        const userAkun = users.find((u: any) => u.karyawanId === k.id);
                         return (
                           <div key={k.id} className="rounded-lg border p-3 text-sm">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">{k.nama}</span>
                               <div className="flex gap-1">
-                                <EditKaryawanDialog karyawan={k} outlets={outlets} />
+                                <EditKaryawanDialog karyawan={k} outlets={outlets} users={users} />
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm(`Hapus ${k.nama}?`)) db.deleteKaryawan(k.id); }}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                               </div>
                             </div>
                             <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
                               <span>{k.posisi}</span><span>•</span><span>{o?.nama ?? "Pusat"}</span><span>•</span><span className="font-semibold">{rupiah(k.gajiPokok)}/hr</span>
                             </div>
+                            {userAkun && (
+                              <div className="mt-1.5 text-[10px] text-primary flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                <span>Akun: {userAkun.username}</span>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -651,9 +658,11 @@ export default function MasterData() {
 
 /* ================= TAMBAH KARYAWAN DIALOG ================= */
 
-function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
+function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[] }) {
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [posisi, setPosisi] = useState("Kasir");
   const [outletId, setOutletId] = useState(outlets[0]?.id ?? "none");
   const [gajiPokok, setGajiPokok] = useState(17500);
@@ -666,6 +675,8 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
 
   const resetForm = () => {
     setNama("");
+    setUsername("");
+    setPassword("");
     setPosisi("Kasir");
     setOutletId(outlets[0]?.id ?? "none");
     setGajiPokok(17500);
@@ -691,6 +702,11 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
             onSubmit={(e) => {
               e.preventDefault();
               if (!nama) return toast.error("Nama karyawan diperlukan");
+              if (!username) return toast.error("Username untuk akun pengguna diperlukan");
+              if (!password) return toast.error("Password untuk akun pengguna diperlukan");
+              if (users.some((u: any) => u.username === username.toLowerCase().trim())) {
+                return toast.error("Username sudah terdaftar");
+              }
               db.addKaryawan({
                 nama,
                 posisi,
@@ -702,8 +718,11 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
                 overtimeRate,
                 jamMasuk,
                 jamPulang
+              }, {
+                username: username.toLowerCase().trim(),
+                password
               });
-              toast.success("Karyawan ditambahkan");
+              toast.success("Karyawan & akun pengguna berhasil ditambahkan");
               setOpen(false);
               resetForm();
             }}
@@ -712,6 +731,20 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
             <div>
               <Label>Nama Karyawan</Label>
               <Input value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Nama Karyawan" />
+            </div>
+
+            <div className="border-t pt-3 mt-3">
+              <p className="text-[11px] text-muted-foreground italic mb-2">Akun Pengguna (otomatis dibuat)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Username <span className="text-destructive">*</span></Label>
+                  <Input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().trim())} placeholder="Username untuk login" />
+                </div>
+                <div>
+                  <Label>Password <span className="text-destructive">*</span></Label>
+                  <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password untuk login" />
+                </div>
+              </div>
             </div>
 
             <div>
@@ -992,7 +1025,7 @@ function EditProdukDialog({ produk }) {
   );
 }
 
-function EditKaryawanDialog({ karyawan, outlets }) {
+function EditKaryawanDialog({ karyawan, outlets, users }: { karyawan: any; outlets: any[]; users: any[] }) {
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState(karyawan.nama);
   const [posisi, setPosisi] = useState(karyawan.posisi);
@@ -1004,10 +1037,13 @@ function EditKaryawanDialog({ karyawan, outlets }) {
   const [overtimeRate, setOvertimeRate] = useState(karyawan.overtimeRate ?? 0);
   const [jamMasuk, setJamMasuk] = useState(karyawan.jamMasuk || "07:30");
   const [jamPulang, setJamPulang] = useState(karyawan.jamPulang || "15:00");
+  const [newPassword, setNewPassword] = useState("");
+
+  const userAkun = users.find((u: any) => u.karyawanId === karyawan.id);
 
   return (
     <>
-      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
+      <Button size="icon" variant="ghost" onClick={() => { setOpen(true); setNewPassword(""); }}>
         <Pencil className="h-4 w-4 text-primary" />
       </Button>
 
@@ -1029,8 +1065,8 @@ function EditKaryawanDialog({ karyawan, outlets }) {
                 overtimeRate,
                 jamMasuk,
                 jamPulang
-              });
-              toast.success("Data karyawan diperbarui");
+              }, newPassword || undefined);
+              toast.success(newPassword ? "Data karyawan & password diperbarui" : "Data karyawan diperbarui");
               setOpen(false);
             }}
             className="space-y-3"
@@ -1039,6 +1075,26 @@ function EditKaryawanDialog({ karyawan, outlets }) {
               <Label>Nama Karyawan</Label>
               <Input value={nama} onChange={(e) => setNama(e.target.value)} />
             </div>
+
+            {userAkun && (
+              <div className="border rounded-lg bg-muted/30 p-3 space-y-2">
+                <p className="text-[11px] text-muted-foreground font-medium mb-1">Akun Pengguna Terkait</p>
+                <div>
+                  <Label className="text-[11px]">Username</Label>
+                  <Input value={userAkun.username} disabled className="text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[11px]">Password Baru (kosongkan jika tidak diganti)</Label>
+                  <Input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Biarkan kosong jika tidak diganti" />
+                </div>
+              </div>
+            )}
+
+            {!userAkun && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700">
+                Karyawan ini belum memiliki akun pengguna. Hapus dan buat ulang untuk menambahkan akun.
+              </div>
+            )}
 
             <div>
               <Label>Posisi / Jabatan</Label>

@@ -98,6 +98,10 @@ export interface Karyawan {
   gajiPokok: number; // per hari
   bonusOmset?: number;
   bonusUlasan?: number;
+  tunjanganHarian?: number;
+  overtimeRate?: number;
+  jamMasuk?: string; // "HH:mm"
+  jamPulang?: string; // "HH:mm"
 }
 
 export type StatusAbsen = 'Hadir' | 'Izin' | 'Sakit' | 'Alpha';

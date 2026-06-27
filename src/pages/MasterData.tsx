@@ -22,7 +22,7 @@ import {
 import { db, useDB, getBubaSettings, saveBubaSettings } from "@/lib/store";
 import { rupiah } from "@/lib/format";
 
-import { Plus, Trash2, RotateCcw, Pencil, Settings, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Pencil, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { usePagination } from "@/hooks/usePagination";
@@ -79,13 +79,7 @@ export default function MasterData() {
   const [bHargaBeli, setBHargaBeli] = useState(0);
   const [bKonversiGram, setBKonversiGram] = useState(0);
 
-  // Karyawan form state
-  const [kNama, setKNama] = useState("");
-  const [kPosisi, setKPosisi] = useState("Kasir");
-  const [kOutletId, setKOutletId] = useState(outlets[0]?.id ?? "none");
-  const [kGajiPokok, setKGajiPokok] = useState(17500);
-  const [kBonusOmset, setKBonusOmset] = useState(0);
-  const [kBonusUlasan, setKBonusUlasan] = useState(0);
+
 
   // User form state
   const [uUsername, setUUsername] = useState("");
@@ -114,11 +108,6 @@ export default function MasterData() {
   const [sPudingCup, setSPudingCup] = useState(globalSettings.pudingCup);
   const [sAbonCup, setSAbonCup] = useState(globalSettings.abonCup);
 
-  const [sJamMasukStandar, setSJamMasukStandar] = useState(globalSettings.jamMasukStandar);
-  const [sJamPulangStandar, setSJamPulangStandar] = useState(globalSettings.jamPulangStandar);
-  const [sOvertimeRate, setSOvertimeRate] = useState(globalSettings.overtimeRate);
-  const [sTunjanganHarian, setSTunjanganHarian] = useState(globalSettings.tunjanganHarian);
-
   useEffect(() => {
     const handler = () => {
       const gs = getBubaSettings();
@@ -138,10 +127,6 @@ export default function MasterData() {
       setSOatmealCup(gs.oatmealCup);
       setSPudingCup(gs.pudingCup);
       setSAbonCup(gs.abonCup);
-      setSJamMasukStandar(gs.jamMasukStandar);
-      setSJamPulangStandar(gs.jamPulangStandar);
-      setSOvertimeRate(gs.overtimeRate);
-      setSTunjanganHarian(gs.tunjanganHarian);
     };
     window.addEventListener("buba_settings_changed", handler);
     return () => window.removeEventListener("buba_settings_changed", handler);
@@ -173,27 +158,7 @@ export default function MasterData() {
     toast.success("Pengaturan gramasi berhasil disimpan!");
   };
 
-  const handleSaveAbsensi = (e: React.FormEvent) => {
-    e.preventDefault();
-    const current = getBubaSettings();
-    saveBubaSettings({
-      ...current,
-      jamMasukStandar: sJamMasukStandar,
-      jamPulangStandar: sJamPulangStandar,
-    });
-    toast.success("Pengaturan jam absensi berhasil disimpan!");
-  };
 
-  const handleSaveKaryawanSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    const current = getBubaSettings();
-    saveBubaSettings({
-      ...current,
-      overtimeRate: Number(sOvertimeRate),
-      tunjanganHarian: Number(sTunjanganHarian),
-    });
-    toast.success("Pengaturan lembur & tunjangan berhasil disimpan!");
-  };
 
   const resetUserForm = () => {
     setUUsername("");
@@ -514,35 +479,9 @@ export default function MasterData() {
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
               <div className="grid gap-4">
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-2">
-                    <h3 className="text-sm font-bold">Tambah Karyawan</h3>
-                    <form onSubmit={(e) => { e.preventDefault(); if (!kNama) return toast.error("Nama karyawan diperlukan"); db.addKaryawan({ nama: kNama, posisi: kPosisi, outletId: kOutletId === "none" ? undefined : kOutletId, gajiPokok: kGajiPokok, bonusOmset: kBonusOmset, bonusUlasan: kBonusUlasan }); setKNama(""); setKGajiPokok(17500); setKBonusOmset(0); setKBonusUlasan(0); toast.success("Karyawan ditambahkan"); }} className="space-y-2">
-                      <Input value={kNama} onChange={(e) => setKNama(e.target.value)} placeholder="Nama Karyawan" />
-                      <Select value={kPosisi} onValueChange={setKPosisi}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Kasir">Kasir</SelectItem>
-                          <SelectItem value="Produksi">Produksi</SelectItem>
-                          <SelectItem value="Helper">Helper</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={kOutletId} onValueChange={setKOutletId}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Tanpa Outlet (Pusat)</SelectItem>
-                          {outlets.map((o) => (<SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                      <div className="grid grid-cols-3 gap-2">
-                        <Input type="number" value={kGajiPokok} onChange={(e) => setKGajiPokok(Number(e.target.value))} placeholder="Gaji/hr" />
-                        <Input type="number" value={kBonusOmset} onChange={(e) => setKBonusOmset(Number(e.target.value))} placeholder="Bonus Omset" />
-                        <Input type="number" value={kBonusUlasan} onChange={(e) => setKBonusUlasan(Number(e.target.value))} placeholder="Bonus Ulasan" />
-                      </div>
-                      <Button className="w-full h-9 text-xs"><Plus className="mr-1.5 h-3.5 w-3.5" />Tambah</Button>
-                    </form>
-                  </CardContent>
-                </Card>
+                <div className="flex justify-end">
+                  <TambahKaryawanDialog outlets={outlets} />
+                </div>
                 <Card className="border shadow-sm">
                   <CardContent className="p-3">
                     <h3 className="text-sm font-bold mb-2 px-1">Daftar Karyawan</h3>
@@ -567,25 +506,6 @@ export default function MasterData() {
                       {karyawanPg.paged.length === 0 && <div className="text-center text-muted-foreground py-6 text-sm">Belum ada karyawan</div>}
                     </div>
                     <TablePagination page={karyawanPg.page} totalPages={karyawanPg.totalPages} total={karyawanPg.total} pageSize={karyawanPg.pageSize} onChange={karyawanPg.setPage} />
-                  </CardContent>
-                </Card>
-                {/* PENGATURAN LEMBUR & TUNJANGAN */}
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-3">
-                    <h3 className="text-sm font-bold flex items-center gap-2"><Settings className="h-4 w-4 text-primary" /> Pengaturan Lembur & Tunjangan</h3>
-                    <form onSubmit={handleSaveKaryawanSettings} className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-[10px]">Lembur / Jam (Rp)</Label>
-                          <Input type="number" value={sOvertimeRate} onChange={(e) => setSOvertimeRate(Number(e.target.value))} />
-                        </div>
-                        <div>
-                          <Label className="text-[10px]">Tunjangan Harian (Rp)</Label>
-                          <Input type="number" value={sTunjanganHarian} onChange={(e) => setSTunjanganHarian(Number(e.target.value))} />
-                        </div>
-                      </div>
-                      <Button type="submit" className="w-full h-9 text-xs gradient-primary text-primary-foreground">Simpan Pengaturan</Button>
-                    </form>
                   </CardContent>
                 </Card>
               </div>
@@ -721,37 +641,162 @@ export default function MasterData() {
               </form>
             </AccordionContent>
           </AccordionItem>
-          {/* ABSENSI */}
-          <AccordionItem value="absensi" className="rounded-xl border bg-card overflow-hidden">
-            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-                  <Settings className="h-4 w-4 text-primary-foreground" />
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold text-sm">Absensi</div>
-                  <div className="text-[11px] text-muted-foreground">Jam kerja & tunjangan</div>
-                </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="px-4 pb-4">
-              <form onSubmit={handleSaveAbsensi} className="space-y-4">
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-3">
-                    <h3 className="text-sm font-bold flex items-center gap-2"><Settings className="h-4 w-4 text-primary" /> Pengaturan Jam Absensi</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div><Label className="text-[10px]">Jam Masuk</Label><Input type="text" value={sJamMasukStandar} onChange={(e) => setSJamMasukStandar(e.target.value)} /></div>
-                      <div><Label className="text-[10px]">Jam Pulang</Label><Input type="text" value={sJamPulangStandar} onChange={(e) => setSJamPulangStandar(e.target.value)} /></div>
-                    </div>
-                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground text-xs">Simpan Pengaturan Jam Absensi</Button>
-                  </CardContent>
-                </Card>
-              </form>
-            </AccordionContent>
-          </AccordionItem>
         </Accordion>
       </div>
     </div>
+  );
+}
+
+/* ================= EDIT DIALOGS ================= */
+
+/* ================= TAMBAH KARYAWAN DIALOG ================= */
+
+function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
+  const [open, setOpen] = useState(false);
+  const [nama, setNama] = useState("");
+  const [posisi, setPosisi] = useState("Kasir");
+  const [outletId, setOutletId] = useState(outlets[0]?.id ?? "none");
+  const [gajiPokok, setGajiPokok] = useState(17500);
+  const [bonusOmset, setBonusOmset] = useState(0);
+  const [bonusUlasan, setBonusUlasan] = useState(0);
+  const [tunjanganHarian, setTunjanganHarian] = useState(0);
+  const [overtimeRate, setOvertimeRate] = useState(0);
+  const [jamMasuk, setJamMasuk] = useState("07:30");
+  const [jamPulang, setJamPulang] = useState("15:00");
+
+  const resetForm = () => {
+    setNama("");
+    setPosisi("Kasir");
+    setOutletId(outlets[0]?.id ?? "none");
+    setGajiPokok(17500);
+    setBonusOmset(0);
+    setBonusUlasan(0);
+    setTunjanganHarian(0);
+    setOvertimeRate(0);
+    setJamMasuk("07:30");
+    setJamPulang("15:00");
+  };
+
+  return (
+    <>
+      <Button onClick={() => { setOpen(true); resetForm(); }} className="gradient-primary text-primary-foreground h-9 text-xs">
+        <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Karyawan
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Tambah Karyawan</DialogTitle></DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!nama) return toast.error("Nama karyawan diperlukan");
+              db.addKaryawan({
+                nama,
+                posisi,
+                outletId: outletId === "none" ? undefined : outletId,
+                gajiPokok,
+                bonusOmset,
+                bonusUlasan,
+                tunjanganHarian,
+                overtimeRate,
+                jamMasuk,
+                jamPulang
+              });
+              toast.success("Karyawan ditambahkan");
+              setOpen(false);
+              resetForm();
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <Label>Nama Karyawan</Label>
+              <Input value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Nama Karyawan" />
+            </div>
+
+            <div>
+              <Label>Posisi / Jabatan</Label>
+              <Select value={posisi} onValueChange={setPosisi}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Kasir">Kasir</SelectItem>
+                  <SelectItem value="Produksi">Produksi</SelectItem>
+                  <SelectItem value="Helper">Helper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Outlet Penugasan</Label>
+              <Select value={outletId} onValueChange={(val) => {
+                setOutletId(val);
+                // Set default jam based on outlet
+                const isPusat = val === "none";
+                setJamMasuk(isPusat ? "07:30" : "07:00");
+                setJamPulang(isPusat ? "15:00" : "14:00");
+              }}>
+                <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Tanpa Outlet (Pusat)</SelectItem>
+                  {outlets.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Gaji Pokok (per Hari)</Label>
+              <Input type="number" value={gajiPokok} onChange={(e) => setGajiPokok(Number(e.target.value))} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Bonus Omset (Bulanan)</Label>
+                <Input type="number" value={bonusOmset} onChange={(e) => setBonusOmset(Number(e.target.value))} />
+              </div>
+              <div>
+                <Label>Bonus Ulasan (Bulanan)</Label>
+                <Input type="number" value={bonusUlasan} onChange={(e) => setBonusUlasan(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="border-t pt-3 mt-3">
+              <p className="text-[11px] text-muted-foreground italic mb-2">Tunjangan Harian & Lembur (per karyawan)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Tunjangan Harian (Rp)</Label>
+                  <Input type="number" value={tunjanganHarian} onChange={(e) => setTunjanganHarian(Number(e.target.value))} />
+                </div>
+                <div>
+                  <Label>Tarif Lembur / Jam (Rp)</Label>
+                  <Input type="number" value={overtimeRate} onChange={(e) => setOvertimeRate(Number(e.target.value))} />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-3 mt-3">
+              <p className="text-[11px] text-muted-foreground italic mb-2">Jam Kerja (per karyawan)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Jam Masuk</Label>
+                  <Input type="time" value={jamMasuk} onChange={(e) => setJamMasuk(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Jam Pulang</Label>
+                  <Input type="time" value={jamPulang} onChange={(e) => setJamPulang(e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button type="submit">Simpan</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -955,6 +1000,10 @@ function EditKaryawanDialog({ karyawan, outlets }) {
   const [gajiPokok, setGajiPokok] = useState(karyawan.gajiPokok);
   const [bonusOmset, setBonusOmset] = useState(karyawan.bonusOmset ?? 0);
   const [bonusUlasan, setBonusUlasan] = useState(karyawan.bonusUlasan ?? 0);
+  const [tunjanganHarian, setTunjanganHarian] = useState(karyawan.tunjanganHarian ?? 0);
+  const [overtimeRate, setOvertimeRate] = useState(karyawan.overtimeRate ?? 0);
+  const [jamMasuk, setJamMasuk] = useState(karyawan.jamMasuk || "07:30");
+  const [jamPulang, setJamPulang] = useState(karyawan.jamPulang || "15:00");
 
   return (
     <>
@@ -975,7 +1024,11 @@ function EditKaryawanDialog({ karyawan, outlets }) {
                 outletId: outletId === "none" ? undefined : outletId,
                 gajiPokok,
                 bonusOmset,
-                bonusUlasan
+                bonusUlasan,
+                tunjanganHarian,
+                overtimeRate,
+                jamMasuk,
+                jamPulang
               });
               toast.success("Data karyawan diperbarui");
               setOpen(false);
@@ -1017,14 +1070,43 @@ function EditKaryawanDialog({ karyawan, outlets }) {
               <Input type="number" value={gajiPokok} onChange={(e) => setGajiPokok(Number(e.target.value))} />
             </div>
 
-            <div>
-              <Label>Bonus Pencapaian Omset (Bulanan)</Label>
-              <Input type="number" value={bonusOmset} onChange={(e) => setBonusOmset(Number(e.target.value))} />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Bonus Omset (Bulanan)</Label>
+                <Input type="number" value={bonusOmset} onChange={(e) => setBonusOmset(Number(e.target.value))} />
+              </div>
+              <div>
+                <Label>Bonus Ulasan (Bulanan)</Label>
+                <Input type="number" value={bonusUlasan} onChange={(e) => setBonusUlasan(Number(e.target.value))} />
+              </div>
             </div>
 
-            <div>
-              <Label>Bonus Ulasan Bintang 5 (Bulanan)</Label>
-              <Input type="number" value={bonusUlasan} onChange={(e) => setBonusUlasan(Number(e.target.value))} />
+            <div className="border-t pt-3 mt-3">
+              <p className="text-[11px] text-muted-foreground italic mb-2">Tunjangan Harian & Lembur (per karyawan)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Tunjangan Harian (Rp)</Label>
+                  <Input type="number" value={tunjanganHarian} onChange={(e) => setTunjanganHarian(Number(e.target.value))} />
+                </div>
+                <div>
+                  <Label>Tarif Lembur / Jam (Rp)</Label>
+                  <Input type="number" value={overtimeRate} onChange={(e) => setOvertimeRate(Number(e.target.value))} />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-3 mt-3">
+              <p className="text-[11px] text-muted-foreground italic mb-2">Jam Kerja (per karyawan)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Jam Masuk</Label>
+                  <Input type="time" value={jamMasuk} onChange={(e) => setJamMasuk(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Jam Pulang</Label>
+                  <Input type="time" value={jamPulang} onChange={(e) => setJamPulang(e.target.value)} />
+                </div>
+              </div>
             </div>
 
             <DialogFooter className="pt-4">

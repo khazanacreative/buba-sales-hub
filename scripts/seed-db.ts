@@ -119,7 +119,11 @@ async function runSeed() {
       outlet_id: k.outletId,
       gaji_pokok: k.gajiPokok,
       bonus_omset: k.bonusOmset,
-      bonus_ulasan: k.bonusUlasan
+      bonus_ulasan: k.bonusUlasan,
+      tunjangan_harian: k.tunjanganHarian ?? 0,
+      overtime_rate: k.overtimeRate ?? 0,
+      jam_masuk: k.jamMasuk ?? null,
+      jam_pulang: k.jamPulang ?? null
     }));
     const { error: karyawanErr } = await supabase.from("karyawan").insert(seedKaryawanMapped);
     if (karyawanErr) throw karyawanErr;

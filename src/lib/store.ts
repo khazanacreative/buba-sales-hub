@@ -131,7 +131,11 @@ export async function fetchFromSupabase() {
         outletId: k.outlet_id,
         gajiPokok: Number(k.gaji_pokok),
         bonusOmset: Number(k.bonus_omset),
-        bonusUlasan: Number(k.bonus_ulasan)
+        bonusUlasan: Number(k.bonus_ulasan),
+        tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
+        overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
+        jamMasuk: k.jam_masuk || undefined,
+        jamPulang: k.jam_pulang || undefined
       })),
       absensi: (absensiRes.data || []).map((a: any) => ({
         id: a.id,
@@ -372,7 +376,11 @@ export const db = {
       outlet_id: k.outletId,
       gaji_pokok: k.gajiPokok,
       bonus_omset: k.bonusOmset,
-      bonus_ulasan: k.bonusUlasan
+      bonus_ulasan: k.bonusUlasan,
+      tunjangan_harian: k.tunjanganHarian ?? 0,
+      overtime_rate: k.overtimeRate ?? 0,
+      jam_masuk: k.jamMasuk ?? null,
+      jam_pulang: k.jamPulang ?? null
     }]);
     fetchFromSupabase();
   },
@@ -384,6 +392,10 @@ export const db = {
     if (k.gajiPokok !== undefined) mapped.gaji_pokok = k.gajiPokok;
     if (k.bonusOmset !== undefined) mapped.bonus_omset = k.bonusOmset;
     if (k.bonusUlasan !== undefined) mapped.bonus_ulasan = k.bonusUlasan;
+    if (k.tunjanganHarian !== undefined) mapped.tunjangan_harian = k.tunjanganHarian;
+    if (k.overtimeRate !== undefined) mapped.overtime_rate = k.overtimeRate;
+    if (k.jamMasuk !== undefined) mapped.jam_masuk = k.jamMasuk;
+    if (k.jamPulang !== undefined) mapped.jam_pulang = k.jamPulang;
     await supabase.from("karyawan").update(mapped).eq("id", id);
     fetchFromSupabase();
   },
@@ -560,7 +572,11 @@ export const db = {
         outlet_id: k.outletId,
         gaji_pokok: k.gajiPokok,
         bonus_omset: k.bonusOmset,
-        bonus_ulasan: k.bonusUlasan
+        bonus_ulasan: k.bonusUlasan,
+        tunjangan_harian: k.tunjanganHarian ?? 0,
+        overtime_rate: k.overtimeRate ?? 0,
+        jam_masuk: k.jamMasuk ?? null,
+        jam_pulang: k.jamPulang ?? null
       }));
       await supabase.from("karyawan").insert(seedKaryawanMapped);
 
@@ -618,11 +634,6 @@ export interface BubaSettings {
   pudingCup: number;
   abonCup: number;
 
-  // Absensi & Operational
-  jamMasukStandar: string;
-  jamPulangStandar: string;
-  overtimeRate: number;
-  tunjanganHarian: number;
 }
 
 export const DEFAULT_SETTINGS: BubaSettings = {
@@ -643,11 +654,6 @@ export const DEFAULT_SETTINGS: BubaSettings = {
   oatmealCup: 25.71,
   pudingCup: 13.00,
   abonCup: 10.00,
-
-  jamMasukStandar: "07:30",
-  jamPulangStandar: "15:00",
-  overtimeRate: 15000,
-  tunjanganHarian: 10000,
 };
 
 export function getBubaSettings(): BubaSettings {

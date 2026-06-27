@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { db, useDB, getBubaSettings } from "@/lib/store";
+import { db, useDB } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
 import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check, FileText, MapPin, Navigation, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -34,19 +34,25 @@ export default function Absensi() {
   const [tanggal, setTanggal] = useState(todayISO());
   const [karyawanId, setKaryawanId] = useState(visibleKaryawan[0]?.id ?? "");
 
-  const settings = getBubaSettings();
-  const [jamMasuk, setJamMasuk] = useState(settings.jamMasukStandar);
-  const [jamPulang, setJamPulang] = useState(settings.jamPulangStandar);
+  // Helper to get jam based on employee data
+  const getJamForKaryawan = (karyawanId: string) => {
+    const k = karyawan.find((x) => x.id === karyawanId);
+    return {
+      jamMasuk: k?.jamMasuk || (k?.outletId ? "07:00" : "07:30"),
+      jamPulang: k?.jamPulang || (k?.outletId ? "14:00" : "15:00"),
+    };
+  };
+
+  const [jamMasuk, setJamMasuk] = useState("07:30");
+  const [jamPulang, setJamPulang] = useState("15:00");
 
   useEffect(() => {
-    const handler = () => {
-      const s = getBubaSettings();
-      setJamMasuk(s.jamMasukStandar);
-      setJamPulang(s.jamPulangStandar);
-    };
-    window.addEventListener("buba_settings_changed", handler);
-    return () => window.removeEventListener("buba_settings_changed", handler);
-  }, []);
+    if (karyawanId) {
+      const j = getJamForKaryawan(karyawanId);
+      setJamMasuk(j.jamMasuk);
+      setJamPulang(j.jamPulang);
+    }
+  }, [karyawanId, karyawan]);
 
   const [status, setStatus] = useState<StatusAbsen>("Hadir");
   const [bonusInput, setBonusInput] = useState(0);
@@ -233,18 +239,27 @@ export default function Absensi() {
       const list = filtered.filter((a) => a.karyawanId === k.id);
       const hadir = list.filter((a) => a.status === "Hadir").length;
       
-      // Calculate lateness
-      const lateLogs = list.filter((a) => a.jamMasuk && a.jamMasuk > "07:00");
       const terlambatCount = lateLogs.length;
       const terlambatDates = lateLogs.map((a) => a.tanggal.slice(-2)).join(", "); // e.g. "15, 18"
       
       // Sum daily inputs
       const overtimeHours = list.reduce((sum, a) => sum + (a.overtime ?? 0), 0);
-      const tunjanganTotal = list.reduce((sum, a) => sum + (a.tunjangan ?? 0), 0);
+      const dailyTunjanganTotal = list.reduce((sum, a) => sum + (a.tunjangan ?? 0), 0);
       const dailyBonusTotal = list.reduce((sum, a) => sum + (a.bonus ?? 0), 0);
       
-      // Calculate overtime pay: overtime_hours * (gajiPokok / 8) * 1.5
-      const overtimePay = Math.round(overtimeHours * (k.gajiPokok / 8) * 1.5);
+          // Per-employee tunjangan harian & overtime rate
+      const tunjanganHarianKaryawan = k.tunjanganHarian ?? 0;
+      const overtimeRateKaryawan = k.overtimeRate ?? Math.round(k.gajiPokok / 8 * 1.5);
+      
+      // Lateness check using employee's jamMasuk
+      const employeeJamMasuk = k.jamMasuk || (k.outletId ? "07:00" : "07:30");
+      const lateLogs = list.filter((a) => a.jamMasuk && a.jamMasuk > employeeJamMasuk);
+      
+      // Tunjangan: from daily input + per-employee base * hadir
+      const tunjanganTotal = dailyTunjanganTotal + (tunjanganHarianKaryawan * hadir);
+      
+      // Overtime pay: overtime_hours * employee's overtimeRate
+      const overtimePay = Math.round(overtimeHours * overtimeRateKaryawan);
       
       // Flat monthly bonuses
       const flatBonusOmset = k.bonusOmset ?? 0;

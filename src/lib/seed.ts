@@ -200,7 +200,11 @@ export const SEED_KARYAWAN: Karyawan[] = [
     outletId: undefined,
     gajiPokok: 25000,
     bonusOmset: 0,
-    bonusUlasan: 0
+    bonusUlasan: 0,
+    tunjanganHarian: 10000,
+    overtimeRate: 15000,
+    jamMasuk: "07:30",
+    jamPulang: "15:00"
   },
   ...SEED_OUTLETS.map((o) => ({
     id: `k-${o.id}-1`,
@@ -209,6 +213,10 @@ export const SEED_KARYAWAN: Karyawan[] = [
     outletId: o.id,
     gajiPokok: 17500,
     bonusOmset: 0,
-    bonusUlasan: 0
+    bonusUlasan: 0,
+    tunjanganHarian: 5000,
+    overtimeRate: 10000,
+    jamMasuk: "07:00",
+    jamPulang: "14:00"
   }))
 ];

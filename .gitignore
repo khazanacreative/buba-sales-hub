@@ -28,5 +28,9 @@ dist-ssr
 .env.local
 *.env
 
-
 .vercel
+
+# Temporary / scratch files
+nul
+scratch-*.js
+supabase/.temp/

@@ -124,19 +124,26 @@ export async function fetchFromSupabase() {
         keterangan: m.keterangan,
         produksiId: m.produksi_id
       })),
-      karyawan: (karyawanRes.data || []).map((k: any) => ({
-        id: k.id,
-        nama: k.nama,
-        posisi: k.posisi,
-        outletId: k.outlet_id,
-        gajiPokok: Number(k.gaji_pokok),
-        bonusOmset: Number(k.bonus_omset),
-        bonusUlasan: Number(k.bonus_ulasan),
-        tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
-        overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
-        jamMasuk: k.jam_masuk || undefined,
-        jamPulang: k.jam_pulang || undefined
-      })),
+      karyawan: (karyawanRes.data || []).map((k: any) => {
+        // Find linked user account for role, username, password
+        const linkedUser = (usersRes.data || []).find((u: any) => u.karyawan_id === k.id);
+        return {
+          id: k.id,
+          nama: k.nama,
+          posisi: k.posisi,
+          role: k.role || linkedUser?.role || "outlet",
+          outletId: k.outlet_id,
+          gajiPokok: Number(k.gaji_pokok),
+          bonusOmset: Number(k.bonus_omset),
+          bonusUlasan: Number(k.bonus_ulasan),
+          tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
+          overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
+          jamMasuk: k.jam_masuk || undefined,
+          jamPulang: k.jam_pulang || undefined,
+          username: linkedUser?.username || undefined,
+          password: linkedUser?.password || undefined
+        };
+      }),
       absensi: (absensiRes.data || []).map((a: any) => ({
         id: a.id,
         tanggal: a.tanggal,
@@ -368,12 +375,25 @@ export const db = {
     fetchFromSupabase();
   },
 
-  async addKaryawan(k: Omit<Karyawan, "id">, userAccount?: { username: string; password: string; role: string }) {
+  async addKaryawan(k: Omit<Karyawan, "id">, userAccount: { username: string; password: string; role: string }) {
+    // Check for duplicate username in DB first
+    const { data: existing } = await supabase
+      .from("users")
+      .select("username")
+      .eq("username", userAccount.username)
+      .maybeSingle();
+    if (existing) {
+      throw new Error("Username sudah terdaftar di database");
+    }
+
     const id = uid();
-    await supabase.from("karyawan").insert([{
+    const role = k.role || userAccount.role || "outlet";
+
+    const { error: errK } = await supabase.from("karyawan").insert([{
       id,
       nama: k.nama,
       posisi: k.posisi,
+      role,
       outlet_id: k.outletId,
       gaji_pokok: k.gajiPokok,
       bonus_omset: k.bonusOmset,
@@ -383,23 +403,42 @@ export const db = {
       jam_masuk: k.jamMasuk ?? null,
       jam_pulang: k.jamPulang ?? null
     }]);
-    // Auto-create user account if username & password provided
-    if (userAccount) {
-      await supabase.from("users").insert([{
-        username: userAccount.username,
-        password: userAccount.password,
-        nama: k.nama,
-        role: userAccount.role,
-        outlet_id: k.outletId ?? null,
-        karyawan_id: id
-      }]);
+    if (errK) throw errK;
+
+    // Always create linked user account
+    const { error: errU } = await supabase.from("users").insert([{
+      username: userAccount.username,
+      password: userAccount.password,
+      nama: k.nama,
+      role,
+      outlet_id: k.outletId ?? null,
+      karyawan_id: id
+    }]);
+    if (errU) {
+      // Rollback: delete the karyawan if user insert fails
+      await supabase.from("karyawan").delete().eq("id", id);
+      throw errU;
     }
-    fetchFromSupabase();
+
+    await fetchFromSupabase();
   },
   async updateKaryawan(id: string, k: Partial<Karyawan>, newPassword?: string) {
+    // Check username uniqueness if username is being changed
+    if (k.username) {
+      const { data: existing } = await supabase
+        .from("users")
+        .select("username, karyawan_id")
+        .eq("username", k.username)
+        .maybeSingle();
+      if (existing && existing.karyawan_id !== id) {
+        throw new Error("Username sudah digunakan oleh karyawan lain");
+      }
+    }
+
     const mapped: any = {};
     if (k.nama !== undefined) mapped.nama = k.nama;
     if (k.posisi !== undefined) mapped.posisi = k.posisi;
+    if (k.role !== undefined) mapped.role = k.role;
     if (k.outletId !== undefined) mapped.outlet_id = k.outletId;
     if (k.gajiPokok !== undefined) mapped.gaji_pokok = k.gajiPokok;
     if (k.bonusOmset !== undefined) mapped.bonus_omset = k.bonusOmset;
@@ -409,20 +448,48 @@ export const db = {
     if (k.jamMasuk !== undefined) mapped.jam_masuk = k.jamMasuk;
     if (k.jamPulang !== undefined) mapped.jam_pulang = k.jamPulang;
     await supabase.from("karyawan").update(mapped).eq("id", id);
-    // Sync changes to linked user account
-    const userMapped: any = {};
-    if (k.nama !== undefined) userMapped.nama = k.nama;
-    if (newPassword !== undefined) userMapped.password = newPassword;
-    if (Object.keys(userMapped).length > 0) {
-      await supabase.from("users").update(userMapped).eq("karyawan_id", id);
+    
+    // Check if linked user account exists, then update or create
+    const { data: linkedUser } = await supabase
+      .from("users")
+      .select("username")
+      .eq("karyawan_id", id)
+      .maybeSingle();
+    
+    const username = k.username || linkedUser?.username;
+    const password = newPassword;
+    
+    if (linkedUser) {
+      // Update existing user account
+      const userMapped: any = {};
+      if (k.nama !== undefined) userMapped.nama = k.nama;
+      if (k.role !== undefined) userMapped.role = k.role;
+      if (k.username !== undefined) userMapped.username = k.username;
+      if (password !== undefined) userMapped.password = password;
+      if (Object.keys(userMapped).length > 0) {
+        await supabase.from("users").update(userMapped).eq("karyawan_id", id);
+      }
+    } else if (username && password) {
+      // Create new user account for legacy karyawan
+      const { error: err } = await supabase.from("users").insert([{
+        username,
+        password,
+        nama: k.nama || "",
+        role: k.role || "outlet",
+        outlet_id: k.outletId ?? null,
+        karyawan_id: id
+      }]);
+      if (err) throw err;
     }
-    fetchFromSupabase();
+    await fetchFromSupabase();
   },
   async deleteKaryawan(id: string) {
-    // Delete associated user account first
-    await supabase.from("users").delete().eq("karyawan_id", id);
-    await supabase.from("karyawan").delete().eq("id", id);
-    fetchFromSupabase();
+    // Delete associated user account first, then karyawan
+    const { error: errU } = await supabase.from("users").delete().eq("karyawan_id", id);
+    if (errU) throw errU;
+    const { error: errK } = await supabase.from("karyawan").delete().eq("id", id);
+    if (errK) throw errK;
+    await fetchFromSupabase();
   },
 
   async addAbsensi(a: Omit<Absensi, "id">) {
@@ -591,6 +658,7 @@ export const db = {
         id: k.id,
         nama: k.nama,
         posisi: k.posisi,
+        role: k.role || "outlet",
         outlet_id: k.outletId,
         gaji_pokok: k.gajiPokok,
         bonus_omset: k.bonusOmset,

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Card, CardContent, CardHeader, CardTitle
@@ -48,15 +48,10 @@ export default function MasterData() {
   const { user } = useAuth();
   const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [] } = useDB();
 
-  const visibleUsers = useMemo(() => {
-    return users.filter((u: any) => u.username !== "khazana" || user?.username === "khazana");
-  }, [users, user]);
-
   const outletPg = usePagination(outlets, 10);
   const produkPg = usePagination(produk, 10);
   const coaPg = usePagination(coa, 10);
   const karyawanPg = usePagination(karyawan, 10);
-  const usersPg = usePagination(visibleUsers, 10);
   const bahanPg = usePagination(bahan, 10);
 
   // Outlet form state with GPS
@@ -80,13 +75,6 @@ export default function MasterData() {
   const [bKonversiGram, setBKonversiGram] = useState(0);
 
 
-
-  // User form state
-  const [uUsername, setUUsername] = useState("");
-  const [uPassword, setUPassword] = useState("");
-  const [uNama, setUNama] = useState("");
-  const [uRole, setURole] = useState<"admin" | "outlet">("outlet");
-  const [uOutletId, setUOutletId] = useState(outlets[0]?.id ?? "none");
 
   // Global Settings state
   const [globalSettings, setGlobalSettings] = useState(getBubaSettings());
@@ -159,34 +147,6 @@ export default function MasterData() {
   };
 
 
-
-  const resetUserForm = () => {
-    setUUsername("");
-    setUPassword("");
-    setUNama("");
-    setURole("outlet");
-    setUOutletId(outlets[0]?.id ?? "none");
-  };
-
-  const handleAddUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uUsername || !uPassword || !uNama) {
-      return toast.error("Lengkapi data user");
-    }
-    const alreadyExists = users.some((u: any) => u.username === uUsername);
-    if (alreadyExists) {
-      return toast.error("Username sudah terdaftar");
-    }
-    db.addUser({
-      username: uUsername,
-      password: uPassword,
-      nama: uNama,
-      role: uRole,
-      outletId: uRole === "admin" ? undefined : (uOutletId === "none" ? undefined : uOutletId)
-    });
-    toast.success("Akun pengguna ditambahkan");
-    resetUserForm();
-  };
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
@@ -480,7 +440,7 @@ export default function MasterData() {
             <AccordionContent className="px-4 pb-4">
               <div className="grid gap-4">
                 <div className="flex justify-end">
-                  <TambahKaryawanDialog outlets={outlets} users={users} />
+                  <TambahKaryawanDialog outlets={outlets} />
                 </div>
                 <Card className="border shadow-sm">
                   <CardContent className="p-3">
@@ -488,23 +448,23 @@ export default function MasterData() {
                     <div className="space-y-2">
                       {karyawanPg.paged.map((k) => {
                         const o = outlets.find((x) => x.id === k.outletId);
-                        const userAkun = users.find((u: any) => u.karyawanId === k.id);
                         return (
                           <div key={k.id} className="rounded-lg border p-3 text-sm">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">{k.nama}</span>
                               <div className="flex gap-1">
-                                <EditKaryawanDialog karyawan={k} outlets={outlets} users={users} />
+                                <EditKaryawanDialog karyawan={k} outlets={outlets} />
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm(`Hapus ${k.nama}?`)) db.deleteKaryawan(k.id); }}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                               </div>
                             </div>
-                            <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
+                            <div className="flex gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                              <span className="capitalize bg-muted px-1.5 py-0.5 rounded text-[10px]">{k.role}</span>
                               <span>{k.posisi}</span><span>•</span><span>{o?.nama ?? "Pusat"}</span><span>•</span><span className="font-semibold">{rupiah(k.gajiPokok)}/hr</span>
                             </div>
-                            {userAkun && (
+                            {k.username && (
                               <div className="mt-1.5 text-[10px] text-primary flex items-center gap-1">
                                 <Users className="h-3 w-3" />
-                                <span>Akun: {userAkun.username}</span>
+                                <span>Akun: {k.username}</span>
                               </div>
                             )}
                           </div>
@@ -518,7 +478,7 @@ export default function MasterData() {
               </div>
             </AccordionContent>
           </AccordionItem>
-          {/* PENGGUNA */}
+          {/* AKUN ADMIN */}
           <AccordionItem value="pengguna" className="rounded-xl border bg-card overflow-hidden">
             <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
               <div className="flex items-center gap-3">
@@ -526,72 +486,42 @@ export default function MasterData() {
                   <Users className="h-4 w-4 text-primary-foreground" />
                 </div>
                 <div className="text-left">
-                  <div className="font-semibold text-sm">Pengguna</div>
-                  <div className="text-[11px] text-muted-foreground">{users.length} akun</div>
+                  <div className="font-semibold text-sm">Akun Admin</div>
+                  <div className="text-[11px] text-muted-foreground">{users.filter((u: any) => !u.karyawanId).length} akun utama</div>
                 </div>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
-              <div className="grid gap-4">
-                <Card className="border shadow-sm">
-                  <CardContent className="p-4 space-y-2">
-                    <h3 className="text-sm font-bold">Tambah Pengguna</h3>
-                    <form onSubmit={handleAddUser} className="space-y-2">
-                      <Input value={uUsername} onChange={(e) => setUUsername(e.target.value.toLowerCase().trim())} placeholder="Username" />
-                      <Input type="text" value={uPassword} onChange={(e) => setUPassword(e.target.value)} placeholder="Password" />
-                      <Input value={uNama} onChange={(e) => setUNama(e.target.value)} placeholder="Nama Lengkap" />
-                      <Select value={uRole} onValueChange={(v) => setURole(v as "admin" | "outlet")}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Administrator</SelectItem>
-                          <SelectItem value="outlet">Outlet (Cabang)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {uRole === "outlet" && (
-                        <Select value={uOutletId} onValueChange={setUOutletId}>
-                          <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Kantor Pusat</SelectItem>
-                            {outlets.map((o) => (<SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      <Button type="submit" className="w-full h-9 text-xs gradient-primary text-primary-foreground"><Plus className="mr-1.5 h-3.5 w-3.5" />Tambah User</Button>
-                    </form>
-                  </CardContent>
-                </Card>
-                <Card className="border shadow-sm">
-                  <CardContent className="p-3">
-                    <h3 className="text-sm font-bold mb-2 px-1">Daftar Akun</h3>
-                    <div className="space-y-2">
-                      {usersPg.paged.map((u: any) => {
-                        const o = outlets.find((x: any) => x.id === u.outletId);
-                        return (
-                          <div key={u.username} className="rounded-lg border p-3 text-sm">
-                            <div className="flex items-center justify-between">
-                              <div><span className="font-semibold">{u.username}</span><span className="text-xs text-muted-foreground ml-2">{u.nama}</span></div>
-                              <div className="flex gap-1">
-                                <EditUserDialog userAccount={u} outlets={outlets} />
-                                <Button size="icon" variant="ghost" className="h-7 w-7" disabled={u.username === "admin" || u.username === "khazana"}
-                                  onClick={() => { if (confirm(`Hapus akun ${u.username}?`)) { db.deleteUser(u.username); toast.success("Akun dihapus"); } }}>
-                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
-                              <span className="capitalize bg-muted px-1.5 py-0.5 rounded">{u.role}</span>
-                              <span>PW: {u.password}</span>
-                              <span>{o?.nama ?? "-"}</span>
+              <Card className="border shadow-sm">
+                <CardContent className="p-3">
+                  <h3 className="text-sm font-bold mb-2 px-1">Akun Administrator & Super Admin</h3>
+                  <p className="text-[11px] text-muted-foreground mb-3">
+                    Akun ini adalah akun utama yang tidak terhubung ke data karyawan. 
+                    Untuk akun karyawan, kelola melalui seksi Karyawan di atas.
+                  </p>
+                  <div className="space-y-2">
+                    {users.filter((u: any) => !u.karyawanId).map((u: any) => {
+                      return (
+                        <div key={u.username} className="rounded-lg border p-3 text-sm">
+                          <div className="flex items-center justify-between">
+                            <div><span className="font-semibold">{u.username}</span><span className="text-xs text-muted-foreground ml-2">{u.nama}</span></div>
+                            <div className="flex gap-1">
+                              <EditUserDialog userAccount={u} outlets={outlets} />
                             </div>
                           </div>
-                        );
-                      })}
-                      {usersPg.paged.length === 0 && <div className="text-center text-muted-foreground py-6 text-sm">Belum ada akun</div>}
-                    </div>
-                    <TablePagination page={usersPg.page} totalPages={usersPg.totalPages} total={usersPg.total} pageSize={usersPg.pageSize} onChange={usersPg.setPage} />
-                  </CardContent>
-                </Card>
-              </div>
+                          <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
+                            <span className="capitalize bg-muted px-1.5 py-0.5 rounded">{u.role}</span>
+                            <span>PW: {u.password}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {users.filter((u: any) => !u.karyawanId).length === 0 && 
+                      <div className="text-center text-muted-foreground py-6 text-sm">Tidak ada akun utama</div>
+                    }
+                  </div>
+                </CardContent>
+              </Card>
             </AccordionContent>
           </AccordionItem>
           {/* GRAMASI */}
@@ -658,7 +588,8 @@ export default function MasterData() {
 
 /* ================= TAMBAH KARYAWAN DIALOG ================= */
 
-function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[] }) {
+function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
+  const { users } = useDB();
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState("");
   const [username, setUsername] = useState("");
@@ -701,33 +632,39 @@ function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[]
           <DialogHeader><DialogTitle>Tambah Karyawan</DialogTitle></DialogHeader>
 
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
               if (!nama) return toast.error("Nama karyawan diperlukan");
               if (!username) return toast.error("Username untuk akun pengguna diperlukan");
               if (!password) return toast.error("Password untuk akun pengguna diperlukan");
-              if (users.some((u: any) => u.username === username.toLowerCase().trim())) {
+              const finalUsername = username.toLowerCase().trim();
+              if (users.some((u: any) => u.username === finalUsername)) {
                 return toast.error("Username sudah terdaftar");
               }
-              db.addKaryawan({
-                nama,
-                posisi,
-                outletId: outletId === "none" ? undefined : outletId,
-                gajiPokok,
-                bonusOmset,
-                bonusUlasan,
-                tunjanganHarian,
-                overtimeRate,
-                jamMasuk,
-                jamPulang
-              }, {
-                username: username.toLowerCase().trim(),
-                password,
-                role
-              });
-              toast.success("Karyawan & akun pengguna berhasil ditambahkan");
-              setOpen(false);
-              resetForm();
+              try {
+                await db.addKaryawan({
+                  nama,
+                  posisi,
+                  role,
+                  outletId: outletId === "none" ? undefined : outletId,
+                  gajiPokok,
+                  bonusOmset,
+                  bonusUlasan,
+                  tunjanganHarian,
+                  overtimeRate,
+                  jamMasuk,
+                  jamPulang
+                }, {
+                  username: finalUsername,
+                  password,
+                  role
+                });
+                toast.success("Karyawan & akun pengguna berhasil ditambahkan");
+                setOpen(false);
+                resetForm();
+              } catch (err: any) {
+                toast.error(err?.message || "Gagal menambahkan karyawan");
+              }
             }}
             className="space-y-3"
           >
@@ -1040,10 +977,15 @@ function EditProdukDialog({ produk }) {
   );
 }
 
-function EditKaryawanDialog({ karyawan, outlets, users }: { karyawan: any; outlets: any[]; users: any[] }) {
+function EditKaryawanDialog({ karyawan, outlets }: { karyawan: any; outlets: any[] }) {
+  const { users } = useDB();
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState(karyawan.nama);
   const [posisi, setPosisi] = useState(karyawan.posisi);
+  const [role, setRole] = useState(karyawan.role || "outlet");
+  const [username, setUsername] = useState(karyawan.username || "");
+  const [password, setPassword] = useState(karyawan.password || "");
+  const [newPassword, setNewPassword] = useState("");
   const [outletId, setOutletId] = useState(karyawan.outletId ?? "none");
   const [gajiPokok, setGajiPokok] = useState(karyawan.gajiPokok);
   const [bonusOmset, setBonusOmset] = useState(karyawan.bonusOmset ?? 0);
@@ -1052,9 +994,8 @@ function EditKaryawanDialog({ karyawan, outlets, users }: { karyawan: any; outle
   const [overtimeRate, setOvertimeRate] = useState(karyawan.overtimeRate ?? 0);
   const [jamMasuk, setJamMasuk] = useState(karyawan.jamMasuk || "07:30");
   const [jamPulang, setJamPulang] = useState(karyawan.jamPulang || "15:00");
-  const [newPassword, setNewPassword] = useState("");
 
-  const userAkun = users.find((u: any) => u.karyawanId === karyawan.id);
+  const hasAkun = !!karyawan.username;
 
   return (
     <>
@@ -1067,22 +1008,35 @@ function EditKaryawanDialog({ karyawan, outlets, users }: { karyawan: any; outle
           <DialogHeader><DialogTitle>Edit Data Karyawan</DialogTitle></DialogHeader>
 
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              db.updateKaryawan(karyawan.id, {
-                nama,
-                posisi,
-                outletId: outletId === "none" ? undefined : outletId,
-                gajiPokok,
-                bonusOmset,
-                bonusUlasan,
-                tunjanganHarian,
-                overtimeRate,
-                jamMasuk,
-                jamPulang
-              }, newPassword || undefined);
-              toast.success(newPassword ? "Data karyawan & password diperbarui" : "Data karyawan diperbarui");
-              setOpen(false);
+              const finalUsername = username.toLowerCase().trim();
+              if (finalUsername !== karyawan.username) {
+                // Check local state for duplicate
+                if (users.some((u: any) => u.username === finalUsername && u.karyawanId !== karyawan.id)) {
+                  return toast.error("Username sudah digunakan oleh karyawan lain");
+                }
+              }
+              try {
+                await db.updateKaryawan(karyawan.id, {
+                  nama,
+                  posisi,
+                  role,
+                  username: username || undefined,
+                  outletId: outletId === "none" ? undefined : outletId,
+                  gajiPokok,
+                  bonusOmset,
+                  bonusUlasan,
+                  tunjanganHarian,
+                  overtimeRate,
+                  jamMasuk,
+                  jamPulang
+                }, newPassword || undefined);
+                toast.success(newPassword ? "Data karyawan & password diperbarui" : "Data karyawan diperbarui");
+                setOpen(false);
+              } catch (err: any) {
+                toast.error(err?.message || "Gagal memperbarui karyawan");
+              }
             }}
             className="space-y-3"
           >
@@ -1091,25 +1045,52 @@ function EditKaryawanDialog({ karyawan, outlets, users }: { karyawan: any; outle
               <Input value={nama} onChange={(e) => setNama(e.target.value)} />
             </div>
 
-            {userAkun && (
-              <div className="border rounded-lg bg-muted/30 p-3 space-y-2">
-                <p className="text-[11px] text-muted-foreground font-medium mb-1">Akun Pengguna Terkait</p>
+            {/* Akun Pengguna Terkait */}
+            <div className="border rounded-lg bg-muted/30 p-3 space-y-2">
+              <p className="text-[11px] text-muted-foreground font-medium mb-1">
+                {hasAkun ? "Akun Pengguna Terkait" : "Buat Akun Pengguna"}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-[11px]">Username</Label>
-                  <Input value={userAkun.username} disabled className="text-xs" />
+                  <Input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
+                    placeholder="Username untuk login"
+                    className="text-xs"
+                    required
+                  />
                 </div>
                 <div>
-                  <Label className="text-[11px]">Password Baru (kosongkan jika tidak diganti)</Label>
-                  <Input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Biarkan kosong jika tidak diganti" />
+                  <Label className="text-[11px]">
+                    {hasAkun ? "Password Baru (kosongkan jika tidak diganti)" : "Password"}
+                  </Label>
+                  <Input
+                    type="text"
+                    value={hasAkun ? newPassword : password}
+                    onChange={(e) => {
+                      if (hasAkun) setNewPassword(e.target.value);
+                      else setPassword(e.target.value);
+                    }}
+                    placeholder={hasAkun ? "Biarkan kosong jika tidak diganti" : "Password untuk login"}
+                    className="text-xs"
+                    required={!hasAkun}
+                  />
                 </div>
               </div>
-            )}
+            </div>
 
-            {!userAkun && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700">
-                Karyawan ini belum memiliki akun pengguna. Hapus dan buat ulang untuk menambahkan akun.
-              </div>
-            )}
+            <div>
+              <Label>Role / Hak Akses</Label>
+              <Select value={role} onValueChange={(v) => setRole(v)}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="outlet">Outlet (Cabang)</SelectItem>
+                  <SelectItem value="produksi">Produksi</SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <div>
               <Label>Posisi / Jabatan</Label>

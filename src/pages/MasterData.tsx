@@ -718,9 +718,9 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 items-end">
                 <div>
-                  <Label className="flex items-center gap-1">
+                  <Label className="flex items-center gap-1 min-h-[20px]">
                     Username
                     {!usernameManuallyEdited && username && (
                       <span className="text-[9px] font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1 py-0.5">otomatis</span>
@@ -736,10 +736,11 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
                   />
                 </div>
                 <div>
-                  <Label>Password <span className="text-destructive">*</span></Label>
+                  <Label className="flex items-center min-h-[20px]">Password <span className="text-destructive ml-0.5">*</span></Label>
                   <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password untuk login" />
                 </div>
               </div>
+
             </div>
 
             <div>

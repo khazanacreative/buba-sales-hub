@@ -70,15 +70,16 @@ async function runSeed() {
 
     console.log("4. Seeding users...");
     const seedUsers = [
-      { username: "admin", password: "admin123", nama: "Administrator", role: "admin", outlet_id: null },
-      { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin", outlet_id: null },
-      { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin", outlet_id: null },
+      { username: "admin", password: "admin123", nama: "Administrator", role: "admin", outlet_id: null, karyawan_id: null },
+      { username: "khazana", password: "Fazana@10", nama: "Super Admin", role: "admin", outlet_id: null, karyawan_id: null },
+      { username: "produksi", password: "produksi123", nama: "Kepala Produksi", role: "admin", outlet_id: null, karyawan_id: "k-produksi" },
       ...SEED_OUTLETS.map((o) => ({
         username: o.nama.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
         password: "buba123",
         nama: o.nama,
         role: "outlet",
-        outlet_id: o.id
+        outlet_id: o.id,
+        karyawan_id: `k-${o.id}-1`
       }))
     ];
     const { error: usersErr } = await supabase.from("users").insert(seedUsers);

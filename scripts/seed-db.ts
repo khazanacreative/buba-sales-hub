@@ -117,6 +117,7 @@ async function runSeed() {
       id: k.id,
       nama: k.nama,
       posisi: k.posisi,
+      role: k.role || "outlet",
       outlet_id: k.outletId,
       gaji_pokok: k.gajiPokok,
       bonus_omset: k.bonusOmset,

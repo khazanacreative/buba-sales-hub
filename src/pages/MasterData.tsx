@@ -588,11 +588,30 @@ export default function MasterData() {
 
 /* ================= TAMBAH KARYAWAN DIALOG ================= */
 
+// Generate username from name: "Budi Santoso" → "budisantoso"
+function generateUsernameFromNama(nama: string): string {
+  return nama
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/[^a-z0-9]/g, "") // remove non-alphanumeric
+    .trim();
+}
+
+// Find unique username by appending number if already taken
+function findUniqueUsername(base: string, existingUsernames: string[]): string {
+  if (!existingUsernames.includes(base)) return base;
+  let i = 1;
+  while (existingUsernames.includes(`${base}${i}`)) i++;
+  return `${base}${i}`;
+}
+
 function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
   const { users } = useDB();
   const [open, setOpen] = useState(false);
   const [nama, setNama] = useState("");
   const [username, setUsername] = useState("");
+  const [usernameManuallyEdited, setUsernameManuallyEdited] = useState(false);
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("outlet");
   const [posisi, setPosisi] = useState("Kasir");
@@ -605,9 +624,20 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
   const [jamMasuk, setJamMasuk] = useState("07:30");
   const [jamPulang, setJamPulang] = useState("15:00");
 
+  // Auto-generate username from nama (unless user has manually edited it)
+  useEffect(() => {
+    if (!usernameManuallyEdited) {
+      const existingUsernames = users.map((u: any) => u.username);
+      const base = generateUsernameFromNama(nama);
+      const unique = base ? findUniqueUsername(base, existingUsernames) : "";
+      setUsername(unique);
+    }
+  }, [nama, usernameManuallyEdited, users]);
+
   const resetForm = () => {
     setNama("");
     setUsername("");
+    setUsernameManuallyEdited(false);
     setPassword("");
     setRole("outlet");
     setPosisi("Kasir");
@@ -674,11 +704,36 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
             </div>
 
             <div className="border-t pt-3 mt-3">
-              <p className="text-[11px] text-muted-foreground italic mb-2">Akun Pengguna (otomatis dibuat)</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] text-muted-foreground italic">Akun Pengguna (username otomatis dibuat dari nama)</p>
+                {usernameManuallyEdited && (
+                  <button
+                    type="button"
+                    className="text-[10px] text-primary underline"
+                    onClick={() => {
+                      setUsernameManuallyEdited(false);
+                    }}
+                  >
+                    Reset otomatis
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label>Username <span className="text-destructive">*</span></Label>
-                  <Input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().trim())} placeholder="Username untuk login" />
+                  <Label className="flex items-center gap-1">
+                    Username
+                    {!usernameManuallyEdited && username && (
+                      <span className="text-[9px] font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1 py-0.5">otomatis</span>
+                    )}
+                  </Label>
+                  <Input
+                    value={username}
+                    onChange={(e) => {
+                      setUsernameManuallyEdited(true);
+                      setUsername(e.target.value.toLowerCase().trim());
+                    }}
+                    placeholder="Username untuk login"
+                  />
                 </div>
                 <div>
                   <Label>Password <span className="text-destructive">*</span></Label>

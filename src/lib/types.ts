@@ -95,6 +95,7 @@ export interface Karyawan {
   id: string;
   nama: string;
   posisi: string;
+  role: string;
   outletId?: string;
   gajiPokok: number; // per hari
   bonusOmset?: number;
@@ -103,6 +104,8 @@ export interface Karyawan {
   overtimeRate?: number;
   jamMasuk?: string; // "HH:mm"
   jamPulang?: string; // "HH:mm"
+  username?: string;
+  password?: string;
 }
 
 export type StatusAbsen = 'Hadir' | 'Izin' | 'Sakit' | 'Alpha';

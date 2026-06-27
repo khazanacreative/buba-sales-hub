@@ -168,13 +168,12 @@ export const SEED_USERS: UserAccount[] = [
 
 const RAW_BAHAN = [
   { kode: "BRS01", nama: "BERAS", satuan: "Pack", stokMin: 15, stokAwal: 150, hargaBeli: 15500, konversiGram: 600 },
-  { kode: "DG01", nama: "DAGING", satuan: "sachet", stokMin: 3, stokAwal: 3, hargaBeli: 12000 },
-  { kode: "AY01", nama: "AYAM", satuan: "sachet", stokMin: 3, stokAwal: 24, hargaBeli: 9000 },
+  { kode: "DG01", nama: "DAGING", satuan: "sachet", stokMin: 3, stokAwal: 3, hargaBeli: 12000, konversiGram: 35 },
+  { kode: "AY01", nama: "AYAM", satuan: "sachet", stokMin: 3, stokAwal: 24, hargaBeli: 9000, konversiGram: 35 },
   { kode: "TN01", nama: "TUNA", satuan: "sachet", stokMin: 2, stokAwal: 22, hargaBeli: 9000, konversiGram: 35 },
   { kode: "TG01", nama: "TENGIRI", satuan: "sachet", stokMin: 2, stokAwal: 1, hargaBeli: 9000, konversiGram: 35 },
   { kode: "SL01", nama: "SALMON", satuan: "sachet", stokMin: 2, stokAwal: 6, hargaBeli: 13000, konversiGram: 35 },
   { kode: "GR01", nama: "GURAMI", satuan: "sachet", stokMin: 2, stokAwal: 0, hargaBeli: 12000, konversiGram: 35 },
-  { kode: "CK01", nama: "CEKER", satuan: "sachet", stokMin: 2, stokAwal: 16, hargaBeli: 9000 },
   { kode: "KK01", nama: "KAKAP", satuan: "sachet", stokMin: 2, stokAwal: 0, hargaBeli: 12000, konversiGram: 35 },
   { kode: "DR01", nama: "DORI", satuan: "sachet", stokMin: 2, stokAwal: 17, hargaBeli: 9000, konversiGram: 35 },
   { kode: "PUD01", nama: "PUDING", satuan: "sachet", stokMin: 5, stokAwal: 34, hargaBeli: 10000 },
@@ -201,6 +200,7 @@ export const SEED_KARYAWAN: Karyawan[] = [
     id: "k-produksi",
     nama: "Kepala Produksi",
     posisi: "Kepala Produksi",
+    role: "produksi",
     outletId: undefined,
     gajiPokok: 25000,
     bonusOmset: 0,
@@ -208,19 +208,27 @@ export const SEED_KARYAWAN: Karyawan[] = [
     tunjanganHarian: 10000,
     overtimeRate: 15000,
     jamMasuk: "07:30",
-    jamPulang: "15:00"
+    jamPulang: "15:00",
+    username: "produksi",
+    password: "produksi123"
   },
-  ...SEED_OUTLETS.map((o) => ({
-    id: `k-${o.id}-1`,
-    nama: `Staff ${o.nama} A`,
-    posisi: "Kasir",
-    outletId: o.id,
-    gajiPokok: 17500,
-    bonusOmset: 0,
-    bonusUlasan: 0,
-    tunjanganHarian: 5000,
-    overtimeRate: 10000,
-    jamMasuk: "07:00",
-    jamPulang: "14:00"
-  }))
+  ...SEED_OUTLETS.map((o) => {
+    const uname = o.id.replace("o-", "");
+    return {
+      id: `k-${o.id}-1`,
+      nama: `Staff ${o.nama} A`,
+      posisi: "Kasir",
+      role: "outlet",
+      outletId: o.id,
+      gajiPokok: 17500,
+      bonusOmset: 0,
+      bonusUlasan: 0,
+      tunjanganHarian: 5000,
+      overtimeRate: 10000,
+      jamMasuk: "07:00",
+      jamPulang: "14:00",
+      username: uname,
+      password: "buba123"
+    };
+  })
 ];

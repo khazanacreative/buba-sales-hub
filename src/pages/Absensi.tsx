@@ -238,36 +238,36 @@ export default function Absensi() {
     return visibleKaryawan.map((k) => {
       const list = filtered.filter((a) => a.karyawanId === k.id);
       const hadir = list.filter((a) => a.status === "Hadir").length;
-      
+
+      // Per-employee tunjangan harian & overtime rate
+      const tunjanganHarianKaryawan = k.tunjanganHarian ?? 0;
+      const overtimeRateKaryawan = k.overtimeRate ?? Math.round(k.gajiPokok / 8 * 1.5);
+
+      // Lateness check using employee's jamMasuk
+      const employeeJamMasuk = k.jamMasuk || (k.outletId ? "07:00" : "07:30");
+      const lateLogs = list.filter((a) => a.jamMasuk && a.jamMasuk > employeeJamMasuk);
+
       const terlambatCount = lateLogs.length;
       const terlambatDates = lateLogs.map((a) => a.tanggal.slice(-2)).join(", "); // e.g. "15, 18"
-      
+
       // Sum daily inputs
       const overtimeHours = list.reduce((sum, a) => sum + (a.overtime ?? 0), 0);
       const dailyTunjanganTotal = list.reduce((sum, a) => sum + (a.tunjangan ?? 0), 0);
       const dailyBonusTotal = list.reduce((sum, a) => sum + (a.bonus ?? 0), 0);
-      
-          // Per-employee tunjangan harian & overtime rate
-      const tunjanganHarianKaryawan = k.tunjanganHarian ?? 0;
-      const overtimeRateKaryawan = k.overtimeRate ?? Math.round(k.gajiPokok / 8 * 1.5);
-      
-      // Lateness check using employee's jamMasuk
-      const employeeJamMasuk = k.jamMasuk || (k.outletId ? "07:00" : "07:30");
-      const lateLogs = list.filter((a) => a.jamMasuk && a.jamMasuk > employeeJamMasuk);
-      
+
       // Tunjangan: from daily input + per-employee base * hadir
       const tunjanganTotal = dailyTunjanganTotal + (tunjanganHarianKaryawan * hadir);
-      
+
       // Overtime pay: overtime_hours * employee's overtimeRate
       const overtimePay = Math.round(overtimeHours * overtimeRateKaryawan);
-      
+
       // Flat monthly bonuses
       const flatBonusOmset = k.bonusOmset ?? 0;
       const flatBonusUlasan = k.bonusUlasan ?? 0;
-      
+
       const totalBonus = dailyBonusTotal + flatBonusOmset + flatBonusUlasan;
       const totalGaji = (hadir * k.gajiPokok) + tunjanganTotal + totalBonus + overtimePay;
-      
+
       return {
         k,
         hadir,

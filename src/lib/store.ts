@@ -368,7 +368,7 @@ export const db = {
     fetchFromSupabase();
   },
 
-  async addKaryawan(k: Omit<Karyawan, "id">, userAccount?: { username: string; password: string }) {
+  async addKaryawan(k: Omit<Karyawan, "id">, userAccount?: { username: string; password: string; role: string }) {
     const id = uid();
     await supabase.from("karyawan").insert([{
       id,
@@ -385,12 +385,11 @@ export const db = {
     }]);
     // Auto-create user account if username & password provided
     if (userAccount) {
-      const role = k.posisi.toLowerCase().includes("produksi") ? "produksi" : "outlet";
       await supabase.from("users").insert([{
         username: userAccount.username,
         password: userAccount.password,
         nama: k.nama,
-        role,
+        role: userAccount.role,
         outlet_id: k.outletId ?? null,
         karyawan_id: id
       }]);

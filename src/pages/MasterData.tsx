@@ -551,7 +551,7 @@ export default function MasterData() {
                         <Select value={uOutletId} onValueChange={setUOutletId}>
                           <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">Tanpa Outlet</SelectItem>
+                            <SelectItem value="none">Kantor Pusat</SelectItem>
                             {outlets.map((o) => (<SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>))}
                           </SelectContent>
                         </Select>
@@ -663,6 +663,7 @@ function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[]
   const [nama, setNama] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("outlet");
   const [posisi, setPosisi] = useState("Kasir");
   const [outletId, setOutletId] = useState(outlets[0]?.id ?? "none");
   const [gajiPokok, setGajiPokok] = useState(17500);
@@ -677,6 +678,7 @@ function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[]
     setNama("");
     setUsername("");
     setPassword("");
+    setRole("outlet");
     setPosisi("Kasir");
     setOutletId(outlets[0]?.id ?? "none");
     setGajiPokok(17500);
@@ -720,7 +722,8 @@ function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[]
                 jamPulang
               }, {
                 username: username.toLowerCase().trim(),
-                password
+                password,
+                role
               });
               toast.success("Karyawan & akun pengguna berhasil ditambahkan");
               setOpen(false);
@@ -748,6 +751,18 @@ function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[]
             </div>
 
             <div>
+              <Label>Role / Hak Akses</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="outlet">Outlet (Cabang)</SelectItem>
+                  <SelectItem value="produksi">Produksi</SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <Label>Posisi / Jabatan</Label>
               <Select value={posisi} onValueChange={setPosisi}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
@@ -770,7 +785,7 @@ function TambahKaryawanDialog({ outlets, users }: { outlets: any[]; users: any[]
               }}>
                 <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Tanpa Outlet (Pusat)</SelectItem>
+                  <SelectItem value="none">Kantor Pusat</SelectItem>
                   {outlets.map((o) => (
                     <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
                   ))}
@@ -1113,7 +1128,7 @@ function EditKaryawanDialog({ karyawan, outlets, users }: { karyawan: any; outle
               <Select value={outletId} onValueChange={setOutletId}>
                 <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Tanpa Outlet (Pusat)</SelectItem>
+                  <SelectItem value="none">Kantor Pusat</SelectItem>
                   {outlets.map((o) => (
                     <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
                   ))}
@@ -1221,10 +1236,11 @@ function EditUserDialog({ userAccount, outlets }: { userAccount: any; outlets: a
             </div>
             <div>
               <Label>Role / Peran</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as "admin" | "outlet")}>
+              <Select value={role} onValueChange={(v) => setRole(v as "admin" | "outlet" | "produksi")}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="produksi">Produksi</SelectItem>
                   <SelectItem value="outlet">Outlet (Cabang)</SelectItem>
                 </SelectContent>
               </Select>
@@ -1235,7 +1251,7 @@ function EditUserDialog({ userAccount, outlets }: { userAccount: any; outlets: a
                 <Select value={outletId} onValueChange={setOutletId}>
                   <SelectTrigger className="h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Tanpa Outlet</SelectItem>
+                    <SelectItem value="none">Kantor Pusat</SelectItem>
                     {outlets.map((o) => (
                       <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
                     ))}

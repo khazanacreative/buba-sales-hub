@@ -233,7 +233,7 @@ export default function Produksi() {
       if (!step4OutletId) setStep4OutletId(outlets[0].id);
       if (!step5OutletId) setStep5OutletId(outlets[0].id);
     }
-  }, [outlets, step1OutletId, step2OutletId, step4OutletId, step5OutletId]);
+  }, [outlets, step1OutletId, step4OutletId, step5OutletId]);
 
   const pendingCount = useMemo(() => {
     return permohonanStok.filter((r: any) => r.status === "Pending").length;

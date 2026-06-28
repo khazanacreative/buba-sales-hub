@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { db, useDB } from "@/lib/store";
-import { rupiah, monthKey, DateRange, inRange } from "@/lib/format";
+import { rupiah, monthKey, DateRange, inRange, todayISO } from "@/lib/format";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useAuth } from "@/lib/auth";
 import { ExportButtons } from "@/components/ExportButtons";
@@ -130,12 +130,9 @@ export default function Laporan() {
           <TabsContent value="sisa-produksi" className="space-y-6">
             <SisaProduksiOH
               user={user!}
-              outlets={outlets}
               produk={produk}
               penjualan={penjualan}
               permohonanStok={permohonanStok}
-              range={range}
-              setRange={setRange}
             />
           </TabsContent>
         )}
@@ -256,29 +253,24 @@ export default function Laporan() {
 }
 
 // ====================================================================
-// SISA PRODUKSI (OH) TAB — OUTLET ONLY: Input sisa produksi dari 7 menu
+// SISA PRODUKSI TAB — OUTLET ONLY: Form input sisa produksi harian
 // ====================================================================
 function SisaProduksiOH({
   user,
-  outlets,
   produk,
   penjualan,
   permohonanStok,
-  range,
-  setRange,
 }: {
   user: any;
-  outlets: any[];
   produk: any[];
   penjualan: any[];
   permohonanStok: any[];
-  range: DateRange;
-  setRange: (r: DateRange) => void;
 }) {
+  const [tanggal, setTanggal] = useState(todayISO());
   const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
 
-  // 7 Menu items
+  // 7 Menu items for daily input
   const MENU_ITEMS = [
     { subId: "bubur_d", baseId: "p-bubur", label: "Bubur Daging", gramPerCup: 118 },
     { subId: "bubur_i", baseId: "p-bubur", label: "Bubur Ikan", gramPerCup: 118 },
@@ -289,158 +281,137 @@ function SisaProduksiOH({
     { subId: "abon", baseId: "p-abon", label: "Abon", gramPerCup: 10 },
   ];
 
-  // Get distributions (permohonanStok Disetujui) for the outlet
+  // Look up distribution for selected date
   const distributions = useMemo(() => {
-    return (permohonanStok || []).filter((r: any) => {
-      return (
-        r.outletId === user.outletId &&
-        r.status === "Disetujui" &&
-        PRODUCTION_PRODUCTS.includes(r.produkId) &&
-        inRange(r.tanggalKirim, range)
-      );
-    });
-  }, [permohonanStok, user.outletId, range]);
+    return (permohonanStok || []).filter((r: any) =>
+      r.outletId === user.outletId &&
+      r.status === "Disetujui" &&
+      PRODUCTION_PRODUCTS.includes(r.produkId) &&
+      r.tanggalKirim === tanggal
+    );
+  }, [permohonanStok, user.outletId, tanggal]);
 
-  // Build distribution map: key = subId, value = { tanggal, qty }
+  // Build distribution map by subId for selected date
   const distMap = useMemo(() => {
-    const map = new Map<string, { tanggal: string; qty: number }[]>();
+    const map = new Map<string, number>();
     distributions.forEach((r: any) => {
       const split = parseSplit(r.catatan || "");
-      const items: { subId: string; qty: number }[] = [];
-
       if (r.produkId === "p-bubur") {
-        items.push({ subId: "bubur_d", qty: split.d || r.qty });
-        items.push({ subId: "bubur_i", qty: split.i || 0 });
+        map.set("bubur_d", (map.get("bubur_d") || 0) + (split.d || r.qty));
+        map.set("bubur_i", (map.get("bubur_i") || 0) + (split.i || 0));
       } else if (r.produkId === "p-nasitim") {
-        items.push({ subId: "tim_d", qty: split.d || r.qty });
-        items.push({ subId: "tim_i", qty: split.i || 0 });
+        map.set("tim_d", (map.get("tim_d") || 0) + (split.d || r.qty));
+        map.set("tim_i", (map.get("tim_i") || 0) + (split.i || 0));
       } else if (r.produkId === "p-oatmeal") {
-        items.push({ subId: "oatmeal", qty: r.qty });
+        map.set("oatmeal", (map.get("oatmeal") || 0) + r.qty);
       } else if (r.produkId === "p-puding") {
-        items.push({ subId: "puding", qty: r.qty });
+        map.set("puding", (map.get("puding") || 0) + r.qty);
       } else if (r.produkId === "p-abon") {
-        items.push({ subId: "abon", qty: r.qty });
+        map.set("abon", (map.get("abon") || 0) + r.qty);
       }
-
-      items.forEach((item) => {
-        const key = `${r.tanggalKirim}-${item.subId}`;
-        const existing = map.get(key) || [];
-        existing.push({ tanggal: r.tanggalKirim, qty: item.qty });
-        map.set(key, existing);
-      });
     });
     return map;
   }, [distributions]);
 
-  // Build rows combining distribution + sisa input
-  const rows = useMemo(() => {
-    // Group by (tanggal, subId) and merge
-    const grouped = new Map<string, { tanggal: string; subId: string; distribusi: number; baseId: string }>();
-
-    distMap.forEach((items, key) => {
-      const [tanggal, subId] = key.split("-");
-      const totalDist = items.reduce((sum, i) => sum + i.qty, 0);
-      const menuItem = MENU_ITEMS.find(m => m.subId === subId);
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.distribusi += totalDist;
-      } else {
-        grouped.set(key, {
-          tanggal,
-          subId,
-          distribusi: totalDist,
-          baseId: menuItem?.baseId || "",
-        });
-      }
-    });
-
-    return Array.from(grouped.values())
-      .filter((r) => r.distribusi > 0)
-      .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || MENU_ITEMS.findIndex(m => m.subId === a.subId) - MENU_ITEMS.findIndex(m => m.subId === b.subId));
-  }, [distMap]);
-
-  // Load existing penjualan to pre-fill sisa values
+  // Pre-fill sisa from existing penjualan
   useEffect(() => {
     const newSisa: Record<string, number> = {};
-    rows.forEach((row) => {
+    MENU_ITEMS.forEach((item) => {
+      const distQty = distMap.get(item.subId) || 0;
+      if (distQty <= 0) return; // skip if no distribution
       const existingSales = (penjualan || []).filter(
-        (p: any) => p.outletId === user.outletId && p.tanggal === row.tanggal && p.produkId === row.baseId
+        (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === item.baseId
       );
       const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
-      const sisa = Math.max(0, row.distribusi - totalSold);
-      newSisa[`${row.tanggal}-${row.subId}`] = sisa;
+      const sisa = Math.max(0, distQty - totalSold);
+      if (sisa > 0) {
+        newSisa[`${tanggal}-${item.subId}`] = sisa;
+      }
     });
-    setSisaGrid((prev) => ({ ...prev, ...newSisa }));
-  }, [rows, penjualan, user.outletId]);
+    if (Object.keys(newSisa).length > 0) {
+      setSisaGrid((prev) => ({ ...prev, ...newSisa }));
+    }
+  }, [distMap, tanggal, penjualan, user.outletId]);
 
   const handleSisaChange = (key: string, val: number) => {
     setSisaGrid((prev) => ({ ...prev, [key]: isNaN(val) ? 0 : Math.max(0, val) }));
   };
 
+  // Build all 7 rows — always visible
+  const rows = useMemo(() => {
+    return MENU_ITEMS.map((item) => {
+      const distQty = distMap.get(item.subId) || 0;
+      const key = `${tanggal}-${item.subId}`;
+      const sisa = sisaGrid[key] ?? 0;
+      const terjual = distQty > 0 ? Math.max(0, distQty - Math.min(sisa, distQty)) : 0;
+      const prod = produk.find((p: any) => p.id === item.baseId);
+      const harga = prod?.harga || 0;
+      const omset = terjual * harga;
+
+      return {
+        key,
+        tanggal,
+        subId: item.subId,
+        baseId: item.baseId,
+        label: item.label,
+        distribusi: distQty,
+        sisa,
+        terjual,
+        harga,
+        omset,
+      };
+    });
+  }, [distMap, tanggal, sisaGrid, produk]);
+
   // Summary
   const summary = useMemo(() => {
     let totalDistribusi = 0, totalSisa = 0, totalTerjual = 0, totalOmset = 0;
     rows.forEach((row) => {
-      const key = `${row.tanggal}-${row.subId}`;
-      const sisa = sisaGrid[key] ?? 0;
-      const terjual = Math.max(0, row.distribusi - sisa);
-      const menuItem = MENU_ITEMS.find(m => m.subId === row.subId);
-      const prod = produk.find((p: any) => p.id === row.baseId);
-      const harga = prod?.harga || 0;
       totalDistribusi += row.distribusi;
-      totalSisa += Math.min(sisa, row.distribusi);
-      totalTerjual += terjual;
-      totalOmset += terjual * harga;
+      totalSisa += Math.min(row.sisa, row.distribusi);
+      totalTerjual += row.terjual;
+      totalOmset += row.omset;
     });
     return { totalDistribusi, totalSisa, totalTerjual, totalOmset };
-  }, [rows, sisaGrid, produk]);
+  }, [rows]);
 
   const handleSubmit = useCallback(async () => {
     setSaving(true);
     try {
-      // Aggregate by base produkId
-      const groups = new Map<string, { tanggal: string; produkId: string; distribusi: number; sisa: number; harga: number }>();
+      // Aggregate by base produkId (merge D and I for same base)
+      const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; harga: number }>();
 
       rows.forEach((row) => {
-        const key = `${row.tanggal}-${row.subId}`;
-        const sisa = sisaGrid[key] ?? 0;
-        const terjual = Math.max(0, row.distribusi - Math.min(sisa, row.distribusi));
-        const menuItem = MENU_ITEMS.find(m => m.subId === row.subId);
-        const prod = produk.find((p: any) => p.id === row.baseId);
-        const harga = prod?.harga || 0;
-
-        // Group by (tanggal, baseId) - merge D and I for same base
-        const groupKey = `${row.tanggal}-${row.baseId}`;
-        const existing = groups.get(groupKey) || {
-          tanggal: row.tanggal,
-          produkId: row.baseId,
+        if (row.distribusi <= 0) return; // skip items with no distribution
+        const existing = groups.get(row.baseId) || {
+          baseId: row.baseId,
           distribusi: 0,
           sisa: 0,
-          harga,
+          harga: row.harga,
         };
         existing.distribusi += row.distribusi;
-        existing.sisa += Math.min(sisa, row.distribusi);
-        groups.set(groupKey, existing);
+        existing.sisa += Math.min(row.sisa, row.distribusi);
+        groups.set(row.baseId, existing);
       });
 
       let savedCount = 0;
-      for (const [_, group] of groups) {
+      for (const [baseId, group] of groups) {
         const terjual = Math.max(0, group.distribusi - group.sisa);
 
-        // Delete existing penjualan for this outlet+tanggal+produk
+        // Delete existing penjualan for this outlet+tanggal+base
         const existingPenjualan = (penjualan || []).filter(
-          (p: any) => p.outletId === user.outletId && p.tanggal === group.tanggal && p.produkId === group.produkId
+          (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === baseId
         );
         for (const p of existingPenjualan) {
           await db.deletePenjualan(p.id);
         }
 
-        // Create new penjualan record
+        // Create new penjualan record if anything was sold
         if (terjual > 0) {
           await db.addPenjualan({
-            tanggal: group.tanggal,
+            tanggal,
             outletId: user.outletId,
-            produkId: group.produkId,
+            produkId: baseId,
             qty: terjual,
             harga: group.harga,
           });
@@ -451,7 +422,7 @@ function SisaProduksiOH({
       if (savedCount > 0) {
         toast.success(`${savedCount} penjualan berhasil disimpan! Data terhubung ke Langkah 5 Produksi.`);
       } else {
-        toast.info("Tidak ada penjualan yang perlu dicatat (semua produk tersisa)");
+        toast.info("Tidak ada penjualan yang perlu dicatat");
       }
     } catch (err) {
       toast.error("Gagal menyimpan data sisa produksi");
@@ -459,39 +430,49 @@ function SisaProduksiOH({
     } finally {
       setSaving(false);
     }
-  }, [rows, sisaGrid, user.outletId, penjualan, produk]);
+  }, [rows, tanggal, user.outletId, penjualan]);
 
   return (
     <div className="space-y-4">
-      {/* Info Banner - Main selling point */}
+      {/* Info Banner */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800/30 rounded-2xl p-4">
         <div className="flex items-start gap-3">
           <div className="h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">
             <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="text-xs text-muted-foreground">
-            <p className="font-bold text-blue-700 dark:text-blue-300 text-sm mb-1">📋 Form Input Penjualan Utama Outlet</p>
-            <p>Masukkan <strong>sisa produksi (cup)</strong> yang <strong>tidak terjual</strong> hari ini. Jumlah terjual akan terhitung otomatis = Distribusi − Sisa. Data ini otomatis tersinkron ke <strong>Langkah 5: Retur &amp; Penjualan Akhir Hari</strong> di menu Produksi untuk diverifikasi Admin.</p>
+            <p className="font-bold text-blue-700 dark:text-blue-300 text-sm mb-1">📋 Input Sisa Produksi Harian</p>
+            <p>Masukkan <strong>sisa produksi (cup)</strong> yang <strong>tidak terjual</strong> hari ini. Jika ada distribusi, terjual otomatis = Distribusi − Sisa. Data sinkron ke <strong>Langkah 5 Produksi</strong>.</p>
           </div>
         </div>
       </div>
 
       <Card className="glass border-0 shadow-card">
         <CardContent className="p-4 md:p-6 space-y-4">
-          {/* Compact Summary + Controls */}
+          {/* Toolbar: Date picker + Summary + Save */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <DateRangeFilter value={range} onChange={setRange} />
-              <div className="flex items-center gap-4 text-xs">
-                <span className="text-muted-foreground">Dist: <strong className="text-foreground">{summary.totalDistribusi}</strong> cup</span>
-                <span className="text-warning font-medium">Sisa: <strong>{summary.totalSisa}</strong> cup</span>
-                <span className="text-success font-medium">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
-                <span className="text-primary font-medium">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
+                <Input
+                  type="date"
+                  value={tanggal}
+                  onChange={(e) => setTanggal(e.target.value)}
+                  className="h-9 w-40 text-xs"
+                />
               </div>
+              {summary.totalDistribusi > 0 && (
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-muted-foreground">Dist: <strong className="text-foreground">{summary.totalDistribusi}</strong> cup</span>
+                  <span className="text-warning font-medium">Sisa: <strong>{summary.totalSisa}</strong> cup</span>
+                  <span className="text-success font-medium">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
+                  <span className="text-primary font-medium">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
+                </div>
+              )}
             </div>
             <Button
               onClick={handleSubmit}
-              disabled={saving || rows.length === 0}
+              disabled={saving || rows.every(r => r.sisa === 0)}
               size="sm"
               className="gradient-primary text-primary-foreground h-9 shrink-0"
             >
@@ -500,69 +481,68 @@ function SisaProduksiOH({
             </Button>
           </div>
 
-          {/* Main Table */}
+          {/* Always-visible Form Table — 7 Menu Items */}
           <div className="rounded-xl border overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
-                    <TableHead>Tanggal</TableHead>
                     <TableHead>Menu</TableHead>
                     <TableHead className="text-right">Distribusi (Cup)</TableHead>
-                    <TableHead className="text-right">Sisa Produksi (OH)</TableHead>
+                    <TableHead className="text-right w-[160px]">Sisa Produksi (Cup)</TableHead>
                     <TableHead className="text-right">Terjual</TableHead>
+                    <TableHead className="text-right">Harga</TableHead>
                     <TableHead className="text-right">Omset</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        Belum ada distribusi produk untuk periode ini
+                  {rows.map((row) => (
+                    <TableRow key={row.key} className={row.distribusi > 0 ? "" : "opacity-60"}>
+                      <TableCell className="whitespace-nowrap font-semibold">
+                        {row.label}
+                        {row.distribusi <= 0 && (
+                          <span className="text-[10px] text-muted-foreground ml-2">(no dist)</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {row.distribusi > 0 ? row.distribusi : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={row.distribusi > 0 ? row.distribusi : undefined}
+                            value={row.sisa || ""}
+                            onChange={(e) => handleSisaChange(row.key, parseInt(e.target.value) || 0)}
+                            className="w-20 h-8 text-xs text-center"
+                            placeholder="0"
+                          />
+                          <span className="text-[10px] text-muted-foreground w-6">cup</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-success">
+                        {row.distribusi > 0 ? row.terjual : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">
+                        {rupiah(row.harga)}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-primary">
+                        {row.distribusi > 0 ? rupiah(row.omset) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                     </TableRow>
-                  )}
-                  {rows.map((row) => {
-                    const key = `${row.tanggal}-${row.subId}`;
-                    const sisa = sisaGrid[key] ?? 0;
-                    const terjual = Math.max(0, row.distribusi - Math.min(sisa, row.distribusi));
-                    const menuItem = MENU_ITEMS.find(m => m.subId === row.subId);
-                    const prod = produk.find((p: any) => p.id === row.baseId);
-                    const harga = prod?.harga || 0;
-                    const omset = terjual * harga;
-
-                    return (
-                      <TableRow key={key}>
-                        <TableCell className="whitespace-nowrap font-medium">{row.tanggal}</TableCell>
-                        <TableCell className="whitespace-nowrap font-semibold">{menuItem?.label || row.subId}</TableCell>
-                        <TableCell className="text-right font-semibold">{row.distribusi}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={row.distribusi}
-                              value={sisa || ""}
-                              onChange={(e) => handleSisaChange(key, parseInt(e.target.value) || 0)}
-                              className="w-20 h-8 text-xs text-center"
-                              placeholder="0"
-                            />
-                            <span className="text-[10px] text-muted-foreground">cup</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-success">
-                          {terjual}
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-primary">
-                          {rupiah(omset)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  ))}
                 </TableBody>
               </Table>
             </div>
           </div>
+
+          {/* Helper text */}
+          {rows.every(r => r.distribusi <= 0) && (
+            <p className="text-xs text-muted-foreground text-center py-2">
+              Belum ada distribusi untuk tanggal ini. Input sisa akan tersimpan saat ada distribusi.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

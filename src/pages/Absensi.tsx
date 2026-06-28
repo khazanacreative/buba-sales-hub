@@ -54,6 +54,12 @@ export default function Absensi() {
     }
   }, [karyawanId, karyawan]);
 
+  // Reset recorded state saat ganti karyawan atau tanggal (untuk admin view)
+  useEffect(() => {
+    setRecordedJamMasuk(null);
+    setRecordedJamPulang(null);
+  }, [karyawanId, tanggal]);
+
   const [status, setStatus] = useState<StatusAbsen>("Hadir");
   const [bonusInput, setBonusInput] = useState(0);
   const [tunjanganInput, setTunjanganInput] = useState(0);
@@ -62,6 +68,8 @@ export default function Absensi() {
 
   // GPS State
   const [gpsLoading, setGpsLoading] = useState(true);
+  const [recordedJamMasuk, setRecordedJamMasuk] = useState<string | null>(null);
+  const [recordedJamPulang, setRecordedJamPulang] = useState<string | null>(null);
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("Mencari lokasi GPS...");
 
@@ -153,6 +161,8 @@ export default function Absensi() {
     e.preventDefault();
     const kid = karyawanId || visibleKaryawan[0]?.id;
     if (!kid) return toast.error("Pilih karyawan");
+    setRecordedJamMasuk(status === "Hadir" ? jamMasuk : null);
+    setRecordedJamPulang(status === "Hadir" ? jamPulang : null);
     db.addAbsensi({
       tanggal,
       karyawanId: kid,
@@ -230,6 +240,7 @@ export default function Absensi() {
     if (!validateGPSDistance()) return;
     const jam = currentTime();
     const kid = user?.role === "produksi" ? "k-produksi" : `k-${user?.outletId}-1`;
+    setRecordedJamMasuk(jam);
     db.addAbsensi({
       tanggal: todayISO(),
       karyawanId: kid,
@@ -245,6 +256,7 @@ export default function Absensi() {
     if (gpsLoading) return toast.error("Menunggu GPS mengunci lokasi...");
     if (!validateGPSDistance()) return;
     const jam = currentTime();
+    setRecordedJamPulang(jam);
     db.updateAbsensi(todayRecord.id, {
       jamPulang: jam,
       catatan: `${todayRecord.catatan || ""} | GPS Check-out: ${address} @ ${jam}`
@@ -256,6 +268,7 @@ export default function Absensi() {
     const kid = karyawanId || visibleKaryawan[0]?.id;
     if (!kid) return toast.error("Pilih karyawan terlebih dahulu");
     const jam = currentTime();
+    setRecordedJamMasuk(jam);
     db.addAbsensi({
       tanggal: todayISO(),
       karyawanId: kid,
@@ -269,6 +282,7 @@ export default function Absensi() {
   const handleClockOut = () => {
     if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
     const jam = currentTime();
+    setRecordedJamPulang(jam);
     db.updateAbsensi(todayRecord.id, {
       jamPulang: jam,
       catatan: `${todayRecord.catatan || ""} | Absen Pulang: ${jam}`
@@ -395,6 +409,17 @@ export default function Absensi() {
                 <Plus className="mr-1 h-4 w-4" />Simpan Absensi
               </Button>
             </form>
+
+            {(todayRecord || recordedJamMasuk) && (
+              <div className="mt-6 bg-muted/40 p-4 rounded-2xl border text-xs text-muted-foreground space-y-1">
+                <span className="font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Status Absensi Hari Ini — {karyawan.find(k => k.id === (karyawanId || visibleKaryawan[0]?.id))?.nama ?? "Karyawan"}
+                </span>
+                <div>• Jam Masuk: <span className="font-semibold text-foreground">{recordedJamMasuk ?? todayRecord?.jamMasuk ?? "-"}</span></div>
+                <div>• Jam Pulang: <span className="font-semibold text-foreground">{recordedJamPulang ?? todayRecord?.jamPulang ?? "Belum Checkout (Pulang)"}</span></div>
+                <div>• Status Data: <span className="font-semibold text-foreground">{(recordedJamPulang ?? todayRecord?.jamPulang) ? "Komplit" : "Sementara"}</span></div>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (user?.role === "produksi" || user?.role === "outlet") ? (
@@ -505,13 +530,13 @@ export default function Absensi() {
                 <div>
                   <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Masuk</div>
                   <div className="text-base font-extrabold text-foreground mt-0.5">
-                    {todayRecord?.jamMasuk ?? "--:--"}
+                    {recordedJamMasuk ?? todayRecord?.jamMasuk ?? "--:--"}
                   </div>
                 </div>
                 <div className="border-l">
                   <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Keluar</div>
                   <div className="text-base font-extrabold text-foreground mt-0.5">
-                    {todayRecord?.jamPulang ?? "--:--"}
+                    {recordedJamPulang ?? todayRecord?.jamPulang ?? "--:--"}
                   </div>
                 </div>
               </div>
@@ -537,7 +562,7 @@ export default function Absensi() {
                 </Button>
               ) : (
                 <div className="h-12 w-full flex items-center justify-center bg-success/10 border border-success/30 rounded-xl text-sm font-semibold text-success shadow-inner">
-                  <Check className="mr-2 h-5 w-5 shrink-0" /> Absensi Hari Ini Lengkap ({todayRecord.jamMasuk} - {todayRecord.jamPulang})
+                  <Check className="mr-2 h-5 w-5 shrink-0" /> Absensi Hari Ini Lengkap ({recordedJamMasuk ?? todayRecord.jamMasuk} - {recordedJamPulang ?? todayRecord.jamPulang})
                 </div>
               )}
             </div>
@@ -579,18 +604,18 @@ export default function Absensi() {
                   </Button>
                 ) : (
                   <div className="h-12 w-full flex items-center justify-center bg-success/10 border border-success/30 rounded-xl text-sm font-semibold text-success">
-                    <Check className="mr-1 h-4 w-4 shrink-0" /> Absensi Lengkap · Masuk: {todayRecord.jamMasuk} · Pulang: {todayRecord.jamPulang}
+                    <Check className="mr-1 h-4 w-4 shrink-0" /> Absensi Lengkap · Masuk: {recordedJamMasuk ?? todayRecord?.jamMasuk} · Pulang: {recordedJamPulang ?? todayRecord?.jamPulang}
                   </div>
                 )}
               </div>
             </div>
 
-            {todayRecord && todayRecord.status === "Hadir" && (
+            {(todayRecord || recordedJamMasuk) && (
               <div className="bg-muted/40 p-4 rounded-2xl border text-xs text-muted-foreground space-y-1">
                 <span className="font-bold text-muted-foreground uppercase tracking-wider block mb-1">Status Absensi Hari Ini:</span>
-                <div>• Jam Masuk: <span className="font-semibold text-foreground">{todayRecord.jamMasuk ?? "-"}</span></div>
-                <div>• Jam Pulang: <span className="font-semibold text-foreground">{todayRecord.jamPulang ?? "Belum Checkout (Pulang)"}</span></div>
-                <div>• Status Data: <span className="font-semibold text-foreground">{todayRecord.jamPulang ? "Komplit" : "Sementara (Menunggu Pulang)"}</span></div>
+                <div>• Jam Masuk: <span className="font-semibold text-foreground">{recordedJamMasuk ?? todayRecord?.jamMasuk ?? "-"}</span></div>
+                <div>• Jam Pulang: <span className="font-semibold text-foreground">{recordedJamPulang ?? todayRecord?.jamPulang ?? "Belum Checkout (Pulang)"}</span></div>
+                <div>• Status Data: <span className="font-semibold text-foreground">{(recordedJamPulang ?? todayRecord?.jamPulang) ? "Komplit" : "Sementara (Menunggu Pulang)"}</span></div>
               </div>
             )}
           </CardContent>

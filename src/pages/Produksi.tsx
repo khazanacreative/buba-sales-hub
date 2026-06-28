@@ -218,21 +218,18 @@ export default function Produksi() {
   const [expandedOutlets, setExpandedOutlets] = useState<Record<string, boolean>>({});
   const [recipeExpanded, setRecipeExpanded] = useState(false);
   const [estimasiExpanded, setEstimasiExpanded] = useState(false);
-  const [komposisiExpanded, setKomposisiExpanded] = useState(false);
   const [settings, setSettings] = useState(getBubaSettings());
   useEffect(() => {
     const handler = () => setSettings(getBubaSettings());
     window.addEventListener("buba_settings_changed", handler);
     return () => window.removeEventListener("buba_settings_changed", handler);
   }, []);
-  const [step2OutletId, setStep2OutletId] = useState("");
   const [step4OutletId, setStep4OutletId] = useState("");
   const [step5OutletId, setStep5OutletId] = useState("");
 
   useEffect(() => {
     if (outlets.length > 0) {
       if (!step1OutletId) setStep1OutletId(outlets[0].id);
-      if (!step2OutletId) setStep2OutletId(outlets[0].id);
       if (!step4OutletId) setStep4OutletId(outlets[0].id);
       if (!step5OutletId) setStep5OutletId(outlets[0].id);
     }
@@ -600,7 +597,7 @@ export default function Produksi() {
         bahanId: "b-brs01",
         kode: "BRS01",
         nama: "BERAS",
-        qty: Math.round((berasGr / 1000) * 100) / 100, // Pack
+        qty: Math.round((berasGr / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 1000)) * 100) / 100, // Pack
         rawQtyGrams: berasGr,
         satuan: "Pack"
       });
@@ -611,7 +608,7 @@ export default function Produksi() {
       const b = bahan.find(x => x.id === variantId);
       if (b && grams > 0) {
         const existing = reqs.find(r => r.bahanId === variantId);
-        const qtyPcs = Math.round((grams / 100) * 100) / 100; // 1 sachet = 100g
+        const qtyPcs = Math.round((grams / (b?.konversiGram ?? 100)) * 100) / 100; // konversi dari data bahan
         if (existing) {
           existing.qty = Math.round((existing.qty + qtyPcs) * 100) / 100;
           existing.rawQtyGrams += grams;
@@ -641,7 +638,7 @@ export default function Produksi() {
         bahanId: "b-pud01",
         kode: "PUD01",
         nama: "PUDING",
-        qty: Math.round((pudingGr / 100) * 100) / 100, // sachet
+        qty: Math.round((pudingGr / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 100)) * 100) / 100, // sachet
         rawQtyGrams: pudingGr,
         satuan: "sachet"
       });
@@ -654,7 +651,7 @@ export default function Produksi() {
         bahanId: "b-oat01",
         kode: "OAT01",
         nama: "OAT",
-        qty: Math.round((oatGr / 100) * 100) / 100, // sachet
+        qty: Math.round((oatGr / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 100)) * 100) / 100, // sachet
         rawQtyGrams: oatGr,
         satuan: "sachet"
       });
@@ -667,7 +664,7 @@ export default function Produksi() {
         bahanId: "b-ab01",
         kode: "AB01",
         nama: "ABON",
-        qty: Math.round((abonGr / 100) * 100) / 100, // cup
+        qty: Math.round((abonGr / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 100)) * 100) / 100, // cup
         rawQtyGrams: abonGr,
         satuan: "cup"
       });
@@ -1021,22 +1018,22 @@ export default function Produksi() {
     const movPromises: Promise<any>[] = [];
     if (recoveredIngredients.beras > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-brs01", tipe: "IN", qty: Math.round((recoveredIngredients.beras / 1000) * 100) / 100, keterangan: "Retur Bahan Baku (Pack)"
+        tanggal, bahanId: "b-brs01", tipe: "IN", qty: Math.round((recoveredIngredients.beras / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 1000)) * 100) / 100, keterangan: "Retur Bahan Baku (Pack)"
       }));
     }
     if (recoveredIngredients.puding > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-pud01", tipe: "IN", qty: Math.round((recoveredIngredients.puding / 100) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
+        tanggal, bahanId: "b-pud01", tipe: "IN", qty: Math.round((recoveredIngredients.puding / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 100)) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
       }));
     }
     if (recoveredIngredients.oat > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-oat01", tipe: "IN", qty: Math.round((recoveredIngredients.oat / 100) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
+        tanggal, bahanId: "b-oat01", tipe: "IN", qty: Math.round((recoveredIngredients.oat / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 100)) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
       }));
     }
     if (recoveredIngredients.abon > 0) {
       movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.round((recoveredIngredients.abon / 100) * 100) / 100, keterangan: "Retur Bahan Baku (cup)"
+        tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.round((recoveredIngredients.abon / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 100)) * 100) / 100, keterangan: "Retur Bahan Baku (cup)"
       }));
     }
 
@@ -1370,14 +1367,14 @@ export default function Produksi() {
             </div>
           </div>
 
-          {/* Keterangan Gramasi & Estimasi Kebutuhan Bahan Baku Total (Collapsible) */}
+          {/* Keterangan Gramasi & Kebutuhan Bahan Baku Total (Collapsible) */}
           <div className="bg-muted/10 p-4 rounded-2xl border space-y-3 shadow-inner">
             <div 
               onClick={() => setEstimasiExpanded(prev => !prev)}
               className="flex items-center justify-between cursor-pointer select-none"
             >
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Calculator className="h-4 w-4 text-primary" /> Estimasi Kebutuhan Bahan Baku Total (Seluruh Outlet)
+                <Calculator className="h-4 w-4 text-primary" /> Kebutuhan Bahan Baku Total (Seluruh Outlet)
               </h3>
               <div className="flex items-center gap-1 text-[11px] text-primary font-semibold">
                 {estimasiExpanded ? "Sembunyikan" : "Lihat Detail"}
@@ -1411,7 +1408,7 @@ export default function Produksi() {
               if (!hasPlan) {
                 return (
                   <p className="text-xs text-muted-foreground italic">
-                    Belum ada target porsi yang dimasukkan untuk hari ini. Estimasi bahan akan terhitung otomatis.
+                    Belum ada target porsi yang dimasukkan untuk hari ini. Kebutuhan bahan akan terhitung otomatis.
                   </p>
                 );
               }
@@ -1557,134 +1554,6 @@ export default function Produksi() {
                   </div>
                 )}
               </div>
-            )}
-          </div>
-
-          {/* Detailed Recipe Breakdown per Outlet (Collapsible) */}
-          <div className="bg-muted/10 p-4 rounded-2xl border space-y-3 shadow-inner">
-            <div 
-              onClick={() => setKomposisiExpanded(prev => !prev)}
-              className="flex items-center justify-between cursor-pointer select-none"
-            >
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Calculator className="h-4 w-4 text-primary" /> Detail Komposisi Bahan Masak Per Outlet
-              </h3>
-              <div className="flex items-center gap-1 text-[11px] text-primary font-semibold">
-                {komposisiExpanded ? "Sembunyikan" : "Lihat Detail"}
-                {komposisiExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </div>
-            </div>
-
-            {komposisiExpanded && (
-              <div className="border-t border-dashed pt-3 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="w-full sm:w-[240px]">
-                  <Select value={step2OutletId} onValueChange={setStep2OutletId}>
-                    <SelectTrigger className="h-9 font-semibold text-xs">
-                      <SelectValue placeholder="Pilih Outlet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {outlets.map((o: any) => (
-                        <SelectItem key={o.id} value={o.id} className="text-xs">{o.nama}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-            {(() => {
-              const selectedOutlet = outlets.find(o => o.id === step2OutletId);
-              const oPlan = planGrid[step2OutletId] || {
-                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
-                oatmeal: 0, puding: 0, abon: 0
-              };
-              
-              const outletHasPlan = Object.values(oPlan).some(v => v > 0);
-              if (!outletHasPlan) {
-                return (
-                  <p className="text-xs text-muted-foreground italic text-center py-4">
-                    Tidak ada rencana produksi untuk outlet {selectedOutlet?.nama ?? ""}.
-                  </p>
-                );
-              }
-
-              return (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {/* Bubur 1 */}
-                  {oPlan.bubur_d > 0 && (
-                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
-                      <div className="font-bold text-xs text-amber-600">Bubur 1 ({bubur1Name})</div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.bubur_d} cup</span></div>
-                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * settings.berasBubur)} gr</span></div>
-                        <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * (settings.dagingBubur / 15) * 10) / 10} gr</span></div>
-                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * settings.airBubur)} ml</span></div>
-                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * settings.sayurHijauBubur * 10) / 10} gr</span></div>
-                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * settings.sayurBrokoliBubur * 10) / 10} gr</span></div>
-                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_d * settings.sayurPutihBubur * 10) / 10} gr</span></div>
-                      </div>
-                    </div>
-                  )}
-                  {/* Bubur 2 */}
-                  {oPlan.bubur_i > 0 && (
-                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
-                      <div className="font-bold text-xs text-blue-600">Bubur 2 ({bubur2Name})</div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.bubur_i} cup</span></div>
-                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * settings.berasBubur)} gr</span></div>
-                        <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * (settings.dagingBubur / 15) * 10) / 10} gr</span></div>
-                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * settings.airBubur)} ml</span></div>
-                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * settings.sayurHijauBubur * 10) / 10} gr</span></div>
-                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * settings.sayurBrokoliBubur * 10) / 10} gr</span></div>
-                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.bubur_i * settings.sayurPutihBubur * 10) / 10} gr</span></div>
-                      </div>
-                    </div>
-                  )}
-                  {/* Tim 1 */}
-                  {oPlan.tim_d > 0 && (
-                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
-                      <div className="font-bold text-xs text-amber-600">Nasi Tim 1 ({tim1Name})</div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.tim_d} cup</span></div>
-                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * settings.berasTim)} gr</span></div>
-                        <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * (settings.dagingTim / 12) * 10) / 10} gr</span></div>
-                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * settings.airTim)} ml</span></div>
-                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * settings.sayurHijauTim * 10) / 10} gr</span></div>
-                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * settings.sayurBrokoliTim * 10) / 10} gr</span></div>
-                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_d * settings.sayurPutihTim * 10) / 10} gr</span></div>
-                      </div>
-                    </div>
-                  )}
-                  {/* Tim 2 */}
-                  {oPlan.tim_i > 0 && (
-                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
-                      <div className="font-bold text-xs text-blue-600">Nasi Tim 2 ({tim2Name})</div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <div>• Target: <span className="font-semibold text-foreground">{oPlan.tim_i} cup</span></div>
-                        <div>• Beras: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * settings.berasTim)} gr</span></div>
-                        <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * (settings.dagingTim / 12) * 10) / 10} gr</span></div>
-                        <div>• Air: <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * settings.airTim)} ml</span></div>
-                        <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * settings.sayurHijauTim * 10) / 10} gr</span></div>
-                        <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * settings.sayurBrokoliTim * 10) / 10} gr</span></div>
-                        <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.round(oPlan.tim_i * settings.sayurPutihTim * 10) / 10} gr</span></div>
-                      </div>
-                    </div>
-                  )}
-                  {/* Others */}
-                  {(oPlan.oatmeal > 0 || oPlan.puding > 0 || oPlan.abon > 0) && (
-                    <div className="p-4 rounded-2xl border bg-card/60 space-y-2">
-                      <div className="font-bold text-xs text-muted-foreground">Menu Lainnya</div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        {oPlan.oatmeal > 0 && <div>• Oatmeal: <span className="font-semibold text-foreground">{Math.round(oPlan.oatmeal * settings.oatmealCup)} gr</span> ({oPlan.oatmeal} cup)</div>}
-                        {oPlan.puding > 0 && <div>• Puding: <span className="font-semibold text-foreground">{Math.round(oPlan.puding * settings.pudingCup)} gr</span> ({oPlan.puding} cup)</div>}
-                        {oPlan.abon > 0 && <div>• Abon: <span className="font-semibold text-foreground">{Math.round(oPlan.abon * settings.abonCup)} gr</span> ({oPlan.abon} cup)</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-            </div>
             )}
           </div>
 

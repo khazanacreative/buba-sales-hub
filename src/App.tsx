@@ -38,8 +38,8 @@ const App = () => (
                   <Route path="/produksi" element={<Produksi />} />
                 </Route>
 
-                {/* Pages accessible to Admin and Outlet */}
-                <Route element={<ProtectedRoute allowedRoles={["admin", "outlet"]} />}>
+                {/* Pages accessible to Admin, Outlet, and Produksi */}
+                <Route element={<ProtectedRoute allowedRoles={["admin", "outlet", "produksi"]} />}>
                   <Route path="/laporan" element={<Laporan />} />
                 </Route>
                 

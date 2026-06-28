@@ -19,185 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
 
-// === SUBCOMPONENT: ADMIN VIEW FOR APPROVING REQUESTS ===
-function AdminPermohonanStok({ dbState }: { dbState: any }) {
-  const { permohonanStok = [], outlets = [], produk = [] } = dbState;
-
-  const [range, setRange] = useState<DateRange>({
-    from: todayISO().slice(0, 7) + "-01", // awal bulan ini
-    to: todayISO()
-  });
-  const [selectedOutletId, setSelectedOutletId] = useState<string>("all");
-
-  const filteredRequests = useMemo(() => {
-    return (permohonanStok || []).filter((r: any) => {
-      const matchDate = inRange(r.tanggalKirim, range);
-      const matchOutlet = selectedOutletId === "all" || r.outletId === selectedOutletId;
-      return matchDate && matchOutlet;
-    });
-  }, [permohonanStok, range, selectedOutletId]);
-
-  const sortedRequests = useMemo(() => {
-    return [...filteredRequests].sort((a: any, b: any) => {
-      if (a.status === "Pending" && b.status !== "Pending") return -1;
-      if (a.status !== "Pending" && b.status === "Pending") return 1;
-      return b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id);
-    });
-  }, [filteredRequests]);
-
-  const productTotals = useMemo(() => {
-    const totals: Record<string, number> = {};
-    filteredRequests.forEach((r: any) => {
-      totals[r.produkId] = (totals[r.produkId] || 0) + r.qty;
-    });
-    return totals;
-  }, [filteredRequests]);
-
-  const { paged, page, setPage, totalPages, total, pageSize } = usePagination(sortedRequests, 10);
-
-  return (
-    <Card className="glass border-0 shadow-card">
-      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <CardTitle>Daftar Permohonan Stok Outlet</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">Kelola dan setujui permintaan stok produk dari outlet</p>
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <DateRangeFilter value={range} onChange={setRange} />
-          <Select value={selectedOutletId} onValueChange={setSelectedOutletId}>
-            <SelectTrigger className="w-[180px] h-10"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Outlet</SelectItem>
-              {outlets.map((o: any) => (
-                <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Total Permohonan per Produk Summary */}
-        <div className="flex flex-wrap gap-3 bg-muted/40 p-4 rounded-2xl border">
-          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground w-full">
-            Total Permohonan per Produk (Tanggal Kirim: {range.from ?? "-"} s/d {range.to ?? "-"}):
-          </div>
-          {produk.map((p: any) => {
-            const qty = productTotals[p.id] || 0;
-            return (
-              <div key={p.id} className="bg-card px-3 py-2 rounded-xl border shadow-sm flex items-center gap-2">
-                <span className="font-semibold text-xs text-muted-foreground">{p.nama}:</span>
-                <span className="font-bold text-sm text-primary">{qty} {p.satuan}</span>
-              </div>
-            );
-          })}
-        </div>
-        <div className="rounded-2xl border overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Outlet</TableHead>
-                  <TableHead>Tgl Request</TableHead>
-                  <TableHead>Tgl Kirim</TableHead>
-                  <TableHead>Produk</TableHead>
-                  <TableHead className="text-right">Jumlah</TableHead>
-                  <TableHead>Catatan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[180px] text-center">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedRequests.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                      Belum ada permohonan stok dari outlet
-                    </TableCell>
-                  </TableRow>
-                )}
-                {paged.map((r: any) => {
-                  const outlet = outlets.find((o: any) => o.id === r.outletId);
-                  const prod = produk.find((p: any) => p.id === r.produkId);
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="whitespace-nowrap font-semibold">{outlet?.nama ?? "-"}</TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">{r.tanggal}</TableCell>
-                      <TableCell className="whitespace-nowrap">{r.tanggalKirim}</TableCell>
-                      <TableCell className="whitespace-nowrap">{prod?.nama ?? "-"}</TableCell>
-                      <TableCell className="text-right font-semibold">{r.qty} cup</TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={r.catatan}>{r.catatan || "-"}</TableCell>
-                      <TableCell>
-                        {r.status === "Pending" && (
-                          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
-                            <Clock className="h-3 w-3" /> Pending
-                          </Badge>
-                        )}
-                        {r.status === "Disetujui" && (
-                          <Badge className="bg-success text-success-foreground gap-1">
-                            <Check className="h-3 w-3" /> Disetujui
-                          </Badge>
-                        )}
-                        {r.status === "Ditolak" && (
-                          <Badge variant="destructive" className="gap-1">
-                            <X className="h-3 w-3" /> Ditolak
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {r.status === "Pending" ? (
-                          <div className="flex justify-center gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 border-success/35 text-success hover:bg-success/10 hover:text-success hover:border-success/60 font-semibold"
-                              onClick={async () => {
-                                await db.updatePermohonanStokStatus(r.id, "Disetujui");
-                                // Check if this is a retur cup request
-                                const isRetur = r.catatan === "RETUR CUP";
-                                if (r.produkId.startsWith("b-")) {
-                                  await db.addStokMov({
-                                    tanggal: todayISO(),
-                                    bahanId: r.produkId,
-                                    tipe: isRetur ? "IN" : "OUT",
-                                    qty: r.qty,
-                                    keterangan: isRetur 
-                                      ? `Retur Cup dari Outlet: ${outlet?.nama ?? "Outlet"}`
-                                      : `Request Outlet: ${outlet?.nama ?? "Outlet"}`
-                                  });
-                                }
-                                toast.success(`Permohonan ${isRetur ? "retur" : "stok"} dari ${outlet?.nama} ${isRetur ? "diterima" : "disetujui"}`);
-                              }}
-                            >
-                              <Check className="h-3.5 w-3.5 mr-1" /> Setujui
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 border-destructive/35 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/60 font-semibold"
-                              onClick={() => {
-                                db.updatePermohonanStokStatus(r.id, "Ditolak");
-                                toast.error(`Permohonan stok dari ${outlet?.nama} ditolak`);
-                              }}
-                            >
-                              <X className="h-3.5 w-3.5 mr-1" /> Tolak
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-        <TablePagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} />
-      </CardContent>
-    </Card>
-  );
-}
-
 // === MAIN COMPONENT ===
 export default function Produksi() {
   const dbState = useDB();
@@ -211,7 +32,7 @@ export default function Produksi() {
   const [tim2Variant, setTim2Variant] = useState("b-sl01"); // default SALMON
   
   const [step, setStep] = useState(1);
-  const [activeTab, setActiveTab] = useState("siklus"); // siklus, permohonan, riwayat
+  const [activeTab, setActiveTab] = useState("siklus"); // siklus, riwayat
   const [range, setRange] = useState<DateRange>({});
 
   const [step1OutletId, setStep1OutletId] = useState("");
@@ -234,10 +55,6 @@ export default function Produksi() {
       if (!step5OutletId) setStep5OutletId(outlets[0].id);
     }
   }, [outlets, step1OutletId, step4OutletId, step5OutletId]);
-
-  const pendingCount = useMemo(() => {
-    return permohonanStok.filter((r: any) => r.status === "Pending").length;
-  }, [permohonanStok]);
 
   const filtered = useMemo(() => {
     return (produksi || []).filter((p: any) => {
@@ -2574,16 +2391,8 @@ export default function Produksi() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-          <TabsList className="grid w-full max-w-[600px] grid-cols-3 bg-muted/50 p-1 rounded-xl">
+          <TabsList className="grid w-full max-w-[400px] grid-cols-2 bg-muted/50 p-1 rounded-xl">
             <TabsTrigger value="siklus" className="rounded-lg font-semibold">Siklus Produksi Harian</TabsTrigger>
-            <TabsTrigger value="permohonan" className="rounded-lg font-semibold relative">
-              Permohonan Outlet
-              {pendingCount > 0 && (
-                <span className="absolute -top-1 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white shadow animate-pulse">
-                  {pendingCount}
-                </span>
-              )}
-            </TabsTrigger>
             <TabsTrigger value="riwayat" className="rounded-lg font-semibold">Riwayat Produksi</TabsTrigger>
           </TabsList>
           {activeTab === "riwayat" && (
@@ -2595,10 +2404,6 @@ export default function Produksi() {
 
         <TabsContent value="siklus" className="space-y-6 mt-0">
           {renderSiklusView()}
-        </TabsContent>
-
-        <TabsContent value="permohonan" className="mt-0">
-          <AdminPermohonanStok dbState={dbState} />
         </TabsContent>
 
         <TabsContent value="riwayat" className="space-y-6 mt-0">

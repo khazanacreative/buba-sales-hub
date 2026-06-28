@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Save, ShoppingCart, TrendingUp, Package } from "lucide-react";
+import { Save, Package } from "lucide-react";
 import { toast } from "sonner";
 
 type Periode = "harian" | "mingguan" | "bulanan";
@@ -462,71 +462,46 @@ function SisaProduksiOH({
   }, [rows, sisaGrid, user.outletId, penjualan, produk]);
 
   return (
-    <div className="space-y-6">
-      <Card className="glass border-0 shadow-card">
-        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4 pb-2">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" />
-              Input Sisa Produksi (OH)
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Masukkan sisa produksi (cup) yang tidak terjual dari 7 menu. Penjualan akan terhitung otomatis.
-            </p>
+    <div className="space-y-4">
+      {/* Info Banner - Main selling point */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800/30 rounded-2xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">
+            <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="flex items-center gap-2">
-            <DateRangeFilter value={range} onChange={setRange} />
+          <div className="text-xs text-muted-foreground">
+            <p className="font-bold text-blue-700 dark:text-blue-300 text-sm mb-1">📋 Form Input Penjualan Utama Outlet</p>
+            <p>Masukkan <strong>sisa produksi (cup)</strong> yang <strong>tidak terjual</strong> hari ini. Jumlah terjual akan terhitung otomatis = Distribusi − Sisa. Data ini otomatis tersinkron ke <strong>Langkah 5: Retur &amp; Penjualan Akhir Hari</strong> di menu Produksi untuk diverifikasi Admin.</p>
+          </div>
+        </div>
+      </div>
+
+      <Card className="glass border-0 shadow-card">
+        <CardContent className="p-4 md:p-6 space-y-4">
+          {/* Compact Summary + Controls */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <DateRangeFilter value={range} onChange={setRange} />
+              <div className="flex items-center gap-4 text-xs">
+                <span className="text-muted-foreground">Dist: <strong className="text-foreground">{summary.totalDistribusi}</strong> cup</span>
+                <span className="text-warning font-medium">Sisa: <strong>{summary.totalSisa}</strong> cup</span>
+                <span className="text-success font-medium">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
+                <span className="text-primary font-medium">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
+              </div>
+            </div>
             <Button
               onClick={handleSubmit}
               disabled={saving || rows.length === 0}
               size="sm"
-              className="gradient-primary text-primary-foreground h-9"
+              className="gradient-primary text-primary-foreground h-9 shrink-0"
             >
               <Save className="h-4 w-4 mr-1.5" />
-              {saving ? "Menyimpan..." : "Submit Sisa Produksi"}
+              {saving ? "Menyimpan..." : "Simpan Penjualan"}
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-muted/40 p-3 rounded-xl border">
-              <div className="text-[10px] text-muted-foreground uppercase font-bold">Distribusi</div>
-              <div className="text-lg font-bold mt-1">
-                {summary.totalDistribusi} <span className="text-xs font-normal text-muted-foreground">cup</span>
-              </div>
-            </div>
-            <div className="bg-warning/5 p-3 rounded-xl border border-warning/20">
-              <div className="text-[10px] text-warning uppercase font-bold">Sisa Produksi (OH)</div>
-              <div className="text-lg font-bold mt-1">
-                {summary.totalSisa} <span className="text-xs font-normal text-muted-foreground">cup</span>
-              </div>
-            </div>
-            <div className="bg-success/5 p-3 rounded-xl border border-success/20">
-              <div className="text-[10px] text-success uppercase font-bold">Terjual</div>
-              <div className="text-lg font-bold mt-1">
-                {summary.totalTerjual} <span className="text-xs font-normal text-muted-foreground">cup</span>
-              </div>
-            </div>
-            <div className="bg-primary/5 p-3 rounded-xl border border-primary/20">
-              <div className="text-[10px] text-primary uppercase font-bold">Total Omset</div>
-              <div className="text-lg font-bold mt-1 text-primary">{rupiah(summary.totalOmset)}</div>
-            </div>
-          </div>
-
-          {/* Info Banner */}
-          <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30 rounded-2xl p-4">
-            <div className="flex items-start gap-3">
-              <Package className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
-              <div className="text-xs text-muted-foreground">
-                <p className="font-semibold text-blue-700 dark:text-blue-400 mb-1">Terhubung dengan Langkah 5: Retur &amp; Penjualan Akhir Hari</p>
-                <p>Data sisa produksi yang Anda input akan otomatis tersinkron ke tahap produksi. Admin akan melihat data penjualan dari outlet untuk ditutup di Langkah 5 siklus produksi.</p>
-              </div>
-            </div>
           </div>
 
           {/* Main Table */}
-          <div className="rounded-2xl border overflow-hidden">
+          <div className="rounded-xl border overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -620,7 +595,6 @@ function RiwayatTransaksiTab({
   range: DateRange;
   setRange: (r: DateRange) => void;
 }) {
-  const [returGrams, setReturGrams] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
 
   // Get distributions (permohonanStok Disetujui) for the selected outlet(s)
@@ -769,23 +743,17 @@ function RiwayatTransaksiTab({
       const actualReturGram = actualReturPcs * gramPerCup;
 
       // For outlet: use locally entered retur grams if available
-      const returKey = `${row.tanggal}-${row.subId}`;
-      const localReturGr = returGrams[returKey];
-      const hasLocalEntry = localReturGr !== undefined;
-
       return {
         ...row,
         actualSold,
         actualReturPcs,
         actualReturGram,
-        displayReturGr: hasLocalEntry ? localReturGr : actualReturGram,
-        displayReturPcs: hasLocalEntry ? Math.floor(localReturGr / gramPerCup) : actualReturPcs,
-        displayTerjual: hasLocalEntry
-          ? Math.max(0, row.stokAwalPcs - Math.floor(localReturGr / gramPerCup))
-          : actualSold,
+        displayReturGr: actualReturGram,
+        displayReturPcs: actualReturPcs,
+        displayTerjual: actualSold,
       };
     });
-  }, [transaksiRows, salesMap, returGrams]);
+  }, [transaksiRows, salesMap]);
 
   // Summary
   const summary = useMemo(() => {
@@ -799,75 +767,7 @@ function RiwayatTransaksiTab({
     return { totalStok, totalReturPcs, totalTerjual, totalOmset };
   }, [rowsWithActuals]);
 
-  const handleReturChange = (key: string, grams: number) => {
-    setReturGrams((prev) => ({ ...prev, [key]: isNaN(grams) ? 0 : Math.max(0, grams) }));
-  };
-
-  const handleSavePenjualan = useCallback(async () => {
-    if (!isOutlet) return;
-    setSaving(true);
-    try {
-      // Aggregate by base produkId to avoid duplicate/split records
-      const groups = new Map<string, { tanggal: string; produkId: string; stokAwalPcs: number; returPcs: number; harga: number }>();
-
-      rowsWithActuals.forEach((row) => {
-        const returKey = `${row.tanggal}-${row.subId}`;
-        const gramPerCup = GRAM_PER_CUP[row.baseId] || 100;
-        const returGr = returGrams[returKey] ?? row.actualReturGram;
-        const returPcs = Math.floor(returGr / gramPerCup);
-
-        const groupKey = `${row.tanggal}-${row.baseId}`;
-        const existing = groups.get(groupKey) || {
-          tanggal: row.tanggal,
-          produkId: row.baseId,
-          stokAwalPcs: 0,
-          returPcs: 0,
-          harga: row.harga,
-        };
-        existing.stokAwalPcs += row.stokAwalPcs;
-        existing.returPcs += returPcs;
-        groups.set(groupKey, existing);
-      });
-
-      let savedCount = 0;
-      for (const [_, group] of groups) {
-        const terjual = Math.max(0, group.stokAwalPcs - group.returPcs);
-
-        // Delete existing penjualan records for this outlet+tanggal+produk
-        const existingPenjualan = (penjualan || []).filter(
-          (p: any) => p.outletId === user.outletId && p.tanggal === group.tanggal && p.produkId === group.produkId
-        );
-        for (const p of existingPenjualan) {
-          await db.deletePenjualan(p.id);
-        }
-
-        // Create new penjualan record
-        if (terjual > 0) {
-          await db.addPenjualan({
-            tanggal: group.tanggal,
-            outletId: user.outletId,
-            produkId: group.produkId,
-            qty: terjual,
-            harga: group.harga,
-          });
-          savedCount++;
-        }
-      }
-
-      if (savedCount > 0) {
-        toast.success(`${savedCount} penjualan berhasil disimpan dan tersinkron!`);
-      } else {
-        toast.info("Tidak ada penjualan yang perlu dicatat");
-      }
-
-      setReturGrams({});
-    } catch (err) {
-      toast.error("Gagal menyimpan penjualan");
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
-  }, [rowsWithActuals, returGrams, user.outletId, isOutlet, penjualan]);
+  // Note: Penjualan input done via SisaProduksiOH tab, not here
 
   const pagination = usePagination(rowsWithActuals, 10);
 
@@ -884,8 +784,7 @@ function RiwayatTransaksiTab({
                 ? "Input retur (gram) per menu untuk mencatat penjualan harian"
                 : "Data stok dari distribusi produksi & penjualan tersinkron"}
             </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          </div>            <div className="flex items-center gap-2 flex-wrap">
             {!isOutlet && (
               <Select value={outletId} onValueChange={setOutletId}>
                 <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
@@ -898,54 +797,19 @@ function RiwayatTransaksiTab({
               </Select>
             )}
             <DateRangeFilter value={range} onChange={setRange} />
-            {isOutlet && (
-              <Button
-                onClick={handleSavePenjualan}
-                disabled={saving || rowsWithActuals.length === 0}
-                size="sm"
-                className="gradient-primary text-primary-foreground h-9"
-              >
-                <Save className="h-4 w-4 mr-1.5" />
-                {saving ? "Menyimpan..." : "Simpan Penjualan"}
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-muted/40 p-3 rounded-xl border">
-              <div className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
-                <Package className="h-3 w-3" /> Stok Diterima
-              </div>
-              <div className="text-lg font-bold mt-1">
-                {summary.totalStok} <span className="text-xs font-normal text-muted-foreground">cup</span>
-              </div>
-            </div>
-            <div className="bg-warning/5 p-3 rounded-xl border border-warning/20">
-              <div className="text-[10px] text-warning uppercase font-bold">Retur (Sisa)</div>
-              <div className="text-lg font-bold mt-1">
-                {summary.totalReturPcs} <span className="text-xs font-normal text-muted-foreground">cup</span>
-              </div>
-            </div>
-            <div className="bg-success/5 p-3 rounded-xl border border-success/20">
-              <div className="text-[10px] text-success uppercase font-bold flex items-center gap-1">
-                <ShoppingCart className="h-3 w-3" /> Terjual
-              </div>
-              <div className="text-lg font-bold mt-1">
-                {summary.totalTerjual} <span className="text-xs font-normal text-muted-foreground">cup</span>
-              </div>
-            </div>
-            <div className="bg-primary/5 p-3 rounded-xl border border-primary/20">
-              <div className="text-[10px] text-primary uppercase font-bold flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" /> Total Omset
-              </div>
-              <div className="text-lg font-bold mt-1 text-primary">{rupiah(summary.totalOmset)}</div>
-            </div>
+          {/* Compact summary bar */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground border-b pb-3">
+            <span>Stok: <strong className="text-foreground">{summary.totalStok}</strong> cup</span>
+            <span className="text-warning">Retur: <strong>{summary.totalReturPcs}</strong> cup</span>
+            <span className="text-success">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
+            <span className="text-primary">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
           </div>
 
           {/* Main Table */}
-          <div className="rounded-2xl border overflow-hidden">
+          <div className="rounded-xl border overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -975,10 +839,8 @@ function RiwayatTransaksiTab({
                     const stokAwalGram = row.stokAwalPcs * gramPerCup;
                     const returKey = `${row.tanggal}-${row.subId}`;
 
-                    const isEditable = isOutlet;
-                    const displayReturGr = isEditable
-                      ? (returGrams[returKey] ?? (row.actualReturGram > 0 ? row.actualReturGram : 0))
-                      : row.actualReturGram;
+                    const isEditable = false; // Input via Sisa Produksi (OH) tab, not here
+                    const displayReturGr = row.actualReturGram;
                     const returPcs = isEditable
                       ? Math.floor(displayReturGr / gramPerCup)
                       : row.actualReturPcs;
@@ -999,22 +861,7 @@ function RiwayatTransaksiTab({
                           {stokAwalGram.toLocaleString()} g
                         </TableCell>
                         <TableCell className="text-right">
-                          {isEditable ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <Input
-                                type="number"
-                                min={0}
-                                max={stokAwalGram}
-                                value={displayReturGr || ""}
-                                onChange={(e) => handleReturChange(returKey, parseInt(e.target.value) || 0)}
-                                className="w-20 h-8 text-xs text-center"
-                                placeholder="0"
-                              />
-                              <span className="text-[10px] text-muted-foreground">g</span>
-                            </div>
-                          ) : (
-                            <span className="text-sm">{displayReturGr > 0 ? `${displayReturGr} g` : "-"}</span>
-                          )}
+                          <span className="text-sm">{displayReturGr > 0 ? `${displayReturGr} g` : "-"}</span>
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {returPcs > 0 ? (

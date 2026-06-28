@@ -222,9 +222,6 @@ export default function Laporan() {
     </div>
   );
 }
-    </div>
-  );
-}
 
 // === OUTLET RIWAYAT TRANSAKSI COMPONENT ===
 function OutletRiwayatTransaksi({ user, permohonanStok, produk }: any) {

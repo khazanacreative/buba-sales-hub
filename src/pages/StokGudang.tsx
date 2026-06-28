@@ -858,7 +858,6 @@ export default function StokGudang() {
             </Card>
           </TabsContent>
         </Tabs>
-</div>
 
       <Card className="glass border-0 shadow-card">
         <CardHeader><CardTitle>Saldo Bahan Baku</CardTitle></CardHeader>

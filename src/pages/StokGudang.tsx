@@ -673,10 +673,11 @@ export default function StokGudang() {
       </div>
 
             <Tabs defaultValue="pergerakan" className="w-full space-y-4">
-          <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-xl">
+          <TabsList className="grid w-full grid-cols-5 bg-muted/50 p-1 rounded-xl">
             <TabsTrigger value="pergerakan" className="rounded-lg">Pergerakan Stok</TabsTrigger>
             <TabsTrigger value="supplier" className="rounded-lg">Kiriman Supplier</TabsTrigger>
             <TabsTrigger value="permohonan" className="rounded-lg">Permohonan Outlet</TabsTrigger>
+            <TabsTrigger value="retur-perlengkapan" className="rounded-lg">Retur Perlengkapan</TabsTrigger>
             <TabsTrigger value="rusak" className="rounded-lg">Barang Rusak</TabsTrigger>
           </TabsList>
 
@@ -813,6 +814,10 @@ export default function StokGudang() {
 
           <TabsContent value="permohonan" className="m-0">
             <AdminPermohonanOutletInner dbState={dbState} />
+          </TabsContent>
+
+          <TabsContent value="retur-perlengkapan" className="m-0">
+            <AdminReturPerlengkapanInner dbState={dbState} />
           </TabsContent>
 
           <TabsContent value="rusak" className="m-0">
@@ -966,6 +971,7 @@ function AdminPermohonanOutletInner({ dbState }: { dbState: any }) {
   const filteredRequests = useMemo(() => {
     return (permohonanStok || []).filter((r: any) => {
       if (PRODUCTION_PRODUCTS.includes(r.produkId)) return false;
+      if (r.catatan === "RETUR CUP") return false; // Retur handled in Retur Perlengkapan tab
       const matchDate = inRange(r.tanggalKirim, range);
       const matchOutlet = selectedOutletId === "all" || r.outletId === selectedOutletId;
       return matchDate && matchOutlet;
@@ -1026,11 +1032,10 @@ function AdminPermohonanOutletInner({ dbState }: { dbState: any }) {
                 {paged.map((r: any) => {
                   const outlet = outlets.find((o: any) => o.id === r.outletId);
                   const prod = produk.find((p: any) => p.id === r.produkId);
-                  const isRetur = r.catatan === "RETUR CUP";
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap font-medium text-xs">{outlet?.nama ?? "-"}</TableCell>
-                      <TableCell className="whitespace-nowrap text-xs">{prod?.nama ?? "-"} {isRetur && <Badge className="text-[9px] h-4 bg-blue-500/10 text-blue-600 border-blue-200">Retur</Badge>}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{prod?.nama ?? "-"}</TableCell>
                       <TableCell className="text-right font-semibold">{r.qty}</TableCell>
                       <TableCell>
                         {r.status === "Pending" && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-[10px]"><Clock className="h-3 w-3" /> Pending</Badge>}
@@ -1046,8 +1051,8 @@ function AdminPermohonanOutletInner({ dbState }: { dbState: any }) {
                                 if (r.produkId.startsWith("b-")) {
                                   await db.addStokMov({
                                     tanggal: todayISO(), bahanId: r.produkId,
-                                    tipe: isRetur ? "IN" : "OUT", qty: r.qty,
-                                    keterangan: `${isRetur ? "Retur" : "Permohonan"} ${prod?.nama ?? ""} dari ${outlet?.nama ?? "Outlet"}`
+                                    tipe: "OUT", qty: r.qty,
+                                    keterangan: `Permohonan ${prod?.nama ?? ""} dari ${outlet?.nama ?? "Outlet"}`
                                   });
                                 }
                                 toast.success(`Disetujui!`);
@@ -1058,6 +1063,130 @@ function AdminPermohonanOutletInner({ dbState }: { dbState: any }) {
                               onClick={() => {
                                 db.updatePermohonanStokStatus(r.id, "Ditolak");
                                 toast.error("Ditolak");
+                              }}>
+                              <X className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+        <TablePagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} />
+      </CardContent>
+    </Card>
+  );
+}
+
+// === SUBCOMPONENT FOR RETUR PERLENGKAPAN TAB ===
+function AdminReturPerlengkapanInner({ dbState }: { dbState: any }) {
+  const { permohonanStok = [], outlets = [], produk = [] } = dbState;
+
+  const [range, setRange] = useState<DateRange>({
+    from: todayISO().slice(0, 7) + "-01",
+    to: todayISO()
+  });
+  const [selectedOutletId, setSelectedOutletId] = useState<string>("all");
+
+  const filteredRequests = useMemo(() => {
+    return (permohonanStok || []).filter((r: any) => {
+      if (r.catatan !== "RETUR CUP") return false; // Only retur requests
+      const matchDate = inRange(r.tanggalKirim, range);
+      const matchOutlet = selectedOutletId === "all" || r.outletId === selectedOutletId;
+      return matchDate && matchOutlet;
+    });
+  }, [permohonanStok, range, selectedOutletId]);
+
+  const sortedRequests = useMemo(() => {
+    return [...filteredRequests].sort((a: any, b: any) => {
+      if (a.status === "Pending" && b.status !== "Pending") return -1;
+      if (a.status !== "Pending" && b.status === "Pending") return 1;
+      return b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id);
+    });
+  }, [filteredRequests]);
+
+  const { paged, page, setPage, totalPages, total, pageSize } = usePagination(sortedRequests, 10);
+
+  return (
+    <Card className="glass border-0 shadow-card flex-1">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <CardTitle className="text-sm">Retur Perlengkapan Outlet</CardTitle>
+          <p className="text-[10px] text-muted-foreground">Setujui retur cup — stok otomatis bertambah (IN)</p>
+        </div>
+        <div className="flex gap-2">
+          <DateRangeFilter value={range} onChange={setRange} />
+          <Select value={selectedOutletId} onValueChange={setSelectedOutletId}>
+            <SelectTrigger className="w-[140px] h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua</SelectItem>
+              {outlets.map((o: any) => (
+                <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-xl border overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Outlet</TableHead>
+                  <TableHead>Perlengkapan</TableHead>
+                  <TableHead className="text-right">Jumlah</TableHead>
+                  <TableHead>Tgl Retur</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[130px]">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedRequests.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      Tidak ada retur perlengkapan
+                    </TableCell>
+                  </TableRow>
+                )}
+                {paged.map((r: any) => {
+                  const outlet = outlets.find((o: any) => o.id === r.outletId);
+                  const prod = produk.find((p: any) => p.id === r.produkId);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="whitespace-nowrap font-medium text-xs">{outlet?.nama ?? "-"}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{prod?.nama ?? "Cup Bubur / Tim"}</TableCell>
+                      <TableCell className="text-right font-semibold">{r.qty} biji</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{r.tanggal}</TableCell>
+                      <TableCell>
+                        {r.status === "Pending" && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-[10px]"><Clock className="h-3 w-3" /> Pending</Badge>}
+                        {r.status === "Disetujui" && <Badge className="bg-success text-success-foreground text-[10px]"><Check className="h-3 w-3" /> OK</Badge>}
+                        {r.status === "Ditolak" && <Badge variant="destructive" className="text-[10px]"><X className="h-3 w-3" /> Tolak</Badge>}
+                      </TableCell>
+                      <TableCell>
+                        {r.status === "Pending" && (
+                          <div className="flex gap-1">
+                            <Button size="sm" className="h-7 w-7 p-0" variant="outline"
+                              onClick={async () => {
+                                await db.updatePermohonanStokStatus(r.id, "Disetujui");
+                                // Retur approved = stock IN
+                                await db.addStokMov({
+                                  tanggal: todayISO(), bahanId: r.produkId,
+                                  tipe: "IN", qty: r.qty,
+                                  keterangan: `Retur ${prod?.nama ?? ""} dari ${outlet?.nama ?? "Outlet"}`
+                                });
+                                toast.success(`Retur disetujui! Stok bertambah ${r.qty}`);
+                              }}>
+                              <Check className="h-3 w-3 text-success" />
+                            </Button>
+                            <Button size="sm" className="h-7 w-7 p-0" variant="outline"
+                              onClick={() => {
+                                db.updatePermohonanStokStatus(r.id, "Ditolak");
+                                toast.error("Retur ditolak");
                               }}>
                               <X className="h-3 w-3 text-destructive" />
                             </Button>

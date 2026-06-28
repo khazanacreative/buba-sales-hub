@@ -65,6 +65,39 @@ export default function Absensi() {
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("Mencari lokasi GPS...");
 
+  // Get actual outlet location data from Master Data
+  const myOutletLocation = useMemo(() => {
+    if (user?.role !== "outlet" || !user?.outletId) return null;
+    const myOutlet = outlets.find((o: any) => o.id === user.outletId);
+    if (!myOutlet || !myOutlet.lokasi) return null;
+    
+    const parts = (myOutlet.lokasi || "").split(" @ ");
+    const alamat = parts[0] || "";
+    let lat = -7.641234;
+    let lng = 112.906123;
+    let radius = 100;
+    
+    if (parts[1]) {
+      const coords = parts[1].split(",");
+      if (coords[0]) lat = parseFloat(coords[0]) || lat;
+      if (coords[1]) lng = parseFloat(coords[1]) || lng;
+      if (coords[2]) radius = parseInt(coords[2]) || radius;
+    }
+    
+    return { alamat, lat, lng, radius, nama: myOutlet.nama };
+  }, [user, outlets]);
+
+  const getOutletAddress = (lat: number, lng: number) => {
+    const loc = myOutletLocation;
+    if (loc) {
+      return `${loc.nama}, ${loc.alamat || "-"} (${lat.toFixed(6)}, ${lng.toFixed(6)})`;
+    }
+    
+    // Fallback: use outlet name from database
+    const outletNama = user?.role === "outlet" ? (user?.nama || "Outlet") : "Dapur Utama Buba Healthy";
+    return `${outletNama} (${lat.toFixed(6)}, ${lng.toFixed(6)})`;
+  };
+
   const fetchGPSLocation = () => {
     setGpsLoading(true);
     setAddress("Sedang mengambil lokasi...");
@@ -74,24 +107,38 @@ export default function Absensi() {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           setCoordinates({ lat, lng });
-          const locName = user?.role === "outlet" ? `Outlet ${user.nama}` : "Dapur Utama Buba Healthy";
-          setAddress(`${locName}, Pasuruan (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+          setAddress(getOutletAddress(lat, lng));
           setGpsLoading(false);
           toast.success("GPS berhasil mengunci lokasi!");
         },
         (error) => {
-          console.error("GPS error, falling back to mock:", error);
-          setCoordinates({ lat: -7.641234, lng: 112.906123 });
-          const locName = user?.role === "outlet" ? `Outlet ${user.nama}` : "Dapur Utama Buba";
-          setAddress(`${locName}, Jl. Raya Rajawali No. 45, Pasuruan`);
+          console.error("GPS error:", error);
+          // Fallback to outlet's configured GPS coordinates
+          const loc = myOutletLocation;
+          if (loc) {
+            setCoordinates({ lat: loc.lat, lng: loc.lng });
+            setAddress(`${loc.nama}, ${loc.alamat || "Lokasi outlet"} (${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)})`);
+          } else {
+            const fallbackLat = -7.641234;
+            const fallbackLng = 112.906123;
+            setCoordinates({ lat: fallbackLat, lng: fallbackLng });
+            const locName = user?.role === "outlet" ? (user?.nama || "Outlet") : "Dapur Utama Buba Healthy";
+            setAddress(`${locName} (${fallbackLat.toFixed(6)}, ${fallbackLng.toFixed(6)})`);
+          }
           setGpsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setCoordinates({ lat: -7.641234, lng: 112.906123 });
-      const locName = user?.role === "outlet" ? `Outlet ${user.nama}` : "Dapur Utama Buba";
-      setAddress(`${locName}, Jl. Raya Rajawali No. 45, Pasuruan`);
+      const loc = myOutletLocation;
+      if (loc) {
+        setCoordinates({ lat: loc.lat, lng: loc.lng });
+        setAddress(`${loc.nama}, ${loc.alamat || "Lokasi outlet"} (${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)})`);
+      } else {
+        setCoordinates({ lat: -7.641234, lng: 112.906123 });
+        const locName = user?.role === "outlet" ? (user?.nama || "Outlet") : "Dapur Utama Buba Healthy";
+        setAddress(`${locName} (${-7.641234.toFixed(6)}, ${112.906123.toFixed(6)})`);
+      }
       setGpsLoading(false);
     }
   };
@@ -181,50 +228,52 @@ export default function Absensi() {
   const handleClockInGPS = () => {
     if (gpsLoading) return toast.error("Menunggu GPS mengunci lokasi...");
     if (!validateGPSDistance()) return;
+    const jam = currentTime();
     const kid = user?.role === "produksi" ? "k-produksi" : `k-${user?.outletId}-1`;
     db.addAbsensi({
       tanggal: todayISO(),
       karyawanId: kid,
-      jamMasuk: currentTime(),
+      jamMasuk: jam,
       status: "Hadir",
-      catatan: `GPS Check-in: ${address}`
+      catatan: `GPS Check-in: ${address} @ ${jam}`
     });
-    toast.success("Berhasil Absen Masuk (GPS)!");
+    toast.success(`Berhasil Absen Masuk (GPS) pukul ${jam}`);
   };
 
   const handleClockOutGPS = () => {
     if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
     if (gpsLoading) return toast.error("Menunggu GPS mengunci lokasi...");
     if (!validateGPSDistance()) return;
-    const confirmOut = window.confirm("Apakah Anda yakin ingin melakukan Absen Pulang?");
-    if (!confirmOut) return;
+    const jam = currentTime();
     db.updateAbsensi(todayRecord.id, {
-      jamPulang: currentTime(),
-      catatan: `${todayRecord.catatan || ""}. GPS Check-out: ${address}`
+      jamPulang: jam,
+      catatan: `${todayRecord.catatan || ""} | GPS Check-out: ${address} @ ${jam}`
     });
-    toast.success("Berhasil Absen Pulang (GPS)!");
+    toast.success(`Berhasil Absen Pulang (GPS) pukul ${jam}`);
   };
 
   const handleClockIn = () => {
     const kid = karyawanId || visibleKaryawan[0]?.id;
     if (!kid) return toast.error("Pilih karyawan terlebih dahulu");
+    const jam = currentTime();
     db.addAbsensi({
       tanggal: todayISO(),
       karyawanId: kid,
-      jamMasuk: currentTime(),
+      jamMasuk: jam,
       status: "Hadir",
+      catatan: `Absen Masuk: ${jam}`
     });
-    toast.success("Berhasil Absen Masuk!");
+    toast.success(`Berhasil Absen Masuk pukul ${jam}!`);
   };
 
   const handleClockOut = () => {
     if (!todayRecord) return toast.error("Data absensi tidak ditemukan");
-    const confirmOut = window.confirm("Apakah Anda yakin ingin melakukan Absen Pulang?");
-    if (!confirmOut) return;
+    const jam = currentTime();
     db.updateAbsensi(todayRecord.id, {
-      jamPulang: currentTime(),
+      jamPulang: jam,
+      catatan: `${todayRecord.catatan || ""} | Absen Pulang: ${jam}`
     });
-    toast.success("Berhasil Absen Pulang!");
+    toast.success(`Berhasil Absen Pulang pukul ${jam}!`);
   };
 
   const visibleIds = new Set(visibleKaryawan.map((k) => k.id));

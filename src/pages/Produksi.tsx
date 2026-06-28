@@ -151,16 +151,20 @@ function AdminPermohonanStok({ dbState }: { dbState: any }) {
                               className="h-8 border-success/35 text-success hover:bg-success/10 hover:text-success hover:border-success/60 font-semibold"
                               onClick={async () => {
                                 await db.updatePermohonanStokStatus(r.id, "Disetujui");
+                                // Check if this is a retur cup request
+                                const isRetur = r.catatan === "RETUR CUP";
                                 if (r.produkId.startsWith("b-")) {
                                   await db.addStokMov({
                                     tanggal: todayISO(),
                                     bahanId: r.produkId,
-                                    tipe: "OUT",
+                                    tipe: isRetur ? "IN" : "OUT",
                                     qty: r.qty,
-                                    keterangan: `Request Outlet: ${outlet?.nama ?? "Outlet"}`
+                                    keterangan: isRetur 
+                                      ? `Retur Cup dari Outlet: ${outlet?.nama ?? "Outlet"}`
+                                      : `Request Outlet: ${outlet?.nama ?? "Outlet"}`
                                   });
                                 }
-                                toast.success(`Permohonan stok dari ${outlet?.nama} disetujui`);
+                                toast.success(`Permohonan ${isRetur ? "retur" : "stok"} dari ${outlet?.nama} ${isRetur ? "diterima" : "disetujui"}`);
                               }}
                             >
                               <Check className="h-3.5 w-3.5 mr-1" /> Setujui
@@ -213,6 +217,8 @@ export default function Produksi() {
   const [step1OutletId, setStep1OutletId] = useState("");
   const [expandedOutlets, setExpandedOutlets] = useState<Record<string, boolean>>({});
   const [recipeExpanded, setRecipeExpanded] = useState(false);
+  const [estimasiExpanded, setEstimasiExpanded] = useState(false);
+  const [komposisiExpanded, setKomposisiExpanded] = useState(false);
   const [settings, setSettings] = useState(getBubaSettings());
   useEffect(() => {
     const handler = () => setSettings(getBubaSettings());
@@ -1364,12 +1370,24 @@ export default function Produksi() {
             </div>
           </div>
 
-          {/* Keterangan Gramasi & Estimasi Kebutuhan Bahan Baku Total */}
-          <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-inner">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Calculator className="h-4 w-4 text-primary" /> Estimasi Kebutuhan Bahan Baku Total (Seluruh Outlet)
-            </h3>
-            {(() => {
+          {/* Keterangan Gramasi & Estimasi Kebutuhan Bahan Baku Total (Collapsible) */}
+          <div className="bg-muted/10 p-4 rounded-2xl border space-y-3 shadow-inner">
+            <div 
+              onClick={() => setEstimasiExpanded(prev => !prev)}
+              className="flex items-center justify-between cursor-pointer select-none"
+            >
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Calculator className="h-4 w-4 text-primary" /> Estimasi Kebutuhan Bahan Baku Total (Seluruh Outlet)
+              </h3>
+              <div className="flex items-center gap-1 text-[11px] text-primary font-semibold">
+                {estimasiExpanded ? "Sembunyikan" : "Lihat Detail"}
+                {estimasiExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </div>
+            </div>
+
+            {estimasiExpanded && (
+              <div className="border-t border-dashed pt-3">
+              {(() => {
               // Calculate ingredients for all outlets combined
               const totalBeras = (totals.buburD * settings.berasBubur) + (totals.buburI * settings.berasBubur) + (totals.timD * settings.berasTim) + (totals.timI * settings.berasTim);
               const totalAyamBubur = totals.buburD * (settings.dagingBubur/15);
@@ -1426,6 +1444,8 @@ export default function Produksi() {
                 </div>
               );
             })()}
+            </div>
+            )}
           </div>
 
           <div className="flex justify-end">
@@ -1540,25 +1560,37 @@ export default function Produksi() {
             )}
           </div>
 
-          {/* Detailed Recipe Breakdown per Outlet */}
-          <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-inner">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+          {/* Detailed Recipe Breakdown per Outlet (Collapsible) */}
+          <div className="bg-muted/10 p-4 rounded-2xl border space-y-3 shadow-inner">
+            <div 
+              onClick={() => setKomposisiExpanded(prev => !prev)}
+              className="flex items-center justify-between cursor-pointer select-none"
+            >
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Calculator className="h-4 w-4 text-primary" /> Detail Komposisi Bahan Masak Per Outlet (Langkah 2)
+                <Calculator className="h-4 w-4 text-primary" /> Detail Komposisi Bahan Masak Per Outlet
               </h3>
-              <div className="w-full sm:w-[240px]">
-                <Select value={step2OutletId} onValueChange={setStep2OutletId}>
-                  <SelectTrigger className="h-9 font-semibold text-xs">
-                    <SelectValue placeholder="Pilih Outlet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {outlets.map((o: any) => (
-                      <SelectItem key={o.id} value={o.id} className="text-xs">{o.nama}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-1 text-[11px] text-primary font-semibold">
+                {komposisiExpanded ? "Sembunyikan" : "Lihat Detail"}
+                {komposisiExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               </div>
             </div>
+
+            {komposisiExpanded && (
+              <div className="border-t border-dashed pt-3 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="w-full sm:w-[240px]">
+                  <Select value={step2OutletId} onValueChange={setStep2OutletId}>
+                    <SelectTrigger className="h-9 font-semibold text-xs">
+                      <SelectValue placeholder="Pilih Outlet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets.map((o: any) => (
+                        <SelectItem key={o.id} value={o.id} className="text-xs">{o.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
             {(() => {
               const selectedOutlet = outlets.find(o => o.id === step2OutletId);
@@ -1652,6 +1684,8 @@ export default function Produksi() {
                 </div>
               );
             })()}
+            </div>
+            )}
           </div>
 
           <div className="space-y-3">

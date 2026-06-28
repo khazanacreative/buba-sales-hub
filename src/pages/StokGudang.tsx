@@ -18,7 +18,7 @@ import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// === SUBCOMPONENT: OUTLET VIEW FOR REQUESTING STOCK ===
+// === SUBCOMPONENT: OUTLET VIEW FOR REQUESTING STOCK & RETUR ===
 function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   const { produk = [], permohonanStok = [] } = dbState;
   const tomorrow = () => {
@@ -27,7 +27,11 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
     return d.toISOString().slice(0, 10);
   };
 
+  const [activeTab, setActiveTab] = useState("request");
+
+  // === REQUEST PERLENGKAPAN ===
   const supportItems = useMemo(() => {
+    // Filter only supply items (harga 0 or started with b-)
     return (produk || []).filter((p: any) => p.harga === 0 || p.id.startsWith("b-"));
   }, [produk]);
 
@@ -36,6 +40,10 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   const [qty, setQty] = useState(1);
   const [tanggalKirim, setTanggalKirim] = useState(tomorrow());
   const [catatan, setCatatan] = useState("");
+
+  // Retur state
+  const [returCupQty, setReturCupQty] = useState(0);
+  const [returTanggal, setReturTanggal] = useState(todayISO());
 
   const selectedProduct = useMemo(() => {
     return (produk || []).find((p: any) => p.id === produkId);
@@ -87,189 +95,334 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
     setCatatan("");
   };
 
+  const handleSubmitRetur = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (returCupQty <= 0) return toast.error("Masukkan jumlah retur Cup Bubur/Tim yang valid");
+
+    // Create permohonan stok with special catatan for retur
+    await db.addPermohonanStok({
+      tanggal: returTanggal,
+      tanggalKirim: returTanggal,
+      outletId: user.outletId,
+      produkId: "b-cb01",
+      qty: returCupQty,
+      catatan: "RETUR CUP"
+    });
+
+    toast.success("Retur Cup Bubur/Tim berhasil dikirim, menunggu persetujuan Admin");
+    setReturCupQty(0);
+  };
+
   const myRequests = useMemo(() => {
     return (permohonanStok || [])
-      .filter((r: any) => r.outletId === user.outletId)
+      .filter((r: any) => r.outletId === user.outletId && r.catatan !== "RETUR CUP")
       .sort((a: any, b: any) => b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id));
   }, [permohonanStok, user.outletId]);
 
-  const { paged, page, setPage, totalPages, total, pageSize } = usePagination(myRequests, 10);
+  const myReturRequests = useMemo(() => {
+    return (permohonanStok || [])
+      .filter((r: any) => r.outletId === user.outletId && r.catatan === "RETUR CUP")
+      .sort((a: any, b: any) => b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id));
+  }, [permohonanStok, user.outletId]);
+
+  const requestPg = usePagination(myRequests, 10);
+  const returPg = usePagination(myReturRequests, 10);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gradient">Request Perlengkapan Outlet</h1>
-        <p className="text-sm text-muted-foreground">Ajukan permohonan perlengkapan pendukung (cup, tutup, sendok, tisu, kantong, dll.) ke admin.</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gradient">Permohonan Outlet</h1>
+        <p className="text-sm text-muted-foreground">Ajukan permohonan perlengkapan dan retur cup ke admin</p>
       </div>
 
-      <Card className="glass border-0 shadow-card">
-        <CardHeader>
-          <CardTitle>Form Request Perlengkapan</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Item Selector Form Row */}
-          <div className="grid gap-4 md:grid-cols-4 items-end">
-            <div className="space-y-2 md:col-span-2">
-              <Label>Pilih Perlengkapan</Label>
-              <Select value={produkId} onValueChange={setProdukId}>
-                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {supportItems.map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Jumlah ({selectedProduct?.satuan ?? "pcs"})</Label>
-              <Input
-                type="number"
-                min={1}
-                value={qty}
-                onChange={(e) => setQty(Number(e.target.value))}
-                className="h-10"
-              />
-            </div>
-            <div>
-              <Button type="button" onClick={handleAddItem} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                <Plus className="mr-2 h-4 w-4" /> Tambah ke Daftar
-              </Button>
-            </div>
-          </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full max-w-[400px] grid-cols-2 bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger value="request" className="rounded-lg">Request Perlengkapan</TabsTrigger>
+          <TabsTrigger value="retur" className="rounded-lg">Retur Perlengkapan</TabsTrigger>
+        </TabsList>
 
-          {/* List of Added Items */}
-          {selectedItems.length > 0 && (
-            <div className="rounded-2xl border overflow-hidden bg-card/50">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Perlengkapan</TableHead>
-                    <TableHead className="text-right">Jumlah</TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedItems.map((item, idx) => {
-                    const prod = produk.find((p: any) => p.id === item.produkId);
-                    return (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{prod?.nama ?? "-"}</TableCell>
-                        <TableCell className="text-right font-semibold">{item.qty} {prod?.satuan ?? "pcs"}</TableCell>
-                        <TableCell>
-                          <Button size="icon" variant="ghost" onClick={() => handleRemoveItem(idx)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+        {/* TAB 1: REQUEST PERLENGKAPAN */}
+        <TabsContent value="request" className="space-y-6">
+          <Card className="glass border-0 shadow-card">
+            <CardHeader>
+              <CardTitle>Form Request Perlengkapan</CardTitle>
+              <p className="text-xs text-muted-foreground">Pilih perlengkapan yang dibutuhkan (Cup Bubur/Tim, Tutup, Kresek, Sendok, Tisu)</p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-4 items-end">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Pilih Perlengkapan</Label>
+                  <Select value={produkId} onValueChange={setProdukId}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {supportItems.map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Jumlah ({selectedProduct?.satuan ?? "pcs"})</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={qty}
+                    onChange={(e) => setQty(Number(e.target.value))}
+                    className="h-10"
+                  />
+                </div>
+                <div>
+                  <Button type="button" onClick={handleAddItem} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                    <Plus className="mr-2 h-4 w-4" /> Tambah ke Daftar
+                  </Button>
+                </div>
+              </div>
+
+              {selectedItems.length > 0 && (
+                <div className="rounded-2xl border overflow-hidden bg-card/50">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Perlengkapan</TableHead>
+                        <TableHead className="text-right">Jumlah</TableHead>
+                        <TableHead className="w-[80px]"></TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                    </TableHeader>
+                    <TableBody>
+                      {selectedItems.map((item, idx) => {
+                        const prod = produk.find((p: any) => p.id === item.produkId);
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell className="font-medium">{prod?.nama ?? "-"}</TableCell>
+                            <TableCell className="text-right font-semibold">{item.qty} {prod?.satuan ?? "pcs"}</TableCell>
+                            <TableCell>
+                              <Button size="icon" variant="ghost" onClick={() => handleRemoveItem(idx)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
 
-          {/* Submit/Batch Details Form */}
-          <form onSubmit={submit} className="border-t pt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-end">
-            <div className="space-y-2">
-              <Label>Tanggal Kirim (Besok)</Label>
-              <Input
-                type="date"
-                value={tanggalKirim}
-                onChange={(e) => setTanggalKirim(e.target.value)}
-                className="h-10"
-              />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label>Catatan Pengiriman</Label>
-              <Input
-                value={catatan}
-                onChange={(e) => setCatatan(e.target.value)}
-                placeholder="Contoh: Titip di rombong, dll (opsional)"
-                className="h-10"
-              />
-            </div>
-            <div className="md:col-span-2 lg:col-span-3">
-              <Button type="submit" disabled={selectedItems.length === 0} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                <Send className="mr-2 h-4 w-4" /> Kirim Permohonan ({selectedItems.length} Item)
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <form onSubmit={submit} className="border-t pt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-end">
+                <div className="space-y-2">
+                  <Label>Tanggal Kirim</Label>
+                  <Input
+                    type="date"
+                    value={tanggalKirim}
+                    onChange={(e) => setTanggalKirim(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-2 lg:col-span-2">
+                  <Label>Catatan Pengiriman</Label>
+                  <Input
+                    value={catatan}
+                    onChange={(e) => setCatatan(e.target.value)}
+                    placeholder="Contoh: Titip di rombong, dll (opsional)"
+                    className="h-10"
+                  />
+                </div>
+                <div className="md:col-span-2 lg:col-span-3">
+                  <Button type="submit" disabled={selectedItems.length === 0} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                    <Send className="mr-2 h-4 w-4" /> Kirim Permohonan ({selectedItems.length} Item)
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
 
-      <Card className="glass border-0 shadow-card">
-        <CardHeader>
-          <CardTitle>Riwayat Permohonan</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-2xl border overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tgl Request</TableHead>
-                    <TableHead>Tgl Kirim</TableHead>
-                    <TableHead>Perlengkapan</TableHead>
-                    <TableHead className="text-right">Jumlah</TableHead>
-                    <TableHead>Catatan</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {myRequests.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        Belum ada permohonan stok perlengkapan
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {paged.map((r: any) => {
-                    const prod = produk.find((p: any) => p.id === r.produkId);
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell className="whitespace-nowrap">{r.tanggal}</TableCell>
-                        <TableCell className="whitespace-nowrap">{r.tanggalKirim}</TableCell>
-                        <TableCell className="whitespace-nowrap font-medium">{prod?.nama ?? "-"}</TableCell>
-                        <TableCell className="text-right font-semibold">{r.qty} {prod?.satuan ?? "pcs"}</TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={r.catatan}>{r.catatan || "-"}</TableCell>
-                        <TableCell>
-                          {r.status === "Pending" && (
-                            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
-                              <Clock className="h-3 w-3" /> Pending
-                            </Badge>
-                          )}
-                          {r.status === "Disetujui" && (
-                            <Badge className="bg-success text-success-foreground gap-1">
-                              <Check className="h-3 w-3" /> Disetujui
-                            </Badge>
-                          )}
-                          {r.status === "Ditolak" && (
-                            <Badge variant="destructive" className="gap-1">
-                              <X className="h-3 w-3" /> Ditolak
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {r.status === "Pending" && (
-                            <Button size="icon" variant="ghost" onClick={() => {
-                              db.deletePermohonanStok(r.id);
-                              toast.success("Permohonan stok dibatalkan");
-                            }}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </TableCell>
+          <Card className="glass border-0 shadow-card">
+            <CardHeader>
+              <CardTitle>Riwayat Permohonan</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-2xl border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tgl Request</TableHead>
+                        <TableHead>Tgl Kirim</TableHead>
+                        <TableHead>Perlengkapan</TableHead>
+                        <TableHead className="text-right">Jumlah</TableHead>
+                        <TableHead>Catatan</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[80px]"></TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-          <TablePagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} />
-        </CardContent>
-      </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {myRequests.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                            Belum ada permohonan stok perlengkapan
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {requestPg.paged.map((r: any) => {
+                        const prod = produk.find((p: any) => p.id === r.produkId);
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="whitespace-nowrap">{r.tanggal}</TableCell>
+                            <TableCell className="whitespace-nowrap">{r.tanggalKirim}</TableCell>
+                            <TableCell className="whitespace-nowrap font-medium">{prod?.nama ?? "-"}</TableCell>
+                            <TableCell className="text-right font-semibold">{r.qty} {prod?.satuan ?? "pcs"}</TableCell>
+                            <TableCell className="max-w-[200px] truncate" title={r.catatan}>{r.catatan || "-"}</TableCell>
+                            <TableCell>
+                              {r.status === "Pending" && (
+                                <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+                                  <Clock className="h-3 w-3" /> Pending
+                                </Badge>
+                              )}
+                              {r.status === "Disetujui" && (
+                                <Badge className="bg-success text-success-foreground gap-1">
+                                  <Check className="h-3 w-3" /> Disetujui
+                                </Badge>
+                              )}
+                              {r.status === "Ditolak" && (
+                                <Badge variant="destructive" className="gap-1">
+                                  <X className="h-3 w-3" /> Ditolak
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {r.status === "Pending" && (
+                                <Button size="icon" variant="ghost" onClick={() => {
+                                  db.deletePermohonanStok(r.id);
+                                  toast.success("Permohonan stok dibatalkan");
+                                }}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+              <TablePagination page={requestPg.page} totalPages={requestPg.totalPages} total={requestPg.total} pageSize={requestPg.pageSize} onChange={requestPg.setPage} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 2: RETUR PERLENGKAPAN */}
+        <TabsContent value="retur" className="space-y-6">
+          <Card className="glass border-0 shadow-card">
+            <CardHeader>
+              <CardTitle>Form Retur Cup Bubur / Tim</CardTitle>
+              <p className="text-xs text-muted-foreground">Kembalikan Cup Bubur/Tim yang tidak terpakai ke gudang</p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmitRetur} className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3 items-end">
+                  <div className="space-y-2">
+                    <Label>Tanggal Retur</Label>
+                    <Input
+                      type="date"
+                      value={returTanggal}
+                      onChange={(e) => setReturTanggal(e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Perlengkapan</Label>
+                    <Select value="b-cb01" disabled>
+                      <SelectTrigger className="h-10"><SelectValue>Cup Bubur / Tim</SelectValue></SelectTrigger>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Jumlah Retur (biji)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={returCupQty || ""}
+                      onChange={(e) => setReturCupQty(Number(e.target.value))}
+                      className="h-10"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" disabled={returCupQty <= 0} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                  <RotateCcw className="mr-2 h-4 w-4" /> Ajukan Retur Cup ({returCupQty} biji)
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card className="glass border-0 shadow-card">
+            <CardHeader>
+              <CardTitle>Riwayat Retur Cup</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-2xl border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tgl Request</TableHead>
+                        <TableHead>Perlengkapan</TableHead>
+                        <TableHead className="text-right">Jumlah</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[80px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {myReturRequests.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            Belum ada retur cup
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {returPg.paged.map((r: any) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="whitespace-nowrap">{r.tanggal}</TableCell>
+                          <TableCell className="whitespace-nowrap font-medium">Cup Bubur / Tim</TableCell>
+                          <TableCell className="text-right font-semibold">{r.qty} biji</TableCell>
+                          <TableCell>
+                            {r.status === "Pending" && (
+                              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+                                <Clock className="h-3 w-3" /> Pending
+                              </Badge>
+                            )}
+                            {r.status === "Disetujui" && (
+                              <Badge className="bg-success text-success-foreground gap-1">
+                                <Check className="h-3 w-3" /> Disetujui
+                              </Badge>
+                            )}
+                            {r.status === "Ditolak" && (
+                              <Badge variant="destructive" className="gap-1">
+                                <X className="h-3 w-3" /> Ditolak
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {r.status === "Pending" && (
+                              <Button size="icon" variant="ghost" onClick={() => {
+                                db.deletePermohonanStok(r.id);
+                                toast.success("Retur cup dibatalkan");
+                              }}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+              <TablePagination page={returPg.page} totalPages={returPg.totalPages} total={returPg.total} pageSize={returPg.pageSize} onChange={returPg.setPage} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

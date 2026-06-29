@@ -13,7 +13,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Save, Package } from "lucide-react";
+import { Save, Package, Edit3 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 type Periode = "harian" | "mingguan" | "bulanan";
@@ -269,6 +277,8 @@ function SisaProduksiOH({
   const [tanggal, setTanggal] = useState(todayISO());
   const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [draftSisa, setDraftSisa] = useState<Record<string, number>>({});
 
   // 7 Menu items for daily input
   const MENU_ITEMS = [
@@ -333,9 +343,24 @@ function SisaProduksiOH({
     }
   }, [distMap, tanggal, penjualan, user.outletId]);
 
-  const handleSisaChange = (key: string, val: number) => {
-    const clamped = isNaN(val) ? 0 : Math.max(0, val);
-    setSisaGrid((prev) => ({ ...prev, [key]: clamped }));
+  const openDialog = () => {
+    // Initialize draft with current sisaGrid values
+    const initial: Record<string, number> = {};
+    MENU_ITEMS.forEach((item) => {
+      const key = `${tanggal}-${item.subId}`;
+      initial[key] = sisaGrid[key] ?? 0;
+    });
+    setDraftSisa(initial);
+    setDialogOpen(true);
+  };
+
+  const handleDraftChange = (key: string, val: number) => {
+    setDraftSisa((prev) => ({ ...prev, [key]: isNaN(val) ? 0 : Math.max(0, val) }));
+  };
+
+  const confirmDialog = () => {
+    setSisaGrid({ ...draftSisa });
+    setDialogOpen(false);
   };
 
   // Convert sisa grams to cups for a menu item
@@ -480,15 +505,26 @@ function SisaProduksiOH({
                 </div>
               )}
             </div>
-            <Button
-              onClick={handleSubmit}
-              disabled={saving || rows.every(r => r.sisa === 0)}
-              size="sm"
-              className="gradient-primary text-primary-foreground h-9 shrink-0"
-            >
-              <Save className="h-4 w-4 mr-1.5" />
-              {saving ? "Menyimpan..." : "Simpan Penjualan"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={openDialog}
+                size="sm"
+                variant="outline"
+                className="h-9 shrink-0"
+              >
+                <Edit3 className="h-4 w-4 mr-1.5" />
+                Input Sisa
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={saving || rows.every(r => r.sisa === 0)}
+                size="sm"
+                className="gradient-primary text-primary-foreground h-9 shrink-0"
+              >
+                <Save className="h-4 w-4 mr-1.5" />
+                {saving ? "Menyimpan..." : "Simpan Penjualan"}
+              </Button>
+            </div>
           </div>
 
           {/* Always-visible Form Table — 7 Menu Items */}
@@ -512,7 +548,6 @@ function SisaProduksiOH({
                     const gramPerCup = row.gramPerCup || 118;
                     const distGram = row.distribusi * gramPerCup;
                     const sisaCups = Math.floor((row.sisa || 0) / gramPerCup);
-                    const maxGram = row.distribusi * gramPerCup;
                     return (
                     <TableRow key={row.key} className={row.distribusi > 0 ? "" : "opacity-60"}>
                       <TableCell className="whitespace-nowrap font-semibold">
@@ -528,22 +563,11 @@ function SisaProduksiOH({
                         {row.distribusi > 0 ? `${distGram.toLocaleString()} g` : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={row.distribusi > 0 ? maxGram : undefined}
-                            value={row.sisa || ""}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              const clamped = row.distribusi > 0 ? Math.min(val, maxGram) : val;
-                              handleSisaChange(row.key, clamped);
-                            }}
-                            className="w-20 h-8 text-xs text-center"
-                            placeholder="0"
-                          />
-                          <span className="text-[10px] text-muted-foreground w-4">g</span>
-                        </div>
+                        {row.distribusi > 0 ? (
+                          <span className="font-medium tabular-nums">{row.sisa.toLocaleString()} g</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-medium text-xs">
                         {row.distribusi > 0 ? (
@@ -577,6 +601,72 @@ function SisaProduksiOH({
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog Input Sisa Produksi — 7 Menu Items */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-600" />
+              Input Sisa Produksi — {tanggal}
+            </DialogTitle>
+            <DialogDescription>
+              Masukkan sisa produksi (gram) yang tidak terjual untuk setiap menu.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[50vh] overflow-y-auto space-y-3 pr-1">
+            {MENU_ITEMS.map((item) => {
+              const key = `${tanggal}-${item.subId}`;
+              const distQty = distMap.get(item.subId) || 0;
+              const maxGram = distQty * item.gramPerCup;
+              const draftVal = draftSisa[key] ?? 0;
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center justify-between gap-4 p-3 rounded-xl border ${distQty > 0 ? 'bg-background' : 'bg-muted/20 opacity-50'}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">{item.label}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {distQty > 0
+                        ? `${distQty} cup (${(maxGram).toLocaleString()} g) — ${item.gramPerCup} g/cup`
+                        : 'Tidak ada distribusi'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={distQty > 0 ? maxGram : undefined}
+                      value={draftVal || ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        const clamped = distQty > 0 ? Math.min(Math.max(val, 0), maxGram) : val;
+                        handleDraftChange(key, clamped);
+                      }}
+                      disabled={distQty <= 0}
+                      className="w-24 h-9 text-xs text-center"
+                      placeholder="0"
+                    />
+                    <span className="text-[11px] text-muted-foreground w-4">g</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={confirmDialog} className="gradient-primary">
+              <Save className="h-4 w-4 mr-1.5" />
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

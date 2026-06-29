@@ -272,10 +272,10 @@ function SisaProduksiOH({
 
   // 7 Menu items for daily input
   const MENU_ITEMS = [
-    { subId: "bubur_d", baseId: "p-bubur", label: "Bubur Daging", gramPerCup: 118 },
-    { subId: "bubur_i", baseId: "p-bubur", label: "Bubur Ikan", gramPerCup: 118 },
-    { subId: "tim_d", baseId: "p-nasitim", label: "Nasi Tim Daging", gramPerCup: 108 },
-    { subId: "tim_i", baseId: "p-nasitim", label: "Nasi Tim Ikan", gramPerCup: 108 },
+    { subId: "bubur_d", baseId: "p-bubur", label: "Bubur 1", gramPerCup: 118 },
+    { subId: "bubur_i", baseId: "p-bubur", label: "Bubur 2", gramPerCup: 118 },
+    { subId: "tim_d", baseId: "p-nasitim", label: "Nasi Tim 1", gramPerCup: 108 },
+    { subId: "tim_i", baseId: "p-nasitim", label: "Nasi Tim 2", gramPerCup: 108 },
     { subId: "oatmeal", baseId: "p-oatmeal", label: "Oatmeal", gramPerCup: 100 },
     { subId: "puding", baseId: "p-puding", label: "Puding", gramPerCup: 80 },
     { subId: "abon", baseId: "p-abon", label: "Abon", gramPerCup: 10 },
@@ -334,7 +334,14 @@ function SisaProduksiOH({
   }, [distMap, tanggal, penjualan, user.outletId]);
 
   const handleSisaChange = (key: string, val: number) => {
-    setSisaGrid((prev) => ({ ...prev, [key]: isNaN(val) ? 0 : Math.max(0, val) }));
+    const clamped = isNaN(val) ? 0 : Math.max(0, val);
+    setSisaGrid((prev) => ({ ...prev, [key]: clamped }));
+  };
+
+  // Convert sisa grams to cups for a menu item
+  const sisaGramToCup = (sisaGr: number, gramPerCup: number): number => {
+    if (gramPerCup <= 0) return 0;
+    return Math.floor(sisaGr / gramPerCup);
   };
 
   // Build all 7 rows — always visible
@@ -342,8 +349,9 @@ function SisaProduksiOH({
     return MENU_ITEMS.map((item) => {
       const distQty = distMap.get(item.subId) || 0;
       const key = `${tanggal}-${item.subId}`;
-      const sisa = sisaGrid[key] ?? 0;
-      const terjual = distQty > 0 ? Math.max(0, distQty - Math.min(sisa, distQty)) : 0;
+      const sisaGram = sisaGrid[key] ?? 0;
+      const sisaCups = sisaGramToCup(sisaGram, item.gramPerCup);
+      const terjual = distQty > 0 ? Math.max(0, distQty - Math.min(sisaCups, distQty)) : 0;
       const prod = produk.find((p: any) => p.id === item.baseId);
       const harga = prod?.harga || 0;
       const omset = terjual * harga;
@@ -354,8 +362,10 @@ function SisaProduksiOH({
         subId: item.subId,
         baseId: item.baseId,
         label: item.label,
+        gramPerCup: item.gramPerCup,
         distribusi: distQty,
-        sisa,
+        sisa: sisaGram, // in grams
+        sisaCups,
         terjual,
         harga,
         omset,
@@ -368,7 +378,7 @@ function SisaProduksiOH({
     let totalDistribusi = 0, totalSisa = 0, totalTerjual = 0, totalOmset = 0;
     rows.forEach((row) => {
       totalDistribusi += row.distribusi;
-      totalSisa += Math.min(row.sisa, row.distribusi);
+      totalSisa += Math.min(row.sisaCups, row.distribusi);
       totalTerjual += row.terjual;
       totalOmset += row.omset;
     });
@@ -390,7 +400,7 @@ function SisaProduksiOH({
           harga: row.harga,
         };
         existing.distribusi += row.distribusi;
-        existing.sisa += Math.min(row.sisa, row.distribusi);
+        existing.sisa += Math.min(row.sisaCups, row.distribusi); // sisaCups already converted from grams
         groups.set(row.baseId, existing);
       });
 
@@ -420,7 +430,7 @@ function SisaProduksiOH({
       }
 
       if (savedCount > 0) {
-        toast.success(`${savedCount} penjualan berhasil disimpan! Data terhubung ke Langkah 5 Produksi.`);
+        toast.success(`${savedCount} penjualan berhasil disimpan! Data terhubung ke admin.`);
       } else {
         toast.info("Tidak ada penjualan yang perlu dicatat");
       }
@@ -442,7 +452,7 @@ function SisaProduksiOH({
           </div>
           <div className="text-xs text-muted-foreground">
             <p className="font-bold text-blue-700 dark:text-blue-300 text-sm mb-1">📋 Input Sisa Produksi Harian</p>
-            <p>Masukkan <strong>sisa produksi (cup)</strong> yang <strong>tidak terjual</strong> hari ini. Jika ada distribusi, terjual otomatis = Distribusi − Sisa. Data sinkron ke <strong>Langkah 5 Produksi</strong>.</p>
+            <p>Masukkan <strong>sisa produksi (gram)</strong> yang <strong>tidak terjual</strong> hari ini. Otomatis dikonversi ke cup/pcs. Sisa tidak boleh melebihi stok yang didistribusikan. Data sinkron ke <strong>Langkah 5 Produksi</strong>.</p>
           </div>
         </div>
       </div>
@@ -489,14 +499,21 @@ function SisaProduksiOH({
                   <TableRow className="bg-muted/40">
                     <TableHead>Menu</TableHead>
                     <TableHead className="text-right">Distribusi (Cup)</TableHead>
-                    <TableHead className="text-right w-[160px]">Sisa Produksi (Cup)</TableHead>
+                    <TableHead className="text-right w-[120px]">Distribusi (Gram)</TableHead>
+                    <TableHead className="text-right w-[160px]">Sisa (Gram)</TableHead>
+                    <TableHead className="text-right">Sisa (Cup/Pcs)</TableHead>
                     <TableHead className="text-right">Terjual</TableHead>
                     <TableHead className="text-right">Harga</TableHead>
                     <TableHead className="text-right">Omset</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
+                  {rows.map((row) => {
+                    const gramPerCup = row.gramPerCup || 118;
+                    const distGram = row.distribusi * gramPerCup;
+                    const sisaCups = Math.floor((row.sisa || 0) / gramPerCup);
+                    const maxGram = row.distribusi * gramPerCup;
+                    return (
                     <TableRow key={row.key} className={row.distribusi > 0 ? "" : "opacity-60"}>
                       <TableCell className="whitespace-nowrap font-semibold">
                         {row.label}
@@ -507,19 +524,33 @@ function SisaProduksiOH({
                       <TableCell className="text-right font-medium">
                         {row.distribusi > 0 ? row.distribusi : <span className="text-muted-foreground">—</span>}
                       </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">
+                        {row.distribusi > 0 ? `${distGram.toLocaleString()} g` : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Input
                             type="number"
                             min={0}
-                            max={row.distribusi > 0 ? row.distribusi : undefined}
+                            max={row.distribusi > 0 ? maxGram : undefined}
                             value={row.sisa || ""}
-                            onChange={(e) => handleSisaChange(row.key, parseInt(e.target.value) || 0)}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              const clamped = row.distribusi > 0 ? Math.min(val, maxGram) : val;
+                              handleSisaChange(row.key, clamped);
+                            }}
                             className="w-20 h-8 text-xs text-center"
                             placeholder="0"
                           />
-                          <span className="text-[10px] text-muted-foreground w-6">cup</span>
+                          <span className="text-[10px] text-muted-foreground w-4">g</span>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-xs">
+                        {row.distribusi > 0 ? (
+                          row.subId === "abon"
+                            ? `${sisaCups} pcs`
+                            : `${sisaCups} cup`
+                        ) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right font-bold text-success">
                         {row.distribusi > 0 ? row.terjual : <span className="text-muted-foreground">—</span>}
@@ -531,7 +562,8 @@ function SisaProduksiOH({
                         {row.distribusi > 0 ? rupiah(row.omset) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

@@ -501,7 +501,14 @@ export default function Absensi() {
                     <div className="h-2 w-2 rounded-full bg-success animate-ping" />
                     GPS Terkunci (Presisi Tinggi)
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Anda berada di radius dapur produksi</p>
+                  {(() => {
+                    const loc = myOutletLocation;
+                    if (coordinates && loc) {
+                      const dist = getDistanceMeters(coordinates.lat, coordinates.lng, loc.lat, loc.lng);
+                      return <p className="text-[10px] text-muted-foreground">Anda berada ±{Math.round(dist)} meter dari lokasi outlet</p>;
+                    }
+                    return <p className="text-[10px] text-muted-foreground">Anda berada ±0 meter dari lokasi outlet</p>;
+                  })()}
                 </div>
               )}
             </div>

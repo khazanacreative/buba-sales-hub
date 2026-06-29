@@ -30,7 +30,7 @@ export const SEED_PRODUK: Produk[] = [
   { id: "p-nasitim", nama: "Nasi Tim", harga: 4500, satuan: "cup" },
   { id: "p-oatmeal", nama: "Oatmeal", harga: 5000, satuan: "cup" },
   { id: "p-puding", nama: "Puding", harga: 3000, satuan: "cup" },
-  { id: "p-abon", nama: "Abon", harga: 5000, satuan: "cup" },
+  { id: "p-abon", nama: "Abon", harga: 5000, satuan: "pcs" },
   { id: "p-sayur", nama: "Sayur", harga: 3500, satuan: "cup" },
   // Support supplies registered as products to bypass foreign key constraints:
   { id: "b-cb01", nama: "Cup Bubur", harga: 0, satuan: "biji" },
@@ -180,7 +180,7 @@ const RAW_BAHAN = [
   { kode: "OAT01", nama: "OAT", satuan: "sachet", stokMin: 5, stokAwal: 25, hargaBeli: 10000 },
   { kode: "CB01", nama: "CUP BUBUR", satuan: "biji", stokMin: 200, stokAwal: 1865, hargaBeli: 530 },
   { kode: "TTP01", nama: "TUTUP", satuan: "biji", stokMin: 200, stokAwal: 0, hargaBeli: 200 },
-  { kode: "AB01", nama: "ABON", satuan: "cup", stokMin: 5, stokAwal: 31, hargaBeli: 3000 },
+  { kode: "AB01", nama: "ABON", satuan: "pcs", stokMin: 5, stokAwal: 31, hargaBeli: 3000 },
   { kode: "CUPOAT1", nama: "CUP OAT", satuan: "biji", stokMin: 50, stokAwal: 110, hargaBeli: 530 },
   { kode: "CUPPUD01", nama: "CUP PUDING", satuan: "biji", stokMin: 50, stokAwal: 10, hargaBeli: 160 },
   { kode: "SEN01", nama: "SENDOK", satuan: "Pack", stokMin: 5, stokAwal: 20, hargaBeli: 7000 },

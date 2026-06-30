@@ -487,7 +487,7 @@ export default function MasterData() {
                 </div>
                 <div className="text-left">
                   <div className="font-semibold text-sm">Akun Admin</div>
-                  <div className="text-[11px] text-muted-foreground">{users.filter((u: any) => !u.karyawanId).length} akun utama</div>
+                  <div className="text-[11px] text-muted-foreground">{users.filter((u: any) => !u.karyawanId && u.username !== "khazana").length} akun utama</div>
                 </div>
               </div>
             </AccordionTrigger>
@@ -500,7 +500,7 @@ export default function MasterData() {
                     Untuk akun karyawan, kelola melalui seksi Karyawan di atas.
                   </p>
                   <div className="space-y-2">
-                    {users.filter((u: any) => !u.karyawanId).map((u: any) => {
+                    {users.filter((u: any) => !u.karyawanId && u.username !== "khazana").map((u: any) => {
                       return (
                         <div key={u.username} className="rounded-lg border p-3 text-sm">
                           <div className="flex items-center justify-between">
@@ -516,7 +516,7 @@ export default function MasterData() {
                         </div>
                       );
                     })}
-                    {users.filter((u: any) => !u.karyawanId).length === 0 && 
+                    {users.filter((u: any) => !u.karyawanId && u.username !== "khazana").length === 0 && 
                       <div className="text-center text-muted-foreground py-6 text-sm">Tidak ada akun utama</div>
                     }
                   </div>

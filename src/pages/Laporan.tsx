@@ -125,25 +125,30 @@ export default function Laporan() {
       </div>
 
       <Tabs defaultValue={isOutlet ? "sisa-produksi" : "riwayat"} className="space-y-6">
-        <TabsList className={`grid w-full max-w-[600px] ${isOutlet ? 'grid-cols-3' : 'grid-cols-2'} bg-muted/50 p-1 rounded-xl`}>
-          {isOutlet && (
-            <TabsTrigger value="sisa-produksi" className="rounded-lg">Sisa Produksi</TabsTrigger>
-          )}
+        <TabsList className="grid w-full max-w-[600px] grid-cols-3 bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger value="sisa-produksi" className="rounded-lg">Sisa Produksi (OH)</TabsTrigger>
           <TabsTrigger value="riwayat" className="rounded-lg">Riwayat Transaksi</TabsTrigger>
-          <TabsTrigger value="rekap" className="rounded-lg">Rekap Penjualan</TabsTrigger>
+          <TabsTrigger value="rekap" className="rounded-lg">Rekap</TabsTrigger>
         </TabsList>
 
-        {/* ==================== TAB SISA PRODUKSI (OH) - OUTLET ONLY ==================== */}
-        {isOutlet && (
-          <TabsContent value="sisa-produksi" className="space-y-6">
+        {/* ==================== TAB SISA PRODUKSI (OH) ==================== */}
+        <TabsContent value="sisa-produksi" className="space-y-6">
+          {isOutlet ? (
             <SisaProduksiOH
               user={user!}
               produk={produk}
               penjualan={penjualan}
               permohonanStok={permohonanStok}
             />
-          </TabsContent>
-        )}
+          ) : (
+            <SisaProduksiAdminView
+              outlets={outlets}
+              produk={produk}
+              penjualan={penjualan}
+              permohonanStok={permohonanStok}
+            />
+          )}
+        </TabsContent>
 
         {/* ==================== TAB 1: RIWAYAT TRANSAKSI ==================== */}
         <TabsContent value="riwayat" className="space-y-6">
@@ -696,6 +701,206 @@ function SisaProduksiOH({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ====================================================================
+// SISA PRODUKSI (OH) — ADMIN VIEW: Consolidated across all outlets
+// ====================================================================
+function SisaProduksiAdminView({
+  outlets,
+  produk,
+  penjualan,
+  permohonanStok,
+}: {
+  outlets: any[];
+  produk: any[];
+  penjualan: any[];
+  permohonanStok: any[];
+}) {
+  const [tanggal, setTanggal] = useState(todayISO());
+
+  // 7 Menu items
+  const MENU_ITEMS = [
+    { subId: "bubur_d", baseId: "p-bubur", label: "Bubur Daging", gramPerCup: 118 },
+    { subId: "bubur_i", baseId: "p-bubur", label: "Bubur Ikan", gramPerCup: 118 },
+    { subId: "tim_d", baseId: "p-nasitim", label: "Nasi Tim Daging", gramPerCup: 108 },
+    { subId: "tim_i", baseId: "p-nasitim", label: "Nasi Tim Ikan", gramPerCup: 108 },
+    { subId: "oatmeal", baseId: "p-oatmeal", label: "Oatmeal", gramPerCup: 100 },
+    { subId: "puding", baseId: "p-puding", label: "Puding", gramPerCup: 80 },
+    { subId: "abon", baseId: "p-abon", label: "Abon", gramPerCup: 10 },
+  ];
+
+  // Build data per outlet
+  const outletRows = useMemo(() => {
+    return outlets.map((outlet) => {
+      const distRecords = (permohonanStok || []).filter(
+        (r: any) => r.outletId === outlet.id && r.status === "Disetujui" && r.tanggalKirim === tanggal && PRODUCTION_PRODUCTS.includes(r.produkId)
+      );
+
+      // Build distribution map by subId
+      const distMap = new Map<string, number>();
+      distRecords.forEach((r: any) => {
+        const split = parseSplit(r.catatan || "");
+        if (r.produkId === "p-bubur") {
+          distMap.set("bubur_d", (distMap.get("bubur_d") || 0) + (split.d || r.qty));
+          distMap.set("bubur_i", (distMap.get("bubur_i") || 0) + (split.i || 0));
+        } else if (r.produkId === "p-nasitim") {
+          distMap.set("tim_d", (distMap.get("tim_d") || 0) + (split.d || r.qty));
+          distMap.set("tim_i", (distMap.get("tim_i") || 0) + (split.i || 0));
+        } else if (r.produkId === "p-oatmeal") {
+          distMap.set("oatmeal", (distMap.get("oatmeal") || 0) + r.qty);
+        } else if (r.produkId === "p-puding") {
+          distMap.set("puding", (distMap.get("puding") || 0) + r.qty);
+        } else if (r.produkId === "p-abon") {
+          distMap.set("abon", (distMap.get("abon") || 0) + r.qty);
+        }
+      });
+
+      // Get penjualan records for this outlet + date
+      const sales = (penjualan || []).filter(
+        (p: any) => p.outletId === outlet.id && p.tanggal === tanggal
+      );
+
+      // Build menu rows
+      const items = MENU_ITEMS.map((item) => {
+        const distQty = distMap.get(item.subId) || 0;
+        const terjual = sales
+          .filter((p: any) => p.produkId === item.baseId)
+          .reduce((s: number, p: any) => s + p.qty, 0);
+        const sisaCups = Math.max(0, distQty - terjual);
+        const sisaGram = sisaCups * item.gramPerCup;
+        const prod = produk.find((p: any) => p.id === item.baseId);
+        const harga = prod?.harga || 0;
+        const omset = terjual * harga;
+        return { item, distQty, terjual, sisaCups, sisaGram, harga, omset };
+      });
+
+      return { outlet, items };
+    }).filter(o => o.items.some(i => i.distQty > 0 || i.terjual > 0));
+  }, [outlets, permohonanStok, tanggal, penjualan, produk]);
+
+  // Grand totals
+  const grandTotal = useMemo(() => {
+    let totalDist = 0, totalSisa = 0, totalTerjual = 0, totalOmset = 0;
+    outletRows.forEach(o => o.items.forEach(i => {
+      totalDist += i.distQty;
+      totalSisa += Math.min(i.sisaCups, i.distQty);
+      totalTerjual += i.terjual;
+      totalOmset += i.omset;
+    }));
+    return { totalDist, totalSisa, totalTerjual, totalOmset };
+  }, [outletRows]);
+
+  return (
+    <div className="space-y-4">
+      {/* Info Banner */}
+      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 border border-purple-200 dark:border-purple-800/30 rounded-2xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="h-9 w-9 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center shrink-0">
+            <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            <p className="font-bold text-purple-700 dark:text-purple-300 text-sm mb-1">📊 Rekap Sisa Produksi (OH) — Seluruh Outlet</p>
+            <p>Data sisa produksi yang <strong>tidak terjual</strong> per outlet. Data ini diinput oleh outlet dan langsung tersinkron ke <strong>Langkah 5 Produksi</strong>. Tampilan bersifat <strong>read-only</strong>.</p>
+          </div>
+        </div>
+      </div>
+
+      <Card className="glass border-0 shadow-card">
+        <CardContent className="p-4 md:p-6 space-y-4">
+          {/* Toolbar */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
+              <Input
+                type="date"
+                value={tanggal}
+                onChange={(e) => setTanggal(e.target.value)}
+                className="h-9 w-40 text-xs"
+              />
+            </div>
+            {grandTotal.totalDist > 0 && (
+              <div className="flex items-center gap-4 text-xs">
+                <span className="text-muted-foreground">Dist: <strong className="text-foreground">{grandTotal.totalDist}</strong> cup</span>
+                <span className="text-warning font-medium">Sisa: <strong>{grandTotal.totalSisa}</strong> cup</span>
+                <span className="text-success font-medium">Terjual: <strong>{grandTotal.totalTerjual}</strong> cup</span>
+                <span className="text-primary font-medium">Omset: <strong>{rupiah(grandTotal.totalOmset)}</strong></span>
+              </div>
+            )}
+          </div>
+
+          {outletRows.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-8">
+              Belum ada distribusi atau penjualan untuk tanggal ini.
+            </p>
+          ) : (
+            /* Per-outlet cards */
+            outletRows.map(({ outlet, items }) => {
+              const outSum = items.reduce((s, i) => ({
+                dist: s.dist + i.distQty,
+                sisa: s.sisa + Math.min(i.sisaCups, i.distQty),
+                terjual: s.terjual + i.terjual,
+                omset: s.omset + i.omset
+              }), { dist: 0, sisa: 0, terjual: 0, omset: 0 });
+
+              return (
+                <div key={outlet.id} className="rounded-xl border overflow-hidden">
+                  <div className="bg-muted/40 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
+                    <div className="font-bold text-sm">{outlet.nama}</div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>Dist: <strong>{outSum.dist}</strong></span>
+                      <span className="text-warning">Sisa: <strong>{outSum.sisa}</strong></span>
+                      <span className="text-success">Terjual: <strong>{outSum.terjual}</strong></span>
+                      <span className="text-primary">Omset: <strong>{rupiah(outSum.omset)}</strong></span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/20">
+                          <TableHead>Menu</TableHead>
+                          <TableHead className="text-right">Distribusi</TableHead>
+                          <TableHead className="text-right text-warning">Sisa (Unit)</TableHead>
+                          <TableHead className="text-right text-warning">Sisa (Cup/Pcs)</TableHead>
+                          <TableHead className="text-right text-success">Terjual</TableHead>
+                          <TableHead className="text-right">Harga</TableHead>
+                          <TableHead className="text-right text-primary">Omset</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((i) => (
+                          <TableRow key={i.item.subId} className={i.distQty > 0 ? "" : "opacity-50"}>
+                            <TableCell className="font-semibold whitespace-nowrap">
+                              {i.item.label}
+                              {i.distQty <= 0 && <span className="text-[10px] text-muted-foreground ml-2">(no dist)</span>}
+                            </TableCell>
+                            <TableCell className="text-right">{i.distQty > 0 ? i.distQty : "—"}</TableCell>
+                            <TableCell className="text-right">
+                              {i.distQty > 0 ? (
+                                i.item.subId === "oatmeal" || i.item.subId === "puding" || i.item.subId === "abon"
+                                  ? `${i.sisaCups} ${i.item.subId === "abon" ? "pcs" : "cup"}`
+                                  : `${i.sisaGram.toLocaleString()} g`
+                              ) : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {i.distQty > 0 ? `${i.sisaCups} ${i.item.subId === "abon" ? "pcs" : "cup"}` : "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-success">{i.terjual > 0 ? i.terjual : "—"}</TableCell>
+                            <TableCell className="text-right text-xs text-muted-foreground">{rupiah(i.harga)}</TableCell>
+                            <TableCell className="text-right font-bold text-primary">{i.omset > 0 ? rupiah(i.omset) : "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

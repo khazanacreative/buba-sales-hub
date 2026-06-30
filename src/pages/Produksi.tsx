@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,14 @@ export default function Produksi() {
   const [tim1Variant, setTim1Variant] = useState("b-ay01"); // default AYAM
   const [tim2Variant, setTim2Variant] = useState("b-sl01"); // default SALMON
   
+  const hasUserModifiedGrids = useRef(false);
+
+  // Reset modification flag when date changes — prevents background Supabase
+  // polling/real-time updates from resetting user input mid-edit.
+  useEffect(() => {
+    hasUserModifiedGrids.current = false;
+  }, [tanggal]);
+
   const [step, setStep] = useState(1);
   const [activeTab, setActiveTab] = useState("siklus"); // siklus, riwayat
   const [range, setRange] = useState<DateRange>({});
@@ -183,8 +191,14 @@ export default function Produksi() {
     setPlanGrid(grid);
   };
 
-  // Synchronize grids on date change
+  // Load grids from DB on date change or initial outlet load.
+  // IMPORTANT: Only depends on [tanggal, outlets] — NOT on data arrays
+  // (permohonanStok, produksi, penjualan) — to prevent background Supabase
+  // polling/real-time updates from wiping user input mid-edit.
+  // Additionally, hasUserModifiedGrids ref prevents re-init even on date
+  // change if the user has already started editing.
   useEffect(() => {
+    if (hasUserModifiedGrids.current) return;
     if (tanggal && outlets.length > 0) {
       loadPlanForDate(tanggal);
 
@@ -301,9 +315,10 @@ export default function Produksi() {
       }
       setReturGrid(rGrid);
     }
-  }, [tanggal, permohonanStok, produksi, outlets, penjualan]);
+  }, [tanggal, outlets]); // Only tanggal/outlets — NOT data arrays, to avoid background-polling reset
 
   const handlePlanChange = (outletId: string, field: string, val: number) => {
+    hasUserModifiedGrids.current = true;
     setPlanGrid(prev => ({
       ...prev,
       [outletId]: {
@@ -314,6 +329,7 @@ export default function Produksi() {
   };
 
   const handleDistChange = (outletId: string, field: string, val: number) => {
+    hasUserModifiedGrids.current = true;
     setDistGrid(prev => ({
       ...prev,
       [outletId]: {
@@ -324,6 +340,7 @@ export default function Produksi() {
   };
 
   const handleReturChange = (outletId: string, field: string, val: number) => {
+    hasUserModifiedGrids.current = true;
     setReturGrid(prev => ({
       ...prev,
       [outletId]: {
@@ -334,6 +351,7 @@ export default function Produksi() {
   };
 
   const handleGramsChange = (prod: string, grams: number) => {
+    hasUserModifiedGrids.current = true;
     setActualGrams(prev => ({ ...prev, [prod]: grams }));
     let factor = 1;
     if (prod === "bubur_1" || prod === "bubur_2") factor = 118;
@@ -347,6 +365,7 @@ export default function Produksi() {
   };
 
   const handleCupsChange = (prod: string, cups: number) => {
+    hasUserModifiedGrids.current = true;
     setActualCups(prev => ({ ...prev, [prod]: cups }));
   };
 

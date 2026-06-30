@@ -706,7 +706,7 @@ function SisaProduksiOH({
 }
 
 // ====================================================================
-// SISA PRODUKSI (OH) — ADMIN VIEW: Consolidated across all outlets
+// SISA PRODUKSI (OH) — ADMIN VIEW: Editable sisa across all outlets
 // ====================================================================
 function SisaProduksiAdminView({
   outlets,
@@ -720,6 +720,8 @@ function SisaProduksiAdminView({
   permohonanStok: any[];
 }) {
   const [tanggal, setTanggal] = useState(todayISO());
+  const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
 
   // 7 Menu items
   const MENU_ITEMS = [
@@ -732,59 +734,117 @@ function SisaProduksiAdminView({
     { subId: "abon", baseId: "p-abon", label: "Abon", gramPerCup: 10 },
   ];
 
-  // Build data per outlet
-  const outletRows = useMemo(() => {
-    return outlets.map((outlet) => {
+  // Build distribution map per outlet, and pre-fill sisa from penjualan
+  const outletDataMap = useMemo(() => {
+    const map = new Map<string, Map<string, { distQty: number; gramPerCup: number; baseId: string; harga: number }>>();
+
+    outlets.forEach((outlet) => {
+      const itemMap = new Map<string, { distQty: number; gramPerCup: number; baseId: string; harga: number }>();
+
       const distRecords = (permohonanStok || []).filter(
         (r: any) => r.outletId === outlet.id && r.status === "Disetujui" && r.tanggalKirim === tanggal && PRODUCTION_PRODUCTS.includes(r.produkId)
       );
 
-      // Build distribution map by subId
-      const distMap = new Map<string, number>();
       distRecords.forEach((r: any) => {
         const split = parseSplit(r.catatan || "");
-        if (r.produkId === "p-bubur") {
-          distMap.set("bubur_d", (distMap.get("bubur_d") || 0) + (split.d || r.qty));
-          distMap.set("bubur_i", (distMap.get("bubur_i") || 0) + (split.i || 0));
-        } else if (r.produkId === "p-nasitim") {
-          distMap.set("tim_d", (distMap.get("tim_d") || 0) + (split.d || r.qty));
-          distMap.set("tim_i", (distMap.get("tim_i") || 0) + (split.i || 0));
-        } else if (r.produkId === "p-oatmeal") {
-          distMap.set("oatmeal", (distMap.get("oatmeal") || 0) + r.qty);
-        } else if (r.produkId === "p-puding") {
-          distMap.set("puding", (distMap.get("puding") || 0) + r.qty);
-        } else if (r.produkId === "p-abon") {
-          distMap.set("abon", (distMap.get("abon") || 0) + r.qty);
-        }
+        MENU_ITEMS.forEach((item) => {
+          if (r.produkId === item.baseId) {
+            let qty = 0;
+            if (item.subId === "bubur_d" || item.subId === "tim_d") qty = split.d || r.qty;
+            else if (item.subId === "bubur_i" || item.subId === "tim_i") qty = split.i || 0;
+            else if (item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon") qty = r.qty;
+
+            if (qty > 0) {
+              const prod = produk.find((p: any) => p.id === item.baseId);
+              itemMap.set(item.subId, {
+                distQty: (itemMap.get(item.subId)?.distQty || 0) + qty,
+                gramPerCup: item.gramPerCup,
+                baseId: item.baseId,
+                harga: prod?.harga || 0,
+              });
+            }
+          }
+        });
       });
 
-      // Get penjualan records for this outlet + date
-      const sales = (penjualan || []).filter(
-        (p: any) => p.outletId === outlet.id && p.tanggal === tanggal
-      );
+      map.set(outlet.id, itemMap);
+    });
 
-      // Build menu rows
-      const items = MENU_ITEMS.map((item) => {
-        const distQty = distMap.get(item.subId) || 0;
-        const terjual = sales
-          .filter((p: any) => p.produkId === item.baseId)
-          .reduce((s: number, p: any) => s + p.qty, 0);
-        const sisaCups = Math.max(0, distQty - terjual);
-        const sisaGram = sisaCups * item.gramPerCup;
-        const prod = produk.find((p: any) => p.id === item.baseId);
-        const harga = prod?.harga || 0;
-        const omset = terjual * harga;
-        return { item, distQty, terjual, sisaCups, sisaGram, harga, omset };
+    return map;
+  }, [outlets, permohonanStok, tanggal, produk]);  // Pre-fill sisaGrid from penjualan data (dist - sold)
+  // Reset when date or data changes
+  useEffect(() => {
+    setSisaGrid((prev) => {
+      const next: Record<string, number> = {};
+      outlets.forEach((outlet) => {
+        const itemMap = outletDataMap.get(outlet.id);
+        if (!itemMap) return;
+        itemMap.forEach((info, subId) => {
+          const key = `${outlet.id}-${tanggal}-${subId}`;
+          const existingSales = (penjualan || []).filter(
+            (p: any) => p.outletId === outlet.id && p.tanggal === tanggal && p.produkId === info.baseId
+          );
+          const totalSold = existingSales.reduce((s: number, p: any) => s + p.qty, 0);
+          const sisaCups = Math.max(0, info.distQty - totalSold);
+          // Store sisa in grams internally
+          const storeVal = sisaCups * info.gramPerCup;
+          next[key] = prev[key] !== undefined ? prev[key] : storeVal;
+        });
       });
+      return next;
+    });
+  }, [outletDataMap, tanggal, penjualan, outlets]);
 
-      return { outlet, items };
-    }).filter(o => o.items.some(i => i.distQty > 0 || i.terjual > 0));
-  }, [outlets, permohonanStok, tanggal, penjualan, produk]);
+  const handleSisaChange = (key: string, val: number) => {
+    setSisaGrid((prev) => ({ ...prev, [key]: isNaN(val) ? 0 : Math.max(0, val) }));
+  };
 
-  // Grand totals
+  const sisaGramToCup = (sisaGr: number, gramPerCup: number): number => {
+    if (gramPerCup <= 0) return 0;
+    return Math.floor(sisaGr / gramPerCup);
+  };
+
+  // Build editable rows per outlet (only outlets with distribution)
+  const outletRows = useMemo(() => {
+    return outlets
+      .map((outlet) => {
+        const itemMap = outletDataMap.get(outlet.id);
+        if (!itemMap || itemMap.size === 0) return null;
+
+        const items = MENU_ITEMS.map((item) => {
+          const info = itemMap.get(item.subId);
+          if (!info || info.distQty <= 0) return null;
+
+          const key = `${outlet.id}-${tanggal}-${item.subId}`;
+          const sisaGram = sisaGrid[key] ?? 0;
+          const sisaCups = sisaGramToCup(sisaGram, item.gramPerCup);
+          const terjual = Math.max(0, info.distQty - Math.min(sisaCups, info.distQty));
+          const omset = terjual * info.harga;
+
+          return {
+            key,
+            subId: item.subId,
+            baseId: item.baseId,
+            label: item.label,
+            gramPerCup: item.gramPerCup,
+            distQty: info.distQty,
+            harga: info.harga,
+            sisaGram,
+            sisaCups,
+            terjual,
+            omset,
+          };
+        }).filter(Boolean) as typeof items;
+
+        return { outlet, items };
+      })
+      .filter(Boolean) as { outlet: any; items: any[] }[];
+  }, [outlets, outletDataMap, sisaGrid]);
+
+  // Grand total across all outlets (auto-calculated)
   const grandTotal = useMemo(() => {
     let totalDist = 0, totalSisa = 0, totalTerjual = 0, totalOmset = 0;
-    outletRows.forEach(o => o.items.forEach(i => {
+    outletRows.forEach(o => o.items.forEach((i: any) => {
       totalDist += i.distQty;
       totalSisa += Math.min(i.sisaCups, i.distQty);
       totalTerjual += i.terjual;
@@ -792,6 +852,64 @@ function SisaProduksiAdminView({
     }));
     return { totalDist, totalSisa, totalTerjual, totalOmset };
   }, [outletRows]);
+
+  const handleSubmit = useCallback(async () => {
+    setSaving(true);
+    try {
+      let savedCount = 0;
+
+      for (const { outlet, items } of outletRows) {
+        // Group by baseId
+        const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; harga: number }>();
+        items.forEach((row: any) => {
+          const existing = groups.get(row.baseId) || {
+            baseId: row.baseId,
+            distribusi: 0,
+            sisa: 0,
+            harga: row.harga,
+          };
+          existing.distribusi += row.distQty;
+          existing.sisa += Math.min(row.sisaCups, row.distQty);
+          groups.set(row.baseId, existing);
+        });
+
+        for (const [baseId, group] of groups) {
+          const terjual = Math.max(0, group.distribusi - group.sisa);
+
+          // Delete existing penjualan for this outlet+tanggal+base
+          const existingPenjualan = (penjualan || []).filter(
+            (p: any) => p.outletId === outlet.id && p.tanggal === tanggal && p.produkId === baseId
+          );
+          for (const p of existingPenjualan) {
+            await db.deletePenjualan(p.id);
+          }
+
+          // Create new penjualan record if anything was sold
+          if (terjual > 0) {
+            await db.addPenjualan({
+              tanggal,
+              outletId: outlet.id,
+              produkId: baseId,
+              qty: terjual,
+              harga: group.harga,
+            });
+            savedCount++;
+          }
+        }
+      }
+
+      if (savedCount > 0) {
+        toast.success(`${savedCount} penjualan berhasil disimpan untuk semua outlet! Data tersinkron ke Langkah 5.`);
+      } else {
+        toast.info("Tidak ada perubahan data penjualan yang perlu dicatat");
+      }
+    } catch (err) {
+      toast.error("Gagal menyimpan data sisa produksi");
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }, [outletRows, tanggal, penjualan]);
 
   return (
     <div className="space-y-4">
@@ -802,8 +920,8 @@ function SisaProduksiAdminView({
             <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />
           </div>
           <div className="text-xs text-muted-foreground">
-            <p className="font-bold text-purple-700 dark:text-purple-300 text-sm mb-1">📊 Rekap Sisa Produksi (OH) — Seluruh Outlet</p>
-            <p>Data sisa produksi yang <strong>tidak terjual</strong> per outlet. Data ini diinput oleh outlet dan langsung tersinkron ke <strong>Langkah 5 Produksi</strong>. Tampilan bersifat <strong>read-only</strong>.</p>
+            <p className="font-bold text-purple-700 dark:text-purple-300 text-sm mb-1">📝 Edit Sisa Produksi (OH) — Semua Outlet</p>
+            <p>Edit <strong>sisa produksi</strong> per menu per outlet. Bubur &amp; Nasi Tim dalam <strong>gram</strong>, Oatmeal &amp; Puding dalam <strong>cup</strong>, Abon dalam <strong>pcs</strong>. Total <strong>terjual</strong> dan <strong>omset</strong> terhitung otomatis. Data sinkron ke <strong>Langkah 5 Produksi</strong>.</p>
           </div>
         </div>
       </div>
@@ -811,34 +929,45 @@ function SisaProduksiAdminView({
       <Card className="glass border-0 shadow-card">
         <CardContent className="p-4 md:p-6 space-y-4">
           {/* Toolbar */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
-              <Input
-                type="date"
-                value={tanggal}
-                onChange={(e) => setTanggal(e.target.value)}
-                className="h-9 w-40 text-xs"
-              />
-            </div>
-            {grandTotal.totalDist > 0 && (
-              <div className="flex items-center gap-4 text-xs">
-                <span className="text-muted-foreground">Dist: <strong className="text-foreground">{grandTotal.totalDist}</strong> cup</span>
-                <span className="text-warning font-medium">Sisa: <strong>{grandTotal.totalSisa}</strong> cup</span>
-                <span className="text-success font-medium">Terjual: <strong>{grandTotal.totalTerjual}</strong> cup</span>
-                <span className="text-primary font-medium">Omset: <strong>{rupiah(grandTotal.totalOmset)}</strong></span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
+                <Input
+                  type="date"
+                  value={tanggal}
+                  onChange={(e) => setTanggal(e.target.value)}
+                  className="h-9 w-40 text-xs"
+                />
               </div>
-            )}
+              {grandTotal.totalDist > 0 && (
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-muted-foreground">Dist: <strong className="text-foreground">{grandTotal.totalDist}</strong> cup</span>
+                  <span className="text-warning font-medium">Sisa: <strong>{grandTotal.totalSisa}</strong> cup</span>
+                  <span className="text-success font-medium">Terjual: <strong>{grandTotal.totalTerjual}</strong> cup</span>
+                  <span className="text-primary font-medium">Omset: <strong>{rupiah(grandTotal.totalOmset)}</strong></span>
+                </div>
+              )}
+            </div>
+            <Button
+              onClick={handleSubmit}
+              disabled={saving || outletRows.length === 0}
+              size="sm"
+              className="gradient-primary text-primary-foreground h-9 shrink-0"
+            >
+              <Save className="h-4 w-4 mr-1.5" />
+              {saving ? "Menyimpan..." : "Simpan Semua Outlet"}
+            </Button>
           </div>
 
           {outletRows.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-8">
-              Belum ada distribusi atau penjualan untuk tanggal ini.
+              Belum ada distribusi untuk tanggal ini.
             </p>
           ) : (
-            /* Per-outlet cards */
+            /* Per-outlet editable cards */
             outletRows.map(({ outlet, items }) => {
-              const outSum = items.reduce((s, i) => ({
+              const outSum = items.reduce((s: any, i: any) => ({
                 dist: s.dist + i.distQty,
                 sisa: s.sisa + Math.min(i.sisaCups, i.distQty),
                 terjual: s.terjual + i.terjual,
@@ -862,36 +991,52 @@ function SisaProduksiAdminView({
                         <TableRow className="bg-muted/20">
                           <TableHead>Menu</TableHead>
                           <TableHead className="text-right">Distribusi</TableHead>
-                          <TableHead className="text-right text-warning">Sisa (Unit)</TableHead>
-                          <TableHead className="text-right text-warning">Sisa (Cup/Pcs)</TableHead>
-                          <TableHead className="text-right text-success">Terjual</TableHead>
+                          <TableHead className="text-right w-[140px]">Sisa (Unit)</TableHead>
+                          <TableHead className="text-right">Sisa (Cup/Pcs)</TableHead>
+                          <TableHead className="text-right">Terjual</TableHead>
                           <TableHead className="text-right">Harga</TableHead>
-                          <TableHead className="text-right text-primary">Omset</TableHead>
+                          <TableHead className="text-right">Omset</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {items.map((i) => (
-                          <TableRow key={i.item.subId} className={i.distQty > 0 ? "" : "opacity-50"}>
-                            <TableCell className="font-semibold whitespace-nowrap">
-                              {i.item.label}
-                              {i.distQty <= 0 && <span className="text-[10px] text-muted-foreground ml-2">(no dist)</span>}
-                            </TableCell>
-                            <TableCell className="text-right">{i.distQty > 0 ? i.distQty : "—"}</TableCell>
-                            <TableCell className="text-right">
-                              {i.distQty > 0 ? (
-                                i.item.subId === "oatmeal" || i.item.subId === "puding" || i.item.subId === "abon"
-                                  ? `${i.sisaCups} ${i.item.subId === "abon" ? "pcs" : "cup"}`
-                                  : `${i.sisaGram.toLocaleString()} g`
-                              ) : "—"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {i.distQty > 0 ? `${i.sisaCups} ${i.item.subId === "abon" ? "pcs" : "cup"}` : "—"}
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-success">{i.terjual > 0 ? i.terjual : "—"}</TableCell>
-                            <TableCell className="text-right text-xs text-muted-foreground">{rupiah(i.harga)}</TableCell>
-                            <TableCell className="text-right font-bold text-primary">{i.omset > 0 ? rupiah(i.omset) : "—"}</TableCell>
-                          </TableRow>
-                        ))}
+                        {items.map((row: any) => {
+                          const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
+                          const displayUnit = row.subId === "abon" ? "pcs" : (isCupItem ? "cup" : "g");
+                          const displayVal = isCupItem ? Math.floor((row.sisaGram || 0) / row.gramPerCup) : (row.sisaGram || 0);
+                          const maxDisplayVal = isCupItem ? row.distQty : row.distQty * row.gramPerCup;
+
+                          return (
+                            <TableRow key={row.key}>
+                              <TableCell className="font-semibold whitespace-nowrap">{row.label}</TableCell>
+                              <TableCell className="text-right font-medium">{row.distQty}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={maxDisplayVal}
+                                    value={displayVal || ""}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      const clamped = Math.min(Math.max(val, 0), maxDisplayVal);
+                                      const storeVal = isCupItem ? clamped * row.gramPerCup : clamped;
+                                      handleSisaChange(row.key, storeVal);
+                                    }}
+                                    className="w-20 h-8 text-xs text-center"
+                                    placeholder="0"
+                                  />
+                                  <span className="text-[11px] text-muted-foreground w-5 shrink-0">{displayUnit}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-xs">
+                                {row.sisaCups} {row.subId === "abon" ? "pcs" : "cup"}
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-success">{row.terjual}</TableCell>
+                              <TableCell className="text-right text-xs text-muted-foreground">{rupiah(row.harga)}</TableCell>
+                              <TableCell className="text-right font-bold text-primary">{rupiah(row.omset)}</TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>

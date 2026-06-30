@@ -284,6 +284,9 @@ function SisaProduksiOH({
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draftSisa, setDraftSisa] = useState<Record<string, number>>({});
+  // Track whether user has manually modified sisa values.
+  // Prevents auto-recalculation from overwriting user input.
+  const [userModifiedSisa, setUserModifiedSisa] = useState(false);
 
   // 7 Menu items for daily input
   const MENU_ITEMS = [
@@ -328,9 +331,17 @@ function SisaProduksiOH({
     return map;
   }, [distributions]);
 
+  // Reset userModifiedSisa when date changes so auto-recalculation works for new date
+  useEffect(() => {
+    setUserModifiedSisa(false);
+  }, [tanggal]);
+
   // Pre-fill sisa from existing penjualan (all stored in grams)
   // Reset sisaGrid when distribution data changes so outlet sees updated distribusi
+  // Only runs when user has NOT manually modified sisa (prevents overwrite user input)
   useEffect(() => {
+    if (userModifiedSisa) return;
+
     setSisaGrid((prev) => {
       const next = { ...prev };
       MENU_ITEMS.forEach((item) => {
@@ -355,7 +366,7 @@ function SisaProduksiOH({
       });
       return next;
     });
-  }, [distMap, tanggal, penjualan, user.outletId]);
+  }, [distMap, tanggal, penjualan, user.outletId, userModifiedSisa]);
 
 
 
@@ -371,6 +382,7 @@ function SisaProduksiOH({
   };
 
   const handleDraftChange = (key: string, val: number) => {
+    setUserModifiedSisa(true);
     setDraftSisa((prev) => ({ ...prev, [key]: isNaN(val) ? 0 : Math.max(0, val) }));
   };
 
@@ -469,6 +481,9 @@ function SisaProduksiOH({
           savedCount++;
         }
       }
+
+      // After successful save, allow auto-recalculation again
+      setUserModifiedSisa(false);
 
       if (savedCount > 0) {
         toast.success(`${savedCount} penjualan berhasil disimpan! Data terhubung ke admin.`);
@@ -722,6 +737,9 @@ function SisaProduksiAdminView({
   const [tanggal, setTanggal] = useState(todayISO());
   const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  // Track whether admin has manually modified sisa values.
+  // Prevents auto-recalculation from overwriting admin input.
+  const [userModifiedSisa, setUserModifiedSisa] = useState(false);
 
   // 7 Menu items
   const MENU_ITEMS = [
@@ -771,9 +789,16 @@ function SisaProduksiAdminView({
     });
 
     return map;
-  }, [outlets, permohonanStok, tanggal, produk]);  // Pre-fill sisaGrid from penjualan data (dist - sold)
-  // Reset when date or data changes
+  }, [outlets, permohonanStok, tanggal, produk]);  // Reset userModifiedSisa when date changes so auto-recalculation works for new date
   useEffect(() => {
+    setUserModifiedSisa(false);
+  }, [tanggal]);
+
+  // Pre-fill sisaGrid from penjualan data (dist - sold)
+  // Only runs when admin has NOT manually modified sisa (prevents overwrite input)
+  useEffect(() => {
+    if (userModifiedSisa) return;
+
     setSisaGrid((prev) => {
       const next: Record<string, number> = {};
       outlets.forEach((outlet) => {
@@ -793,9 +818,10 @@ function SisaProduksiAdminView({
       });
       return next;
     });
-  }, [outletDataMap, tanggal, penjualan, outlets]);
+  }, [outletDataMap, tanggal, penjualan, outlets, userModifiedSisa]);
 
   const handleSisaChange = (key: string, val: number) => {
+    setUserModifiedSisa(true);
     setSisaGrid((prev) => ({ ...prev, [key]: isNaN(val) ? 0 : Math.max(0, val) }));
   };
 
@@ -897,6 +923,9 @@ function SisaProduksiAdminView({
           }
         }
       }
+
+      // After successful save, allow auto-recalculation again
+      setUserModifiedSisa(false);
 
       if (savedCount > 0) {
         toast.success(`${savedCount} penjualan berhasil disimpan untuk semua outlet! Data tersinkron ke Langkah 5.`);

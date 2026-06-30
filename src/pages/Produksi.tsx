@@ -484,6 +484,43 @@ export default function Produksi() {
       });
     }
 
+    // 1b. Sayur
+    const shGr = Math.round((totals.buburD + totals.buburI) * settings.sayurHijauBubur + (totals.timD + totals.timI) * settings.sayurHijauTim);
+    if (shGr > 0) {
+      reqs.push({
+        bahanId: "b-sh01",
+        kode: "SH01",
+        nama: "SAYUR HIJAU",
+        qty: shGr,
+        rawQtyGrams: shGr,
+        satuan: "gr"
+      });
+    }
+
+    const sbGr = Math.round((totals.buburD + totals.buburI) * settings.sayurBrokoliBubur + (totals.timD + totals.timI) * settings.sayurBrokoliTim);
+    if (sbGr > 0) {
+      reqs.push({
+        bahanId: "b-sb01",
+        kode: "SB01",
+        nama: "SAYUR BROKOLI",
+        qty: sbGr,
+        rawQtyGrams: sbGr,
+        satuan: "gr"
+      });
+    }
+
+    const spGr = Math.round((totals.buburD + totals.buburI) * settings.sayurPutihBubur + (totals.timD + totals.timI) * settings.sayurPutihTim);
+    if (spGr > 0) {
+      reqs.push({
+        bahanId: "b-sp01",
+        kode: "SP01",
+        nama: "SAYUR PUTIH",
+        qty: spGr,
+        rawQtyGrams: spGr,
+        satuan: "gr"
+      });
+    }
+
     // Helper to add meat variant
     const addVariant = (variantId: string, grams: number) => {
       const b = bahan.find(x => x.id === variantId);
@@ -773,7 +810,10 @@ export default function Produksi() {
         beras: 0,
         puding: 0,
         oat: 0,
-        abon: 0
+        abon: 0,
+        sayurHijau: 0,
+        sayurBrokoli: 0,
+        sayurPutih: 0
       };
 
       outlets.forEach((o) => {
@@ -791,21 +831,41 @@ export default function Produksi() {
           // Bubur D & I: retur * beras per cup
           if (sent.bubur_d > 0) {
             const actualRetur = Math.min(retur.bubur_d || 0, sent.bubur_d);
-            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasBubur;
+            if (actualRetur > 0) {
+              recoveredIngredients.beras += actualRetur * settings.berasBubur;
+              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauBubur;
+              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliBubur;
+              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihBubur;
+            }
           }
           if (sent.bubur_i > 0) {
             const actualRetur = Math.min(retur.bubur_i || 0, sent.bubur_i);
-            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasBubur;
+            if (actualRetur > 0) {
+              recoveredIngredients.beras += actualRetur * settings.berasBubur;
+              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauBubur;
+              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliBubur;
+              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihBubur;
+            }
           }
 
           // Tim D & I
           if (sent.tim_d > 0) {
             const actualRetur = Math.min(retur.tim_d || 0, sent.tim_d);
-            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasTim;
+            if (actualRetur > 0) {
+              recoveredIngredients.beras += actualRetur * settings.berasTim;
+              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauTim;
+              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliTim;
+              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihTim;
+            }
           }
           if (sent.tim_i > 0) {
             const actualRetur = Math.min(retur.tim_i || 0, sent.tim_i);
-            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasTim;
+            if (actualRetur > 0) {
+              recoveredIngredients.beras += actualRetur * settings.berasTim;
+              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauTim;
+              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliTim;
+              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihTim;
+            }
           }
 
           // Oatmeal
@@ -888,6 +948,28 @@ export default function Produksi() {
           tanggal, bahanId: "b-ab01", tipe: "IN",
           qty: Math.round((recoveredIngredients.abon / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 100)) * 100) / 100,
           keterangan: `Retur Bahan Baku (cup) [${tanggal}]`
+        }));
+      }
+
+      if (recoveredIngredients.sayurHijau > 1) {
+        movPromises.push(db.addStokMov({
+          tanggal, bahanId: "b-sh01", tipe: "IN",
+          qty: Math.round(recoveredIngredients.sayurHijau * 100) / 100,
+          keterangan: `Retur Bahan Baku (gr) [${tanggal}]`
+        }));
+      }
+      if (recoveredIngredients.sayurBrokoli > 1) {
+        movPromises.push(db.addStokMov({
+          tanggal, bahanId: "b-sb01", tipe: "IN",
+          qty: Math.round(recoveredIngredients.sayurBrokoli * 100) / 100,
+          keterangan: `Retur Bahan Baku (gr) [${tanggal}]`
+        }));
+      }
+      if (recoveredIngredients.sayurPutih > 1) {
+        movPromises.push(db.addStokMov({
+          tanggal, bahanId: "b-sp01", tipe: "IN",
+          qty: Math.round(recoveredIngredients.sayurPutih * 100) / 100,
+          keterangan: `Retur Bahan Baku (gr) [${tanggal}]`
         }));
       }
 
@@ -1247,10 +1329,10 @@ export default function Produksi() {
               {(() => {
               // Calculate ingredients for all outlets combined
               const totalBeras = (totals.buburD * settings.berasBubur) + (totals.buburI * settings.berasBubur) + (totals.timD * settings.berasTim) + (totals.timI * settings.berasTim);
-              const totalAyamBubur = totals.buburD * (settings.dagingBubur/15);
-              const totalSalmonBubur = totals.buburI * (settings.dagingBubur/15);
-              const totalAyamTim = totals.timD * (settings.dagingTim/12);
-              const totalSalmonTim = totals.timI * (settings.dagingTim/12);
+              const totalAyamBubur = totals.buburD * settings.dagingBubur;
+              const totalSalmonBubur = totals.buburI * settings.dagingBubur;
+              const totalAyamTim = totals.timD * settings.dagingTim;
+              const totalSalmonTim = totals.timI * settings.dagingTim;
               const totalOatmeal = totals.oatmeal * settings.oatmealCup;
               const totalPuding = totals.puding * settings.pudingCup;
               const totalAbon = totals.abon * settings.abonCup;
@@ -1349,7 +1431,7 @@ export default function Produksi() {
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.buburD} cup</span></div>
                       <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.buburD * settings.berasBubur)} gr</span></div>
-                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(totals.buburD * (settings.dagingBubur / 15) * 10) / 10} gr</span></div>
+                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(totals.buburD * settings.dagingBubur * 10) / 10} gr</span></div>
                       <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.buburD * settings.airBubur)} ml</span></div>
                       <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.buburD * settings.sayurHijauBubur * 10) / 10} gr</span></div>
                       <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.buburD * settings.sayurBrokoliBubur * 10) / 10} gr</span></div>
@@ -1364,7 +1446,7 @@ export default function Produksi() {
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.buburI} cup</span></div>
                       <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.buburI * settings.berasBubur)} gr</span></div>
-                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(totals.buburI * (settings.dagingBubur / 15) * 10) / 10} gr</span></div>
+                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(totals.buburI * settings.dagingBubur * 10) / 10} gr</span></div>
                       <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.buburI * settings.airBubur)} ml</span></div>
                       <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.buburI * settings.sayurHijauBubur * 10) / 10} gr</span></div>
                       <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.buburI * settings.sayurBrokoliBubur * 10) / 10} gr</span></div>
@@ -1379,7 +1461,7 @@ export default function Produksi() {
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.timD} cup</span></div>
                       <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.timD * settings.berasTim)} gr</span></div>
-                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(totals.timD * (settings.dagingTim / 12) * 10) / 10} gr</span></div>
+                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.round(totals.timD * settings.dagingTim * 10) / 10} gr</span></div>
                       <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.timD * settings.airTim)} ml</span></div>
                       <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.timD * settings.sayurHijauTim * 10) / 10} gr</span></div>
                       <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.timD * settings.sayurBrokoliTim * 10) / 10} gr</span></div>
@@ -1394,7 +1476,7 @@ export default function Produksi() {
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.timI} cup</span></div>
                       <div>• Beras: <span className="font-semibold text-foreground">{Math.round(totals.timI * settings.berasTim)} gr</span></div>
-                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(totals.timI * (settings.dagingTim / 12) * 10) / 10} gr</span></div>
+                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.round(totals.timI * settings.dagingTim * 10) / 10} gr</span></div>
                       <div>• Air: <span className="font-semibold text-foreground">{Math.round(totals.timI * settings.airTim)} ml</span></div>
                       <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.round(totals.timI * settings.sayurHijauTim * 10) / 10} gr</span></div>
                       <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.round(totals.timI * settings.sayurBrokoliTim * 10) / 10} gr</span></div>

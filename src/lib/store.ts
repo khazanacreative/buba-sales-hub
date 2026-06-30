@@ -732,23 +732,21 @@ export interface BubaSettings {
 }
 
 export const DEFAULT_SETTINGS: BubaSettings = {
-  // Rumus Perbandingan Bubur: Beras:Ikan:Air = 100:5:700
+  // Rumus Perbandingan Bubur: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:5:700:8:5:1.5
   berasBubur: 16.67,
-  dagingBubur: 0.83,  // 16.67 * 5/100
-  airBubur: 116.69,   // 16.67 * 700/100
-  sayurHijauBubur: 1.36,  // 8/14.5 dari total sayur ~2.47g
-  sayurBrokoliBubur: 0.85, // 5/14.5
-  sayurPutihBubur: 0.26,   // 1.5/14.5
-  // SH:SB:SP = 8:5:1.5
+  dagingBubur: 0.83,     // 16.67 * 5/100
+  airBubur: 116.69,      // 16.67 * 700/100
+  sayurHijauBubur: 1.33, // 16.67 * 8/100
+  sayurBrokoliBubur: 0.83, // 16.67 * 5/100
+  sayurPutihBubur: 0.25,   // 16.67 * 1.5/100
   
-  // Rumus Perbandingan Nasi Tim: Beras:Ikan:Air = 100:4:600
+  // Rumus Perbandingan Nasi Tim: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:4:600:8:5:1.5
   berasTim: 20.00,
-  dagingTim: 0.80,    // 20.00 * 4/100
-  airTim: 120.00,     // 20.00 * 600/100
-  sayurHijauTim: 1.61,  // 8/14.5 dari total sayur ~2.91g
-  sayurBrokoliTim: 1.00, // 5/14.5
-  sayurPutihTim: 0.30,   // 1.5/14.5
-  // SH:SB:SP = 8:5:1.5
+  dagingTim: 0.80,       // 20.00 * 4/100
+  airTim: 120.00,        // 20.00 * 600/100
+  sayurHijauTim: 1.60,   // 20.00 * 8/100
+  sayurBrokoliTim: 1.00, // 20.00 * 5/100
+  sayurPutihTim: 0.30,   // 20.00 * 1.5/100
 
   oatmealCup: 25.71,
   pudingCup: 13.00,

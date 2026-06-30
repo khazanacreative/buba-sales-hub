@@ -282,10 +282,10 @@ function SisaProduksiOH({
 
   // 7 Menu items for daily input
   const MENU_ITEMS = [
-    { subId: "bubur_d", baseId: "p-bubur", label: "Bubur 1", gramPerCup: 118 },
-    { subId: "bubur_i", baseId: "p-bubur", label: "Bubur 2", gramPerCup: 118 },
-    { subId: "tim_d", baseId: "p-nasitim", label: "Nasi Tim 1", gramPerCup: 108 },
-    { subId: "tim_i", baseId: "p-nasitim", label: "Nasi Tim 2", gramPerCup: 108 },
+    { subId: "bubur_d", baseId: "p-bubur", label: "Bubur Daging", gramPerCup: 118 },
+    { subId: "bubur_i", baseId: "p-bubur", label: "Bubur Ikan", gramPerCup: 118 },
+    { subId: "tim_d", baseId: "p-nasitim", label: "Nasi Tim Daging", gramPerCup: 108 },
+    { subId: "tim_i", baseId: "p-nasitim", label: "Nasi Tim Ikan", gramPerCup: 108 },
     { subId: "oatmeal", baseId: "p-oatmeal", label: "Oatmeal", gramPerCup: 100 },
     { subId: "puding", baseId: "p-puding", label: "Puding", gramPerCup: 80 },
     { subId: "abon", baseId: "p-abon", label: "Abon", gramPerCup: 10 },
@@ -323,19 +323,20 @@ function SisaProduksiOH({
     return map;
   }, [distributions]);
 
-  // Pre-fill sisa from existing penjualan
+  // Pre-fill sisa from existing penjualan (all stored in grams)
   useEffect(() => {
     const newSisa: Record<string, number> = {};
     MENU_ITEMS.forEach((item) => {
       const distQty = distMap.get(item.subId) || 0;
-      if (distQty <= 0) return; // skip if no distribution
+      if (distQty <= 0) return;
       const existingSales = (penjualan || []).filter(
         (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === item.baseId
       );
       const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
-      const sisa = Math.max(0, distQty - totalSold);
-      if (sisa > 0) {
-        newSisa[`${tanggal}-${item.subId}`] = sisa;
+      const sisaCups = Math.max(0, distQty - totalSold);
+      if (sisaCups > 0) {
+        // Convert to grams for consistent storage
+        newSisa[`${tanggal}-${item.subId}`] = sisaCups * item.gramPerCup;
       }
     });
     if (Object.keys(newSisa).length > 0) {
@@ -477,7 +478,7 @@ function SisaProduksiOH({
           </div>
           <div className="text-xs text-muted-foreground">
             <p className="font-bold text-blue-700 dark:text-blue-300 text-sm mb-1">📋 Input Sisa Produksi Harian</p>
-            <p>Masukkan <strong>sisa produksi (gram)</strong> yang <strong>tidak terjual</strong> hari ini. Otomatis dikonversi ke cup/pcs. Sisa tidak boleh melebihi stok yang didistribusikan. Data sinkron ke <strong>Langkah 5 Produksi</strong>.</p>
+            <p>Masukkan <strong>sisa produksi</strong> yang <strong>tidak terjual</strong> hari ini. Bubur &amp; Nasi Tim dalam <strong>gram</strong>, Oatmeal &amp; Puding dalam <strong>cup</strong>, Abon dalam <strong>pcs</strong>. Sisa tidak boleh melebihi stok yang didistribusikan. Data sinkron ke <strong>Langkah 5 Produksi</strong>.</p>
           </div>
         </div>
       </div>
@@ -548,6 +549,8 @@ function SisaProduksiOH({
                     const gramPerCup = row.gramPerCup || 118;
                     const distGram = row.distribusi * gramPerCup;
                     const sisaCups = Math.floor((row.sisa || 0) / gramPerCup);
+                    const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
+                    const distUnit = row.subId === "abon" ? "pcs" : (isCupItem ? "cup" : "g");
                     return (
                     <TableRow key={row.key} className={row.distribusi > 0 ? "" : "opacity-60"}>
                       <TableCell className="whitespace-nowrap font-semibold">
@@ -560,11 +563,19 @@ function SisaProduksiOH({
                         {row.distribusi > 0 ? row.distribusi : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
-                        {row.distribusi > 0 ? `${distGram.toLocaleString()} g` : <span className="text-muted-foreground">—</span>}
+                        {row.distribusi > 0 ? (
+                          isCupItem ? `${row.distribusi} ${distUnit}` : `${distGram.toLocaleString()} g`
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         {row.distribusi > 0 ? (
-                          <span className="font-medium tabular-nums">{row.sisa.toLocaleString()} g</span>
+                          isCupItem ? (
+                            <span className="font-medium tabular-nums">{sisaCups} {distUnit}</span>
+                          ) : (
+                            <span className="font-medium tabular-nums">{row.sisa.toLocaleString()} g</span>
+                          )
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
@@ -611,7 +622,7 @@ function SisaProduksiOH({
               Input Sisa Produksi — {tanggal}
             </DialogTitle>
             <DialogDescription>
-              Masukkan sisa produksi (gram) yang tidak terjual untuk setiap menu.
+              Bubur &amp; Nasi Tim (gram), Oatmeal &amp; Puding (cup), Abon (pcs).
             </DialogDescription>
           </DialogHeader>
 
@@ -620,7 +631,11 @@ function SisaProduksiOH({
               const key = `${tanggal}-${item.subId}`;
               const distQty = distMap.get(item.subId) || 0;
               const maxGram = distQty * item.gramPerCup;
-              const draftVal = draftSisa[key] ?? 0;
+              const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
+              const displayUnit = item.subId === "abon" ? "pcs" : (isCupUnit ? "cup" : "g");
+              const displayMax = isCupUnit ? distQty : maxGram;
+              // For cup/pcs items, convert stored grams back to cups/pcs for display
+              const displayVal = isCupUnit ? Math.floor((draftSisa[key] ?? 0) / item.gramPerCup) : (draftSisa[key] ?? 0);
               return (
                 <div
                   key={key}
@@ -630,7 +645,9 @@ function SisaProduksiOH({
                     <p className="text-sm font-semibold">{item.label}</p>
                     <p className="text-[10px] text-muted-foreground">
                       {distQty > 0
-                        ? `${distQty} cup (${(maxGram).toLocaleString()} g) — ${item.gramPerCup} g/cup`
+                        ? isCupUnit
+                          ? `${distQty} ${displayUnit} ${item.subId === "abon" ? "" : `(@ ${item.gramPerCup}g/${displayUnit})`}`
+                          : `${distQty} cup (${(maxGram).toLocaleString()} g) — ${item.gramPerCup} g/cup`
                         : 'Tidak ada distribusi'}
                     </p>
                   </div>
@@ -638,18 +655,20 @@ function SisaProduksiOH({
                     <Input
                       type="number"
                       min={0}
-                      max={distQty > 0 ? maxGram : undefined}
-                      value={draftVal || ""}
+                      max={distQty > 0 ? displayMax : undefined}
+                      value={displayVal || ""}
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
-                        const clamped = distQty > 0 ? Math.min(Math.max(val, 0), maxGram) : val;
-                        handleDraftChange(key, clamped);
+                        const clamped = distQty > 0 ? Math.min(Math.max(val, 0), displayMax) : val;
+                        // Convert cup/pcs input to grams for storage
+                        const storeVal = isCupUnit ? clamped * item.gramPerCup : clamped;
+                        handleDraftChange(key, storeVal);
                       }}
                       disabled={distQty <= 0}
                       className="w-24 h-9 text-xs text-center"
                       placeholder="0"
                     />
-                    <span className="text-[11px] text-muted-foreground w-4">g</span>
+                    <span className="text-[11px] text-muted-foreground w-6">{displayUnit}</span>
                   </div>
                 </div>
               );

@@ -1944,7 +1944,7 @@ export default function Produksi() {
       <Card className="glass border-0 shadow-card">
         <CardHeader>
           <CardTitle>Langkah 5: Retur & Penjualan Akhir Hari</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi sisa cup tidak terjual (retur), penjualan akan dihitung otomatis.</p>
+          <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah. Bubur &amp; Nasi Tim isi <strong>gram</strong> retur (otomatis konversi ke cup), Oatmeal &amp; Puding isi <strong>cup</strong>, Abon isi <strong>pcs</strong>. Penjualan dihitung otomatis.</p>
         </CardHeader>
         <CardContent className="space-y-6">
 
@@ -2011,56 +2011,72 @@ export default function Produksi() {
                     <Input
                       type="number"
                       min={0}
-                      max={sent.bubur_d}
-                      value={row.bubur_d || ""}
-                      onChange={(e) => handleReturChange(step5OutletId, "bubur_d", parseInt(e.target.value))}
+                      max={sent.bubur_d * 118}
+                      value={(row.bubur_d || 0) * 118 || ""}
+                      onChange={(e) => {
+                        const grams = parseInt(e.target.value) || 0;
+                        const cups = Math.min(Math.floor(grams / 118), sent.bubur_d);
+                        handleReturChange(step5OutletId, "bubur_d", cups);
+                      }}
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
-                      placeholder="0"
+                      placeholder="Gram"
                     />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.bubur_d} ({sent.bubur_d * 118}g)</span>
-                    <span className="text-[9px] text-destructive block text-center">Retur: {row.bubur_d * 118}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_d || 0} cup / {sent.bubur_d} cup kirim</span>
+                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.bubur_d * 118}g | Retur: {(row.bubur_d || 0) * 118}g</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name} Retur`}>B. {bubur2Name}</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={sent.bubur_i}
-                      value={row.bubur_i || ""}
-                      onChange={(e) => handleReturChange(step5OutletId, "bubur_i", parseInt(e.target.value))}
+                      max={sent.bubur_i * 118}
+                      value={(row.bubur_i || 0) * 118 || ""}
+                      onChange={(e) => {
+                        const grams = parseInt(e.target.value) || 0;
+                        const cups = Math.min(Math.floor(grams / 118), sent.bubur_i);
+                        handleReturChange(step5OutletId, "bubur_i", cups);
+                      }}
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
-                      placeholder="0"
+                      placeholder="Gram"
                     />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.bubur_i} ({sent.bubur_i * 118}g)</span>
-                    <span className="text-[9px] text-destructive block text-center">Retur: {row.bubur_i * 118}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_i || 0} cup / {sent.bubur_i} cup kirim</span>
+                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.bubur_i * 118}g | Retur: {(row.bubur_i || 0) * 118}g</span>
                   </div>
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name} Retur`}>T. {tim1Name}</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={sent.tim_d}
-                      value={row.tim_d || ""}
-                      onChange={(e) => handleReturChange(step5OutletId, "tim_d", parseInt(e.target.value))}
+                      max={sent.tim_d * 108}
+                      value={(row.tim_d || 0) * 108 || ""}
+                      onChange={(e) => {
+                        const grams = parseInt(e.target.value) || 0;
+                        const cups = Math.min(Math.floor(grams / 108), sent.tim_d);
+                        handleReturChange(step5OutletId, "tim_d", cups);
+                      }}
                       className="h-9 text-xs text-center border-amber-300 focus-visible:ring-amber-500 font-semibold"
-                      placeholder="0"
+                      placeholder="Gram"
                     />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.tim_d} ({sent.tim_d * 108}g)</span>
-                    <span className="text-[9px] text-destructive block text-center">Retur: {row.tim_d * 108}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_d || 0} cup / {sent.tim_d} cup kirim</span>
+                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.tim_d * 108}g | Retur: {(row.tim_d || 0) * 108}g</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name} Retur`}>T. {tim2Name}</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={sent.tim_i}
-                      value={row.tim_i || ""}
-                      onChange={(e) => handleReturChange(step5OutletId, "tim_i", parseInt(e.target.value))}
+                      max={sent.tim_i * 108}
+                      value={(row.tim_i || 0) * 108 || ""}
+                      onChange={(e) => {
+                        const grams = parseInt(e.target.value) || 0;
+                        const cups = Math.min(Math.floor(grams / 108), sent.tim_i);
+                        handleReturChange(step5OutletId, "tim_i", cups);
+                      }}
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
-                      placeholder="0"
+                      placeholder="Gram"
                     />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.tim_i} ({sent.tim_i * 108}g)</span>
-                    <span className="text-[9px] text-destructive block text-center">Retur: {row.tim_i * 108}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_i || 0} cup / {sent.tim_i} cup kirim</span>
+                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.tim_i * 108}g | Retur: {(row.tim_i || 0) * 108}g</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal Retur</Label>

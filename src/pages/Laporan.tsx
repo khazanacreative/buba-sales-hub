@@ -324,25 +324,35 @@ function SisaProduksiOH({
   }, [distributions]);
 
   // Pre-fill sisa from existing penjualan (all stored in grams)
+  // Reset sisaGrid when distribution data changes so outlet sees updated distribusi
   useEffect(() => {
-    const newSisa: Record<string, number> = {};
-    MENU_ITEMS.forEach((item) => {
-      const distQty = distMap.get(item.subId) || 0;
-      if (distQty <= 0) return;
-      const existingSales = (penjualan || []).filter(
-        (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === item.baseId
-      );
-      const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
-      const sisaCups = Math.max(0, distQty - totalSold);
-      if (sisaCups > 0) {
-        // Convert to grams for consistent storage
-        newSisa[`${tanggal}-${item.subId}`] = sisaCups * item.gramPerCup;
-      }
+    setSisaGrid((prev) => {
+      const next = { ...prev };
+      MENU_ITEMS.forEach((item) => {
+        const key = `${tanggal}-${item.subId}`;
+        const distQty = distMap.get(item.subId) || 0;
+
+        // Only update items that have distribution or had a previous value
+        if (distQty <= 0 && !(key in prev)) return;
+
+        if (distQty <= 0) {
+          // Distribution removed — clear stored sisa
+          next[key] = 0;
+          return;
+        }
+
+        const existingSales = (penjualan || []).filter(
+          (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === item.baseId
+        );
+        const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
+        const sisaCups = Math.max(0, distQty - totalSold);
+        next[key] = sisaCups * item.gramPerCup;
+      });
+      return next;
     });
-    if (Object.keys(newSisa).length > 0) {
-      setSisaGrid((prev) => ({ ...prev, ...newSisa }));
-    }
   }, [distMap, tanggal, penjualan, user.outletId]);
+
+
 
   const openDialog = () => {
     // Initialize draft with current sisaGrid values

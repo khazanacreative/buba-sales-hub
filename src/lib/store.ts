@@ -192,6 +192,11 @@ supabase
   })
   .subscribe();
 
+// Periodic polling fallback (every 30s) in case Realtime connection drops
+setInterval(() => {
+  fetchFromSupabase();
+}, 30_000);
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 export const db = {

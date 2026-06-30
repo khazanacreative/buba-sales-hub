@@ -892,6 +892,12 @@ export default function Produksi() {
       }
     });
 
+    // Hapus penjualan lama untuk tanggal ini (dari outlet) sebelum posting ulang
+    const existingPenjualan = (penjualan || []).filter((p: any) => p.tanggal === tanggal);
+    if (existingPenjualan.length > 0) {
+      await Promise.all(existingPenjualan.map((p: any) => db.deletePenjualan(p.id)));
+    }
+
     if (salesToPost.length > 0) {
       await db.addPenjualanBulk(salesToPost);
     }

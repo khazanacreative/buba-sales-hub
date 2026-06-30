@@ -536,8 +536,8 @@ function SisaProduksiOH({
                   <TableRow className="bg-muted/40">
                     <TableHead>Menu</TableHead>
                     <TableHead className="text-right">Distribusi (Cup)</TableHead>
-                    <TableHead className="text-right w-[120px]">Distribusi (Gram)</TableHead>
-                    <TableHead className="text-right w-[160px]">Sisa (Gram)</TableHead>
+                    <TableHead className="text-right w-[120px]">Distribusi (Unit)</TableHead>
+                    <TableHead className="text-right w-[160px]">Sisa (Unit)</TableHead>
                     <TableHead className="text-right">Sisa (Cup/Pcs)</TableHead>
                     <TableHead className="text-right">Terjual</TableHead>
                     <TableHead className="text-right">Harga</TableHead>

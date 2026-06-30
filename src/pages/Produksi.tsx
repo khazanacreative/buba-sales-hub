@@ -145,6 +145,7 @@ export default function Produksi() {
 
   // STEP 5 STATES
   const [returGrid, setReturGrid] = useState<Record<string, Record<string, number>>>({});
+  const [closingCycle, setClosingCycle] = useState(false);
 
   // Parse [D:X, I:Y] split from catatan
   const parseSplit = (catatan: string) => {
@@ -746,234 +747,162 @@ export default function Produksi() {
     setStep(5);
   };
 
-  // STEP 5 Action
+  // STEP 5 Action — only VALIDATES & CLOSES the cycle.
+  // Data penjualan sudah di-entry oleh outlet via Laporan -> SisaProduksiOH.
+  // saveStep5 TIDAK menghapus/merecreate penjualan, hanya:
+  // 1. Membaca penjualan dari outlet untuk revenue jurnal
+  // 2. Menggunakan returGrid (bisa diedit admin) untuk stok retur
+  // 3. Posting jurnal & stok movement
+  // 4. Kembali ke Langkah 1 (siklus selesai)
   const saveStep5 = async () => {
-    const salesToPost: any[] = [];
-    let totalSalesRevenue = 0;
+    if (closingCycle) return; // Cegah double-click
+    setClosingCycle(true);
 
-    const recoveredIngredients = {
-      beras: 0,
-      puding: 0,
-      oat: 0,
-      abon: 0
-    };
+    try {
+      // 1. Baca penjualan yang sudah di-entry outlet dari database
+      const existingPenjualan = (penjualan || []).filter((p: any) => p.tanggal === tanggal);
 
-    // Calculate sales and return ingredients directly from local distGrid and returGrid states
-    outlets.forEach((o) => {
-      const sent = distGrid[o.id] || {};
-      const retur = returGrid[o.id] || {};
+      // 2. Hitung total revenue dari penjualan outlet
+      let totalSalesRevenue = 0;
+      existingPenjualan.forEach((p: any) => {
+        totalSalesRevenue += p.qty * p.harga;
+      });
 
-      // 1. Bubur 1 (Daging)
-      if (sent.bubur_d > 0) {
-        const actualRetur = Math.min(retur.bubur_d || 0, sent.bubur_d);
-        const terjual = sent.bubur_d - actualRetur;
-        const prod = produk.find(p => p.id === "p-bubur");
-        const harga = prod?.harga || 0;
-        if (terjual > 0) {
-          salesToPost.push({
-            tanggal,
-            outletId: o.id,
-            produkId: "p-bubur",
-            qty: terjual,
-            harga: harga
-          });
-          totalSalesRevenue += terjual * harga;
-        }
-        if (actualRetur > 0) {
-          recoveredIngredients.beras += actualRetur * settings.berasBubur;
-        }
-      }
+      // 3. Hitung recovered ingredients dari returGrid (admin bisa edit)
+      const recoveredIngredients = {
+        beras: 0,
+        puding: 0,
+        oat: 0,
+        abon: 0
+      };
 
-      // 2. Bubur 2 (Salmon)
-      if (sent.bubur_i > 0) {
-        const actualRetur = Math.min(retur.bubur_i || 0, sent.bubur_i);
-        const terjual = sent.bubur_i - actualRetur;
-        const prod = produk.find(p => p.id === "p-bubur");
-        const harga = prod?.harga || 0;
-        if (terjual > 0) {
-          salesToPost.push({
-            tanggal,
-            outletId: o.id,
-            produkId: "p-bubur",
-            qty: terjual,
-            harga: harga
-          });
-          totalSalesRevenue += terjual * harga;
-        }
-        if (actualRetur > 0) {
-          recoveredIngredients.beras += actualRetur * settings.berasBubur;
-        }
-      }
+      outlets.forEach((o) => {
+        const sent = distGrid[o.id] || {};
+        const retur = returGrid[o.id] || {};
 
-      // 3. Tim 1 (Daging)
-      if (sent.tim_d > 0) {
-        const actualRetur = Math.min(retur.tim_d || 0, sent.tim_d);
-        const terjual = sent.tim_d - actualRetur;
-        const prod = produk.find(p => p.id === "p-nasitim");
-        const harga = prod?.harga || 0;
-        if (terjual > 0) {
-          salesToPost.push({
-            tanggal,
-            outletId: o.id,
-            produkId: "p-nasitim",
-            qty: terjual,
-            harga: harga
-          });
-          totalSalesRevenue += terjual * harga;
-        }
-        if (actualRetur > 0) {
-          recoveredIngredients.beras += actualRetur * settings.berasTim;
-        }
-      }
+        // Cek apakah stok retur sudah pernah diposting untuk tanggal ini
+        const existingReturStok = (dbState.stokMov || []).filter(
+          (m: any) => m.tanggal === tanggal && m.tipe === "IN" && m.keterangan?.includes("Retur Bahan")
+        );
+        if (existingReturStok.length > 0) {
+          // Stok retur sudah diposting, skip perhitungan ulang agar tidak duplikasi
+          // Tapi jurnal tetap diposting jika belum ada
+        } else {
+          // Bubur D & I: retur * beras per cup
+          if (sent.bubur_d > 0) {
+            const actualRetur = Math.min(retur.bubur_d || 0, sent.bubur_d);
+            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasBubur;
+          }
+          if (sent.bubur_i > 0) {
+            const actualRetur = Math.min(retur.bubur_i || 0, sent.bubur_i);
+            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasBubur;
+          }
 
-      // 4. Tim 2 (Salmon)
-      if (sent.tim_i > 0) {
-        const actualRetur = Math.min(retur.tim_i || 0, sent.tim_i);
-        const terjual = sent.tim_i - actualRetur;
-        const prod = produk.find(p => p.id === "p-nasitim");
-        const harga = prod?.harga || 0;
-        if (terjual > 0) {
-          salesToPost.push({
-            tanggal,
-            outletId: o.id,
-            produkId: "p-nasitim",
-            qty: terjual,
-            harga: harga
-          });
-          totalSalesRevenue += terjual * harga;
-        }
-        if (actualRetur > 0) {
-          recoveredIngredients.beras += actualRetur * settings.berasTim;
-        }
-      }
+          // Tim D & I
+          if (sent.tim_d > 0) {
+            const actualRetur = Math.min(retur.tim_d || 0, sent.tim_d);
+            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasTim;
+          }
+          if (sent.tim_i > 0) {
+            const actualRetur = Math.min(retur.tim_i || 0, sent.tim_i);
+            if (actualRetur > 0) recoveredIngredients.beras += actualRetur * settings.berasTim;
+          }
 
-      // 5. Oatmeal
-      if (sent.oatmeal > 0) {
-        const actualRetur = Math.min(retur.oatmeal || 0, sent.oatmeal);
-        const terjual = sent.oatmeal - actualRetur;
-        const prod = produk.find(p => p.id === "p-oatmeal");
-        const harga = prod?.harga || 0;
-        if (terjual > 0) {
-          salesToPost.push({
-            tanggal,
-            outletId: o.id,
-            produkId: "p-oatmeal",
-            qty: terjual,
-            harga: harga
-          });
-          totalSalesRevenue += terjual * harga;
+          // Oatmeal
+          if (sent.oatmeal > 0) {
+            const actualRetur = Math.min(retur.oatmeal || 0, sent.oatmeal);
+            if (actualRetur > 0) recoveredIngredients.oat += actualRetur * settings.oatmealCup;
+          }
+
+          // Puding
+          if (sent.puding > 0) {
+            const actualRetur = Math.min(retur.puding || 0, sent.puding);
+            if (actualRetur > 0) recoveredIngredients.puding += actualRetur * settings.pudingCup;
+          }
+
+          // Abon
+          if (sent.abon > 0) {
+            const actualRetur = Math.min(retur.abon || 0, sent.abon);
+            if (actualRetur > 0) recoveredIngredients.abon += actualRetur * settings.abonCup;
+          }
         }
-        if (actualRetur > 0) {
-          recoveredIngredients.oat += actualRetur * settings.oatmealCup;
+      });
+
+      // 4. Jurnal posting — berdasarkan penjualan outlet (TIDAK dihapus/direcreate)
+      if (totalSalesRevenue > 0) {
+        // Cek apakah jurnal sudah pernah diposting untuk tanggal ini (cegah duplikasi)
+        const existingJurnal = (dbState.jurnal || []).filter(
+          (j: any) => j.tanggal === tanggal && j.ref === "OUT-SALES"
+        );
+        if (existingJurnal.length === 0) {
+          await db.addJurnalBulk([
+            {
+              tanggal,
+              ref: "OUT-SALES",
+              keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
+              kodeAkun: "131000",
+              akun: "Piutang usaha",
+              tipe: "Debit",
+              jumlah: totalSalesRevenue,
+              kategori: "Aset"
+            },
+            {
+              tanggal,
+              ref: "OUT-SALES",
+              keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
+              kodeAkun: "410000",
+              akun: "Pendapatan Utama",
+              tipe: "Kredit",
+              jumlah: totalSalesRevenue,
+              kategori: "Pendapatan"
+            }
+          ]);
         }
       }
 
-      // 6. Puding
-      if (sent.puding > 0) {
-        const actualRetur = Math.min(retur.puding || 0, sent.puding);
-        const terjual = sent.puding - actualRetur;
-        const prod = produk.find(p => p.id === "p-puding");
-        const harga = prod?.harga || 0;
-        if (terjual > 0) {
-          salesToPost.push({
-            tanggal,
-            outletId: o.id,
-            produkId: "p-puding",
-            qty: terjual,
-            harga: harga
-          });
-          totalSalesRevenue += terjual * harga;
-        }
-        if (actualRetur > 0) {
-          recoveredIngredients.puding += actualRetur * settings.pudingCup;
-        }
+      // 5. Stok retur movements — berdasarkan returGrid (bisa diedit admin)
+      const movPromises: Promise<any>[] = [];
+      if (recoveredIngredients.beras > 1) {
+        movPromises.push(db.addStokMov({
+          tanggal, bahanId: "b-brs01", tipe: "IN",
+          qty: Math.round((recoveredIngredients.beras / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 1000)) * 100) / 100,
+          keterangan: `Retur Bahan Baku (Pack) [${tanggal}]`
+        }));
+      }
+      if (recoveredIngredients.puding > 1) {
+        movPromises.push(db.addStokMov({
+          tanggal, bahanId: "b-pud01", tipe: "IN",
+          qty: Math.round((recoveredIngredients.puding / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 100)) * 100) / 100,
+          keterangan: `Retur Bahan Baku (sachet) [${tanggal}]`
+        }));
+      }
+      if (recoveredIngredients.oat > 1) {
+        movPromises.push(db.addStokMov({
+          tanggal, bahanId: "b-oat01", tipe: "IN",
+          qty: Math.round((recoveredIngredients.oat / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 100)) * 100) / 100,
+          keterangan: `Retur Bahan Baku (sachet) [${tanggal}]`
+        }));
+      }
+      if (recoveredIngredients.abon > 1) {
+        movPromises.push(db.addStokMov({
+          tanggal, bahanId: "b-ab01", tipe: "IN",
+          qty: Math.round((recoveredIngredients.abon / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 100)) * 100) / 100,
+          keterangan: `Retur Bahan Baku (cup) [${tanggal}]`
+        }));
       }
 
-      // 7. Abon
-      if (sent.abon > 0) {
-        const actualRetur = Math.min(retur.abon || 0, sent.abon);
-        const terjual = sent.abon - actualRetur;
-        const prod = produk.find(p => p.id === "p-abon");
-        const harga = prod?.harga || 0;
-        if (terjual > 0) {
-          salesToPost.push({
-            tanggal,
-            outletId: o.id,
-            produkId: "p-abon",
-            qty: terjual,
-            harga: harga
-          });
-          totalSalesRevenue += terjual * harga;
-        }
-        if (actualRetur > 0) {
-          recoveredIngredients.abon += actualRetur * settings.abonCup;
-        }
+      if (movPromises.length > 0) {
+        await Promise.all(movPromises);
       }
-    });
 
-    // Hapus penjualan lama untuk tanggal ini (dari outlet) sebelum posting ulang
-    const existingPenjualan = (penjualan || []).filter((p: any) => p.tanggal === tanggal);
-    if (existingPenjualan.length > 0) {
-      await Promise.all(existingPenjualan.map((p: any) => db.deletePenjualan(p.id)));
+      toast.success("Siklus produksi harian berhasil ditutup! Penjualan dari outlet & retur tercatat.");
+      setStep(1);
+    } catch (err) {
+      toast.error("Gagal menutup siklus produksi");
+      console.error(err);
+    } finally {
+      setClosingCycle(false);
     }
-
-    if (salesToPost.length > 0) {
-      await db.addPenjualanBulk(salesToPost);
-    }
-
-    if (totalSalesRevenue > 0) {
-      await db.addJurnalBulk([
-        {
-          tanggal,
-          ref: "OUT-SALES",
-          keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
-          kodeAkun: "131000",
-          akun: "Piutang usaha",
-          tipe: "Debit",
-          jumlah: totalSalesRevenue,
-          kategori: "Aset"
-        },
-        {
-          tanggal,
-          ref: "OUT-SALES",
-          keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
-          kodeAkun: "410000",
-          akun: "Pendapatan Utama",
-          tipe: "Kredit",
-          jumlah: totalSalesRevenue,
-          kategori: "Pendapatan"
-        }
-      ]);
-    }
-
-    const movPromises: Promise<any>[] = [];
-    if (recoveredIngredients.beras > 0) {
-      movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-brs01", tipe: "IN", qty: Math.round((recoveredIngredients.beras / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 1000)) * 100) / 100, keterangan: "Retur Bahan Baku (Pack)"
-      }));
-    }
-    if (recoveredIngredients.puding > 0) {
-      movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-pud01", tipe: "IN", qty: Math.round((recoveredIngredients.puding / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 100)) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
-      }));
-    }
-    if (recoveredIngredients.oat > 0) {
-      movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-oat01", tipe: "IN", qty: Math.round((recoveredIngredients.oat / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 100)) * 100) / 100, keterangan: "Retur Bahan Baku (sachet)"
-      }));
-    }
-    if (recoveredIngredients.abon > 0) {
-      movPromises.push(db.addStokMov({
-        tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.round((recoveredIngredients.abon / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 100)) * 100) / 100, keterangan: "Retur Bahan Baku (cup)"
-      }));
-    }
-
-    if (movPromises.length > 0) {
-      await Promise.all(movPromises);
-    }
-
-    toast.success("Siklus produksi harian berhasil ditutup! Penjualan dan retur tercatat.");
-    setStep(1);
   };
 
   const filteredOutlets = useMemo(() => {
@@ -2252,9 +2181,9 @@ export default function Produksi() {
               <ArrowLeft className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Kembali</span>
             </Button>
-            <Button onClick={saveStep5} className="gradient-success text-white hover-lift h-10 font-bold">
+            <Button onClick={saveStep5} className="gradient-success text-white hover-lift h-10 font-bold" disabled={closingCycle}>
               <ShoppingBag className="h-4 w-4 md:mr-2" />
-              <span className="hidden md:inline">Selesaikan & Posting Penjualan / Retur</span>
+              <span className="hidden md:inline">{closingCycle ? "Menutup siklus..." : "Selesaikan & Tutup Siklus"}</span>
             </Button>
           </div>
         </CardContent>

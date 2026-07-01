@@ -482,8 +482,11 @@ function SisaProduksiOH({
         }
       }
 
-      // After successful save, allow auto-recalculation again
-      setUserModifiedSisa(false);
+      // === JANGAN reset userModifiedSisa di sini! ===
+      // Jika direset, useEffect auto-recalculation akan menimpa nilai
+      // sisa yang sudah diinput user (mis: 1000gr → 944gr karena floor).
+      // UserModifiedSisa hanya direset saat ganti tanggal (lihat useEffect tanggal).
+      // setUserModifiedSisa(false); // ⛔ JANGAN DIUNCOMMENT
 
       if (savedCount > 0) {
         toast.success(`${savedCount} penjualan berhasil disimpan! Data terhubung ke admin.`);
@@ -924,8 +927,11 @@ function SisaProduksiAdminView({
         }
       }
 
-      // After successful save, allow auto-recalculation again
-      setUserModifiedSisa(false);
+      // === JANGAN reset userModifiedSisa di sini! ===
+      // Jika direset, useEffect auto-recalculation akan menimpa nilai
+      // sisa yang sudah diinput admin (sama seperti bug di outlet view).
+      // UserModifiedSisa hanya direset saat ganti tanggal (lihat useEffect tanggal).
+      // setUserModifiedSisa(false); // ⛔ JANGAN DIUNCOMMENT
 
       if (savedCount > 0) {
         toast.success(`${savedCount} penjualan berhasil disimpan untuk semua outlet! Data tersinkron ke Langkah 5.`);

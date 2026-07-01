@@ -731,22 +731,52 @@ export interface BubaSettings {
 
 }
 
+// =============================================================================
+// PERBANDINGAN BAHAN BUBUR & NASI TIM
+// =============================================================================
+//
+// Ada DUA level perbandingan yang perlu dibedakan:
+//
+// LEVEL 1 — BASE RATIO (per 100gr BERAS)
+//   Menentukan komposisi bahan relatif terhadap 100gr beras.
+//   Rasio: Beras : Daging : Air : S.Hijau : S.Brokoli : S.Putih
+//
+//   Bubur    → 100 : 5 : 700 : 8 : 5 : 1.5
+//   Nasi Tim → 100 : 4 : 600 : 8 : 5 : 1.5
+//
+//   Artinya: setiap 100gr beras BUTUH 5gr daging, 700ml air, 8gr SH, 5gr SB, 1.5gr SP.
+//
+// LEVEL 2 — PER CUP (Nilai yang disimpan di settings ini)
+//   Hasil konversi dari Level 1 dengan membagi sesuai jumlah cup per 100gr beras.
+//
+//   Bubur    → 100gr beras = 6 cup   → nilai per cup = (nilai per 100gr) ÷ 6
+//   Nasi Tim → 100gr beras = 5 cup   → nilai per cup = (nilai per 100gr) ÷ 5
+//
+//   Contoh: berasBubur per cup = 100 ÷ 6 = 16.67 gr
+//           dagingBubur per cup = 5 ÷ 6 = 0.83 gr
+//           airBubur per cup    = 700 ÷ 6 = 116.67 ml
+// =============================================================================
+
 export const DEFAULT_SETTINGS: BubaSettings = {
-  // Rumus Perbandingan Bubur: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:5:700:8:5:1.5
-  berasBubur: 16.67,
-  dagingBubur: 0.83,     // 16.67 * 5/100
-  airBubur: 116.69,      // 16.67 * 700/100
-  sayurHijauBubur: 1.33, // 16.67 * 8/100
-  sayurBrokoliBubur: 0.83, // 16.67 * 5/100
-  sayurPutihBubur: 0.25,   // 16.67 * 1.5/100
+  // --- BUBUR ---
+  // Base ratio (per 100gr beras): 100 : 5 : 700 : 8 : 5 : 1.5
+  // Per 100gr beras = 6 cup → nilai per cup = nilai per 100gr ÷ 6
+  berasBubur: 16.67,           // 100 ÷ 6 = 16 2/3
+  dagingBubur: 0.83,          // 5 ÷ 6 = 0.833...
+  airBubur: 116.67,           // 700 ÷ 6 = 116 2/3
+  sayurHijauBubur: 1.33,      // 8 ÷ 6 = 4/3 = 1.333...
+  sayurBrokoliBubur: 0.83,    // 5 ÷ 6 = 0.833...
+  sayurPutihBubur: 0.25,      // 1.5 ÷ 6 = 0.25
   
-  // Rumus Perbandingan Nasi Tim: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:4:600:8:5:1.5
-  berasTim: 20.00,
-  dagingTim: 0.80,       // 20.00 * 4/100
-  airTim: 120.00,        // 20.00 * 600/100
-  sayurHijauTim: 1.60,   // 20.00 * 8/100
-  sayurBrokoliTim: 1.00, // 20.00 * 5/100
-  sayurPutihTim: 0.30,   // 20.00 * 1.5/100
+  // --- NASI TIM ---
+  // Base ratio (per 100gr beras): 100 : 4 : 600 : 8 : 5 : 1.5
+  // Per 100gr beras = 5 cup → nilai per cup = nilai per 100gr ÷ 5
+  berasTim: 20.00,              // 100 ÷ 5 = 20
+  dagingTim: 0.80,             // 4 ÷ 5 = 0.8
+  airTim: 120.00,              // 600 ÷ 5 = 120
+  sayurHijauTim: 1.60,         // 8 ÷ 5 = 1.6
+  sayurBrokoliTim: 1.00,       // 5 ÷ 5 = 1.0
+  sayurPutihTim: 0.30,         // 1.5 ÷ 5 = 0.3
 
   oatmealCup: 25.71,
   pudingCup: 13.00,

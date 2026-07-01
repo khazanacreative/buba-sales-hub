@@ -93,16 +93,18 @@ describe("Sayur material requirements calculation", () => {
 });
 
 describe("Sayur per-cup gramasi matches formula ratio", () => {
-  // Bubur ratio: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:5:700:8:5:1.5
-  // berasBubur = 16.67
+  // Bubur: per 100gr beras = 6 cup → beras per cup = 100/6 ≈ 16.67
+  // Ratio: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:5:700:8:5:1.5
+  // Sayur per cup = (100/6) × 8/100 = 8/6, (100/6) × 5/100 = 5/6, (100/6) × 1.5/100 = 1.5/6
   it("Bubur sayur values should match 100:5:700:8:5:1.5 ratio", () => {
-    expect(DEFAULT_SAYUR.sayurHijauBubur).toBeCloseTo(16.67 * 8 / 100, 2);  // 1.3336
-    expect(DEFAULT_SAYUR.sayurBrokoliBubur).toBeCloseTo(16.67 * 5 / 100, 2); // 0.8335
-    expect(DEFAULT_SAYUR.sayurPutihBubur).toBeCloseTo(16.67 * 1.5 / 100, 2); // 0.25005
+    expect(DEFAULT_SAYUR.sayurHijauBubur).toBeCloseTo(8 / 6, 2);    // 1.333...
+    expect(DEFAULT_SAYUR.sayurBrokoliBubur).toBeCloseTo(5 / 6, 2);  // 0.833...
+    expect(DEFAULT_SAYUR.sayurPutihBubur).toBeCloseTo(1.5 / 6, 2);  // 0.25
   });
 
-  // Nasi Tim ratio: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:4:600:8:5:1.5
-  // berasTim = 20.00
+  // Nasi Tim: per 100gr beras = 5 cup → beras per cup = 20
+  // Ratio: Beras:Ikan:Air:S.Hijau:S.Buah:S.P = 100:4:600:8:5:1.5
+  // Sayur per cup = 20 × 8/100 = 1.6, 20 × 5/100 = 1.0, 20 × 1.5/100 = 0.3
   it("Nasi Tim sayur values should match 100:4:600:8:5:1.5 ratio", () => {
     expect(DEFAULT_SAYUR.sayurHijauTim).toBeCloseTo(20.00 * 8 / 100, 2);  // 1.6
     expect(DEFAULT_SAYUR.sayurBrokoliTim).toBeCloseTo(20.00 * 5 / 100, 2); // 1.0

@@ -541,9 +541,41 @@ export default function MasterData() {
               <form onSubmit={handleSaveGramasi} className="space-y-4">
                 <Card className="border shadow-sm">
                   <CardContent className="p-4 space-y-3">                      <h3 className="text-sm font-bold flex items-center gap-2"><Sliders className="h-4 w-4 text-primary" /> Konversi Gramasi</h3>
-                      <p className="text-[10px] text-muted-foreground">Rumus Perbandingan Bubur: Beras:Ikan:Air = 100:5:700 | SH:SB:SP = 8:5:1.5</p>
+                      {/* LEVEL 1: BASE RATIO */}
+                      <div className="bg-muted/20 p-3 rounded-xl border border-dashed space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">① Base Ratio — per 100gr Beras</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="text-[10px]">
+                            <span className="font-bold text-amber-600">Bubur</span>
+                            <span className="text-muted-foreground">: Beras:Daging:Air:SH:SB:SP = </span>
+                            <span className="font-mono font-semibold">100:5:700:8:5:1,5</span>
+                          </div>
+                          <div className="text-[10px]">
+                            <span className="font-bold text-blue-600">Nasi Tim</span>
+                            <span className="text-muted-foreground">: Beras:Daging:Air:SH:SB:SP = </span>
+                            <span className="font-mono font-semibold">100:4:600:8:5:1,5</span>
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-muted-foreground italic">Artinya: setiap 100gr beras butuh 5gr/4gr daging, 700ml/600ml air, 8gr SH, 5gr SB, 1,5gr SP</p>
+                      </div>
+
+                      {/* LEVEL 2: PER CUP */}
+                      <div className="bg-primary/5 p-3 rounded-xl border space-y-1">
+                        <p className="text-[10px] font-bold text-primary uppercase tracking-wider">② Per Cup — Turunan dari Base Ratio</p>
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="text-muted-foreground">
+                            <span className="font-bold text-amber-600">Bubur</span>: 100gr beras = <span className="font-bold text-foreground">6 cup</span>
+                            <span className="ml-1">→ nilai per cup = nilai base ÷ 6</span>
+                          </div>
+                          <div className="text-muted-foreground">
+                            <span className="font-bold text-blue-600">Nasi Tim</span>: 100gr beras = <span className="font-bold text-foreground">5 cup</span>
+                            <span className="ml-1">→ nilai per cup = nilai base ÷ 5</span>
+                          </div>
+                        </div>
+                      </div>
+
                     <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-amber-600">Varian Bubur</h4>
+                      <h4 className="text-xs font-bold text-amber-600">Varian Bubur <span className="text-[9px] font-normal text-muted-foreground">(gram/cup)</span></h4>
                       <div className="grid grid-cols-3 gap-2">
                         <div><Label className="text-[10px]">Beras (gr)</Label><Input type="number" step="any" value={sBerasBubur} onChange={(e) => setSBerasBubur(Number(e.target.value))} /></div>
                         <div><Label className="text-[10px]">Air (ml)</Label><Input type="number" step="any" value={sAirBubur} onChange={(e) => setSAirBubur(Number(e.target.value))} /></div>
@@ -554,8 +586,7 @@ export default function MasterData() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-blue-600">Varian Nasi Tim</h4>
-                      <p className="text-[10px] text-muted-foreground">Rumus Perbandingan Nasi Tim: Beras:Ikan:Air = 100:4:600 | SH:SB:SP = 8:5:1.5</p>
+                      <h4 className="text-xs font-bold text-blue-600">Varian Nasi Tim <span className="text-[9px] font-normal text-muted-foreground">(gram/cup)</span></h4>
                       <div className="grid grid-cols-3 gap-2">
                         <div><Label className="text-[10px]">Beras (gr)</Label><Input type="number" step="any" value={sBerasTim} onChange={(e) => setSBerasTim(Number(e.target.value))} /></div>
                         <div><Label className="text-[10px]">Air (ml)</Label><Input type="number" step="any" value={sAirTim} onChange={(e) => setSAirTim(Number(e.target.value))} /></div>

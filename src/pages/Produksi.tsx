@@ -146,6 +146,9 @@ export default function Produksi() {
   // STEP 5 STATES
   const [returGrid, setReturGrid] = useState<Record<string, Record<string, number>>>({});
   const [closingCycle, setClosingCycle] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  // Track last synced penjualan signature for the new-data indicator
+  const lastSyncedSalesRef = useRef<string>("");
 
   // Parse [D:X, I:Y] split from catatan
   const parseSplit = (catatan: string) => {
@@ -193,11 +196,11 @@ export default function Produksi() {
   };
 
   // Load grids from DB on date change or initial outlet load.
-  // IMPORTANT: Only depends on [tanggal, outlets] — NOT on data arrays
-  // (permohonanStok, produksi, penjualan) — to prevent background Supabase
-  // polling/real-time updates from wiping user input mid-edit.
-  // Additionally, hasUserModifiedGrids ref prevents re-init even on date
-  // change if the user has already started editing.
+  // ⚠️ Depends on [tanggal, outlets, penjualan] — penjualan included so
+  // that when outlet saves sisa penjualan via Laporan page, the returGrid
+  // in Step 5 auto-updates with the latest sales data.
+  // hasUserModifiedGrids ref prevents re-init if user has manually edited
+  // any grid input — safe against background-polling reset.
   useEffect(() => {
     if (hasUserModifiedGrids.current) return;
     if (tanggal && outlets.length > 0) {
@@ -315,8 +318,13 @@ export default function Produksi() {
         });
       }
       setReturGrid(rGrid);
+      // Update sync signature for new-data indicator
+      lastSyncedSalesRef.current = penjualan
+        .filter((p: any) => p.tanggal === tanggal)
+        .reduce((s: number, p: any) => s + p.qty, 0)
+        .toString() + "-" + penjualan.length;
     }
-  }, [tanggal, outlets]); // Only tanggal/outlets — NOT data arrays, to avoid background-polling reset
+  }, [tanggal, outlets, penjualan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
 
   const handlePlanChange = (outletId: string, field: string, val: number) => {
     hasUserModifiedGrids.current = true;
@@ -986,6 +994,79 @@ export default function Produksi() {
       setClosingCycle(false);
     }
   };
+
+  // Refresh Step 5 — recalculate returGrid from latest penjualan data.
+  // Useful when outlet has just saved sisa penjualan via Laporan page.
+  const handleRefreshStep5 = async () => {
+    setRefreshing(true);
+    try {
+      // Reset the modification guard so returGrid can recalculate
+      hasUserModifiedGrids.current = false;
+
+      // Recalculate returGrid from latest penjualan data
+      const rGrid: Record<string, Record<string, number>> = {};
+      outlets.forEach(o => {
+        rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+      });
+
+      const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+      if (existingSales.length > 0) {
+        outlets.forEach((o) => {
+          const sent = distGrid[o.id] || {};
+          if (!sent) return;
+
+          const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
+            const totalSent = dSent + iSent;
+            const sold = existingSales
+              .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+              .reduce((s: number, p: any) => s + p.qty, 0);
+            const totalRetur = Math.max(0, totalSent - sold);
+            if (totalSent > 0) {
+              rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
+              rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+            }
+          };
+
+          calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
+          calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
+
+          rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales
+            .filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal")
+            .reduce((s: number, p: any) => s + p.qty, 0));
+
+          rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales
+            .filter((p: any) => p.outletId === o.id && p.produkId === "p-puding")
+            .reduce((s: number, p: any) => s + p.qty, 0));
+
+          rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales
+            .filter((p: any) => p.outletId === o.id && p.produkId === "p-abon")
+            .reduce((s: number, p: any) => s + p.qty, 0));
+        });
+      }
+
+      setReturGrid(rGrid);
+      toast.success("Data penjualan dari outlet berhasil dimuat ulang!");
+    } catch (err) {
+      toast.error("Gagal memuat ulang data penjualan");
+      console.error(err);
+    } finally {
+      // Update sync signature
+      lastSyncedSalesRef.current = penjualan
+        .filter((p: any) => p.tanggal === tanggal)
+        .reduce((s: number, p: any) => s + p.qty, 0)
+        .toString() + "-" + penjualan.length;
+      setRefreshing(false);
+    }
+  };
+
+  // Check if there's new penjualan data that hasn't been synced to returGrid yet
+  const hasNewSalesData = useMemo(() => {
+    const currentSig = penjualan
+      .filter((p: any) => p.tanggal === tanggal)
+      .reduce((s: number, p: any) => s + p.qty, 0)
+      .toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
+    return currentSig !== lastSyncedSalesRef.current && lastSyncedSalesRef.current !== "";
+  }, [penjualan, tanggal]);
 
   const filteredOutlets = useMemo(() => {
     return outlets.filter(o => o.nama.toLowerCase().includes(searchOutlet.toLowerCase()));
@@ -1974,6 +2055,12 @@ export default function Produksi() {
       <Card className="glass border-0 shadow-card">
         <CardHeader>
           <CardTitle>Langkah 5: Retur & Penjualan Akhir Hari</CardTitle>
+          {hasNewSalesData && !refreshing && step === 5 && (
+            <div className="mt-2 flex items-center gap-2 text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 text-destructive font-medium animate-pulse">
+              <span className="h-2 w-2 rounded-full bg-destructive shrink-0" />
+              Data penjualan baru dari outlet tersedia. Klik <strong>Refresh</strong> untuk memuat.
+            </div>
+          )}
           <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah. Bubur &amp; Nasi Tim isi <strong>gram</strong> retur (otomatis konversi ke cup), Oatmeal &amp; Puding isi <strong>cup</strong>, Abon isi <strong>pcs</strong>. Penjualan dihitung otomatis.</p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -2262,6 +2349,21 @@ export default function Produksi() {
             <Button variant="outline" onClick={() => setStep(4)} className="h-10">
               <ArrowLeft className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Kembali</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleRefreshStep5}
+              disabled={refreshing}
+              className="h-10 relative"
+              title={hasNewSalesData ? "Ada data penjualan baru! Klik untuk memuat ulang" : "Muat ulang data penjualan dari outlet"}
+            >
+              {hasNewSalesData && (
+                <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center shadow-sm border border-background">
+                  !
+                </span>
+              )}
+              <RotateCcw className={refreshing ? "h-4 w-4 md:mr-2 animate-spin" : "h-4 w-4 md:mr-2"} />
+              <span className="hidden md:inline">{refreshing ? "Memuat..." : "Refresh"}</span>
             </Button>
             <Button onClick={saveStep5} className="gradient-success text-white hover-lift h-10 font-bold" disabled={closingCycle}>
               <ShoppingBag className="h-4 w-4 md:mr-2" />

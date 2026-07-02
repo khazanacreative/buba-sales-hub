@@ -21,7 +21,7 @@ import { AkunKategori } from "@/lib/types";
 
 // Base ratios for Bubur (per 100gr beras = 6 cup)
 // Base ratio: Beras:Daging:Air:S.Hijau:S.Brokoli:S.Putih = 100:5:700:8:5:1.5
-// Gunakan integer arithmetic: Math.ceil((cups * baseAmount) / 6) untuk menghindari floating-point error.
+// Rasio 100/6 menghasilkan sekitar 16.67 gr per cup, jadi hasil dapat berisi desimal.
 const BUBUR_BASE = {
   beras: 100,
   daging: 5,
@@ -31,7 +31,11 @@ const BUBUR_BASE = {
   sayurPutih: 1.5, // = 3/2
 };
 
-// Hitung kebutuhan bubur dengan aritmetika integer: (cups × baseAmount) / 6
+const formatDecimal = (value: number) => {
+  if (Number.isInteger(value)) return value.toString();
+  return value.toFixed(2).replace(/\.00$/, "");
+};
+
 const buburCalc = (cups: number, baseAmount: number) => (cups * baseAmount) / 6;
 
 // === MAIN COMPONENT ===
@@ -1525,9 +1529,9 @@ export default function Produksi() {
                     Detail Kebutuhan Bahan Baku untuk Rencana Produksi Hari Ini:
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 text-xs">
-                    {totalBeras > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Beras:</strong> {Math.ceil(totalBeras).toLocaleString()} gr</div>}
-                    {totalAyamBubur > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Daging/Ayam Bubur ({bubur1Name}):</strong> {Math.ceil(totalAyamBubur)} gr</div>}
-                    {totalSalmonBubur > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Ikan/Salmon Bubur ({bubur2Name}):</strong> {Math.ceil(totalSalmonBubur)} gr</div>}
+                    {totalBeras > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Beras:</strong> {formatDecimal(totalBeras)} gr</div>}
+                    {totalAyamBubur > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Daging/Ayam Bubur ({bubur1Name}):</strong> {formatDecimal(totalAyamBubur)} gr</div>}
+                    {totalSalmonBubur > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Ikan/Salmon Bubur ({bubur2Name}):</strong> {formatDecimal(totalSalmonBubur)} gr</div>}
                     {totalAyamTim > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Daging/Ayam Tim ({tim1Name}):</strong> {Math.ceil(totalAyamTim)} gr</div>}
                     {totalSalmonTim > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Ikan/Salmon Tim ({tim2Name}):</strong> {Math.ceil(totalSalmonTim)} gr</div>}
                     {totalOatmeal > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Oatmeal:</strong> {Math.ceil(totalOatmeal).toLocaleString()} gr</div>}
@@ -1535,7 +1539,7 @@ export default function Produksi() {
                     {totalAbon > 0 && <div className="p-3 bg-card rounded-xl border shadow-sm">• <strong>Abon:</strong> {Math.ceil(totalAbon).toLocaleString()} gr</div>}
                     {(totalShBubur > 0 || totalSbBubur > 0 || totalSpBubur > 0) && (
                       <div className="p-3 bg-card rounded-xl border shadow-sm sm:col-span-2">
-                        • <strong>Sayur Bubur (SH/SB/SP):</strong> {Math.ceil(totalShBubur)}g / {Math.ceil(totalSbBubur)}g / {Math.ceil(totalSpBubur)}g
+                        • <strong>Sayur Bubur (SH/SB/SP):</strong> {formatDecimal(totalShBubur)}g / {formatDecimal(totalSbBubur)}g / {formatDecimal(totalSpBubur)}g
                       </div>
                     )}
                     {(totalShTim > 0 || totalSbTim > 0 || totalSpTim > 0) && (
@@ -1594,12 +1598,12 @@ export default function Produksi() {
                     <div className="font-bold text-xs text-amber-600">Bubur 1 ({bubur1Name})</div>
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.buburD} cup</span></div>
-                      <div>• Beras: <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburD, BUBUR_BASE.beras))} gr</span></div>
-                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburD, BUBUR_BASE.daging))} gr</span></div>
-                      <div>• Air: <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburD, BUBUR_BASE.air))} ml</span></div>
-                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburD, BUBUR_BASE.sayurHijau))} gr</span></div>
-                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburD, BUBUR_BASE.sayurBrokoli))} gr</span></div>
-                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburD, BUBUR_BASE.sayurPutih))} gr</span></div>
+                      <div>• Beras: <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburD, BUBUR_BASE.beras))} gr</span></div>
+                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburD, BUBUR_BASE.daging))} gr</span></div>
+                      <div>• Air: <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburD, BUBUR_BASE.air))} ml</span></div>
+                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburD, BUBUR_BASE.sayurHijau))} gr</span></div>
+                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburD, BUBUR_BASE.sayurBrokoli))} gr</span></div>
+                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburD, BUBUR_BASE.sayurPutih))} gr</span></div>
                     </div>
                   </div>
                 )}
@@ -1609,12 +1613,12 @@ export default function Produksi() {
                     <div className="font-bold text-xs text-blue-600">Bubur 2 ({bubur2Name})</div>
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.buburI} cup</span></div>
-                      <div>• Beras: <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburI, BUBUR_BASE.beras))} gr</span></div>
-                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburI, BUBUR_BASE.daging))} gr</span></div>
-                      <div>• Air: <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburI, BUBUR_BASE.air))} ml</span></div>
-                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburI, BUBUR_BASE.sayurHijau))} gr</span></div>
-                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburI, BUBUR_BASE.sayurBrokoli))} gr</span></div>
-                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.ceil(buburCalc(totals.buburI, BUBUR_BASE.sayurPutih))} gr</span></div>
+                      <div>• Beras: <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburI, BUBUR_BASE.beras))} gr</span></div>
+                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburI, BUBUR_BASE.daging))} gr</span></div>
+                      <div>• Air: <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburI, BUBUR_BASE.air))} ml</span></div>
+                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburI, BUBUR_BASE.sayurHijau))} gr</span></div>
+                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburI, BUBUR_BASE.sayurBrokoli))} gr</span></div>
+                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{formatDecimal(buburCalc(totals.buburI, BUBUR_BASE.sayurPutih))} gr</span></div>
                     </div>
                   </div>
                 )}

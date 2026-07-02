@@ -552,6 +552,17 @@ export default function Produksi() {
           existing.rawQtyGrams += grams;
           existing.qty = Math.ceil(existing.rawQtyGrams / (b?.konversiGram ?? 100));
         } else {
+          reqs.push({
+            bahanId: variantId,
+            kode: b.kode,
+            nama: b.nama,
+            qty: qtyPcs,
+            rawQtyGrams: grams,
+            satuan: b.satuan
+          });
+        }
+      }
+    };
 
     // Meats
     if (totals.buburD > 0 && bubur1Variant) addVariant(bubur1Variant, totals.buburD * BUBUR_EXACT.daging);

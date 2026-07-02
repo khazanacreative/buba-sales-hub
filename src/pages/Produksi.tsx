@@ -33,7 +33,7 @@ const BUBUR_BASE = {
 
 const formatDecimal = (value: number) => {
   if (Number.isInteger(value)) return value.toString();
-  return value.toFixed(2).replace(/\.00$/, "");
+  return value.toFixed(2).replace(/(?:\.0+|0+)$/, "");
 };
 
 const buburCalc = (cups: number, baseAmount: number) => (cups * baseAmount) / 6;

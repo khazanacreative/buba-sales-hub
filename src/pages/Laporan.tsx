@@ -493,6 +493,8 @@ function SisaProduksiOH({
       } else {
         toast.info("Tidak ada penjualan yang perlu dicatat");
       }
+      // Dispatch custom event so Produksi Step 5 can auto-refresh returGrid
+      window.dispatchEvent(new CustomEvent("buba_penjualan_saved", { detail: { tanggal } }));
     } catch (err) {
       toast.error("Gagal menyimpan data sisa produksi");
       console.error(err);
@@ -938,6 +940,8 @@ function SisaProduksiAdminView({
       } else {
         toast.info("Tidak ada perubahan data penjualan yang perlu dicatat");
       }
+      // Dispatch custom event so Produksi Step 5 can auto-refresh returGrid
+      window.dispatchEvent(new CustomEvent("buba_penjualan_saved", { detail: { tanggal } }));
     } catch (err) {
       toast.error("Gagal menyimpan data sisa produksi");
       console.error(err);

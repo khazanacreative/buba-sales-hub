@@ -1626,7 +1626,7 @@ export default function Produksi() {
                         <TableCell className="font-semibold">{r.nama}</TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">{r.kode}</TableCell>
                         <TableCell className="text-right font-medium">
-                          {hasGram ? `${Number(r.rawQtyGrams).toFixed(2)} g` : "-"}
+                          {hasGram ? `${Number(r.rawQtyGrams).toFixed(2).replace(/\.?0+$/, '')} g` : "-"}
                         </TableCell>
                         <TableCell className="text-right font-bold text-primary">
                           {r.qty} {r.satuan}

@@ -19,6 +19,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
 
+// Exact Bubur ratios per cup (derived from base ratio per 100gr beras = 6 cup)
+// Base ratio: Beras:Daging:Air:S.Hijau:S.Brokoli:S.Putih = 100:5:700:8:5:1.5
+// Nilai desimal di settings (16.67, 0.83, dll) adalah pembulatan dari pecahan ini,
+// sehingga menyebabkan error pembulatan. Gunakan rasio eksak di bawah.
+const BUBUR_EXACT = {
+  beras: 100 / 6,
+  daging: 5 / 6,
+  air: 700 / 6,
+  sayurHijau: 8 / 6,
+  sayurBrokoli: 5 / 6,
+  sayurPutih: 1.5 / 6,  // = 0.25
+};
+
 // === MAIN COMPONENT ===
 export default function Produksi() {
   const dbState = useDB();
@@ -480,7 +493,7 @@ export default function Produksi() {
     const reqs: { bahanId: string; kode: string; nama: string; qty: number; rawQtyGrams: number; satuan: string }[] = [];
 
     // 1. Beras
-    const berasGr = Math.ceil((totals.buburD * settings.berasBubur) + (totals.buburI * settings.berasBubur) + (totals.timD * settings.berasTim) + (totals.timI * settings.berasTim));
+    const berasGr = Math.ceil(((totals.buburD + totals.buburI) * BUBUR_EXACT.beras) + (totals.timD * settings.berasTim) + (totals.timI * settings.berasTim));
     if (berasGr > 0) {
       reqs.push({
         bahanId: "b-brs01",
@@ -493,7 +506,7 @@ export default function Produksi() {
     }
 
     // 1b. Sayur
-    const shGr = Math.ceil((totals.buburD + totals.buburI) * settings.sayurHijauBubur + (totals.timD + totals.timI) * settings.sayurHijauTim);
+    const shGr = Math.ceil((totals.buburD + totals.buburI) * BUBUR_EXACT.sayurHijau + (totals.timD + totals.timI) * settings.sayurHijauTim);
     if (shGr > 0) {
       reqs.push({
         bahanId: "b-sh01",
@@ -505,7 +518,7 @@ export default function Produksi() {
       });
     }
 
-    const sbGr = Math.ceil((totals.buburD + totals.buburI) * settings.sayurBrokoliBubur + (totals.timD + totals.timI) * settings.sayurBrokoliTim);
+    const sbGr = Math.ceil((totals.buburD + totals.buburI) * BUBUR_EXACT.sayurBrokoli + (totals.timD + totals.timI) * settings.sayurBrokoliTim);
     if (sbGr > 0) {
       reqs.push({
         bahanId: "b-sb01",
@@ -517,7 +530,7 @@ export default function Produksi() {
       });
     }
 
-    const spGr = Math.ceil((totals.buburD + totals.buburI) * settings.sayurPutihBubur + (totals.timD + totals.timI) * settings.sayurPutihTim);
+    const spGr = Math.ceil((totals.buburD + totals.buburI) * BUBUR_EXACT.sayurPutih + (totals.timD + totals.timI) * settings.sayurPutihTim);
     if (spGr > 0) {
       reqs.push({
         bahanId: "b-sp01",
@@ -541,8 +554,8 @@ export default function Produksi() {
         } else {
 
     // Meats
-    if (totals.buburD > 0 && bubur1Variant) addVariant(bubur1Variant, totals.buburD * settings.dagingBubur);
-    if (totals.buburI > 0 && bubur2Variant) addVariant(bubur2Variant, totals.buburI * settings.dagingBubur);
+    if (totals.buburD > 0 && bubur1Variant) addVariant(bubur1Variant, totals.buburD * BUBUR_EXACT.daging);
+    if (totals.buburI > 0 && bubur2Variant) addVariant(bubur2Variant, totals.buburI * BUBUR_EXACT.daging);
     if (totals.timD > 0 && tim1Variant) addVariant(tim1Variant, totals.timD * settings.dagingTim);
     if (totals.timI > 0 && tim2Variant) addVariant(tim2Variant, totals.timI * settings.dagingTim);
 
@@ -829,19 +842,19 @@ export default function Produksi() {
           if (sent.bubur_d > 0) {
             const actualRetur = Math.min(retur.bubur_d || 0, sent.bubur_d);
             if (actualRetur > 0) {
-              recoveredIngredients.beras += actualRetur * settings.berasBubur;
-              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauBubur;
-              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliBubur;
-              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihBubur;
+              recoveredIngredients.beras += actualRetur * BUBUR_EXACT.beras;
+              recoveredIngredients.sayurHijau += actualRetur * BUBUR_EXACT.sayurHijau;
+              recoveredIngredients.sayurBrokoli += actualRetur * BUBUR_EXACT.sayurBrokoli;
+              recoveredIngredients.sayurPutih += actualRetur * BUBUR_EXACT.sayurPutih;
             }
           }
           if (sent.bubur_i > 0) {
             const actualRetur = Math.min(retur.bubur_i || 0, sent.bubur_i);
             if (actualRetur > 0) {
-              recoveredIngredients.beras += actualRetur * settings.berasBubur;
-              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauBubur;
-              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliBubur;
-              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihBubur;
+              recoveredIngredients.beras += actualRetur * BUBUR_EXACT.beras;
+              recoveredIngredients.sayurHijau += actualRetur * BUBUR_EXACT.sayurHijau;
+              recoveredIngredients.sayurBrokoli += actualRetur * BUBUR_EXACT.sayurBrokoli;
+              recoveredIngredients.sayurPutih += actualRetur * BUBUR_EXACT.sayurPutih;
             }
           }
 
@@ -1398,9 +1411,9 @@ export default function Produksi() {
               <div className="border-t border-dashed pt-3">
               {(() => {
               // Calculate ingredients for all outlets combined
-              const totalBeras = (totals.buburD * settings.berasBubur) + (totals.buburI * settings.berasBubur) + (totals.timD * settings.berasTim) + (totals.timI * settings.berasTim);
-              const totalAyamBubur = totals.buburD * settings.dagingBubur;
-              const totalSalmonBubur = totals.buburI * settings.dagingBubur;
+              const totalBeras = ((totals.buburD + totals.buburI) * BUBUR_EXACT.beras) + (totals.timD * settings.berasTim) + (totals.timI * settings.berasTim);
+              const totalAyamBubur = totals.buburD * BUBUR_EXACT.daging;
+              const totalSalmonBubur = totals.buburI * BUBUR_EXACT.daging;
               const totalAyamTim = totals.timD * settings.dagingTim;
               const totalSalmonTim = totals.timI * settings.dagingTim;
               const totalOatmeal = totals.oatmeal * settings.oatmealCup;
@@ -1408,9 +1421,9 @@ export default function Produksi() {
               const totalAbon = totals.abon * settings.abonCup;
               
               // Sayur
-              const totalShBubur = (totals.buburD + totals.buburI) * settings.sayurHijauBubur;
-              const totalSbBubur = (totals.buburD + totals.buburI) * settings.sayurBrokoliBubur;
-              const totalSpBubur = (totals.buburD + totals.buburI) * settings.sayurPutihBubur;
+              const totalShBubur = (totals.buburD + totals.buburI) * BUBUR_EXACT.sayurHijau;
+              const totalSbBubur = (totals.buburD + totals.buburI) * BUBUR_EXACT.sayurBrokoli;
+              const totalSpBubur = (totals.buburD + totals.buburI) * BUBUR_EXACT.sayurPutih;
               
               const totalShTim = (totals.timD + totals.timI) * settings.sayurHijauTim;
               const totalSbTim = (totals.timD + totals.timI) * settings.sayurBrokoliTim;
@@ -1500,12 +1513,12 @@ export default function Produksi() {
                     <div className="font-bold text-xs text-amber-600">Bubur 1 ({bubur1Name})</div>
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.buburD} cup</span></div>
-                      <div>• Beras: <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * settings.berasBubur)} gr</span></div>
-                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * settings.dagingBubur)} gr</span></div>
-                      <div>• Air: <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * settings.airBubur)} ml</span></div>
-                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * settings.sayurHijauBubur)} gr</span></div>
-                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * settings.sayurBrokoliBubur)} gr</span></div>
-                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * settings.sayurPutihBubur)} gr</span></div>
+                      <div>• Beras: <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * BUBUR_EXACT.beras)} gr</span></div>
+                      <div>• Ikan/Daging: <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * BUBUR_EXACT.daging)} gr</span></div>
+                      <div>• Air: <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * BUBUR_EXACT.air)} ml</span></div>
+                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * BUBUR_EXACT.sayurHijau)} gr</span></div>
+                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * BUBUR_EXACT.sayurBrokoli)} gr</span></div>
+                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.ceil(totals.buburD * BUBUR_EXACT.sayurPutih)} gr</span></div>
                     </div>
                   </div>
                 )}
@@ -1515,12 +1528,12 @@ export default function Produksi() {
                     <div className="font-bold text-xs text-blue-600">Bubur 2 ({bubur2Name})</div>
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div>• Target: <span className="font-semibold text-foreground">{totals.buburI} cup</span></div>
-                      <div>• Beras: <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * settings.berasBubur)} gr</span></div>
-                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * settings.dagingBubur)} gr</span></div>
-                      <div>• Air: <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * settings.airBubur)} ml</span></div>
-                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * settings.sayurHijauBubur)} gr</span></div>
-                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * settings.sayurBrokoliBubur)} gr</span></div>
-                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * settings.sayurPutihBubur)} gr</span></div>
+                      <div>• Beras: <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * BUBUR_EXACT.beras)} gr</span></div>
+                      <div>• Ikan/Salmon: <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * BUBUR_EXACT.daging)} gr</span></div>
+                      <div>• Air: <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * BUBUR_EXACT.air)} ml</span></div>
+                      <div>• Sayur Hijau (SH): <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * BUBUR_EXACT.sayurHijau)} gr</span></div>
+                      <div>• Sayur Brokoli (SB): <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * BUBUR_EXACT.sayurBrokoli)} gr</span></div>
+                      <div>• Sayur Putih (SP): <span className="font-semibold text-foreground">{Math.ceil(totals.buburI * BUBUR_EXACT.sayurPutih)} gr</span></div>
                     </div>
                   </div>
                 )}

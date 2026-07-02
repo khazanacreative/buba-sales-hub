@@ -8,15 +8,15 @@ function calcSayurReqs(
     sayurHijauTim: number; sayurBrokoliTim: number; sayurPutihTim: number;
   }
 ) {
-  const shGr = Math.round(
+  const shGr = Math.ceil(
     (totals.buburD + totals.buburI) * settings.sayurHijauBubur +
     (totals.timD + totals.timI) * settings.sayurHijauTim
   );
-  const sbGr = Math.round(
+  const sbGr = Math.ceil(
     (totals.buburD + totals.buburI) * settings.sayurBrokoliBubur +
     (totals.timD + totals.timI) * settings.sayurBrokoliTim
   );
-  const spGr = Math.round(
+  const spGr = Math.ceil(
     (totals.buburD + totals.buburI) * settings.sayurPutihBubur +
     (totals.timD + totals.timI) * settings.sayurPutihTim
   );
@@ -38,11 +38,11 @@ describe("Sayur material requirements calculation", () => {
     const totals = { buburD: 50, buburI: 30, timD: 40, timI: 20 };
     const result = calcSayurReqs(totals, DEFAULT_SAYUR);
 
-    // SH: (50+30)*1.33 + (40+20)*1.60 = 106.4 + 96 = 202.4 → 202
-    // SB: (50+30)*0.83 + (40+20)*1.00 = 66.4 + 60 = 126.4 → 126
-    // SP: (50+30)*0.25 + (40+20)*0.30 = 20 + 18 = 38
-    expect(result.shGr).toBe(202);
-    expect(result.sbGr).toBe(126);
+    // SH: (50+30)*1.33 + (40+20)*1.60 = 106.4 + 96 = 202.4 → 203 (ceil)
+    // SB: (50+30)*0.83 + (40+20)*1.00 = 66.4 + 60 = 126.4 → 127 (ceil)
+    // SP: (50+30)*0.25 + (40+20)*0.30 = 20 + 18 = 38 → 38
+    expect(result.shGr).toBe(203);
+    expect(result.sbGr).toBe(127);
     expect(result.spGr).toBe(38);
   });
 

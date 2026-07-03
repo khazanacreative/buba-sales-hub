@@ -31,8 +31,8 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
 
   // === REQUEST PERLENGKAPAN ===
   const supportItems = useMemo(() => {
-    // Filter only supply items (harga 0 or started with b-)
-    return (produk || []).filter((p: any) => p.harga === 0 || p.id.startsWith("b-"));
+    // Filter only supply/perlengkapan items (id mulai dengan b-)
+    return (produk || []).filter((p: any) => p.id.startsWith("b-"));
   }, [produk]);
 
   const [selectedItems, setSelectedItems] = useState<{ produkId: string; qty: number }[]>([]);
@@ -115,7 +115,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
 
   const myRequests = useMemo(() => {
     return (permohonanStok || [])
-      .filter((r: any) => r.outletId === user.outletId && r.catatan !== "RETUR CUP")
+      .filter((r: any) => r.outletId === user.outletId && r.catatan !== "RETUR CUP" && r.produkId?.startsWith("b-"))
       .sort((a: any, b: any) => b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id));
   }, [permohonanStok, user.outletId]);
 
@@ -136,9 +136,9 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2 bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="request" className="rounded-lg">Request Perlengkapan</TabsTrigger>
-          <TabsTrigger value="retur" className="rounded-lg">Retur Perlengkapan</TabsTrigger>
+        <TabsList className="grid w-full max-w-[400px] grid-cols-2 border-b border-border">
+          <TabsTrigger value="request" className="rounded-t-lg">Request Perlengkapan</TabsTrigger>
+          <TabsTrigger value="retur" className="rounded-t-lg">Retur Perlengkapan</TabsTrigger>
         </TabsList>
 
         {/* TAB 1: REQUEST PERLENGKAPAN */}
@@ -673,12 +673,12 @@ export default function StokGudang() {
       </div>
 
             <Tabs defaultValue="pergerakan" className="w-full space-y-4">
-          <TabsList className="grid w-full grid-cols-5 bg-muted/50 p-1 rounded-xl">
-            <TabsTrigger value="pergerakan" className="rounded-lg">Pergerakan Stok</TabsTrigger>
-            <TabsTrigger value="supplier" className="rounded-lg">Kiriman Supplier</TabsTrigger>
-            <TabsTrigger value="permohonan" className="rounded-lg">Permohonan Outlet</TabsTrigger>
-            <TabsTrigger value="retur-perlengkapan" className="rounded-lg">Retur Perlengkapan</TabsTrigger>
-            <TabsTrigger value="rusak" className="rounded-lg">Barang Rusak</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 border-b border-border">
+            <TabsTrigger value="pergerakan" className="rounded-t-lg">Pergerakan Stok</TabsTrigger>
+            <TabsTrigger value="supplier" className="rounded-t-lg">Kiriman Supplier</TabsTrigger>
+            <TabsTrigger value="permohonan" className="rounded-t-lg">Permohonan Outlet</TabsTrigger>
+            <TabsTrigger value="retur-perlengkapan" className="rounded-t-lg">Retur Perlengkapan</TabsTrigger>
+            <TabsTrigger value="rusak" className="rounded-t-lg">Barang Rusak</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pergerakan" className="m-0">

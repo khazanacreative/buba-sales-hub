@@ -125,10 +125,10 @@ export default function Laporan() {
       </div>
 
       <Tabs defaultValue={isOutlet ? "sisa-produksi" : "riwayat"} className="space-y-6">
-        <TabsList className="grid w-full max-w-[600px] grid-cols-3 bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="sisa-produksi" className="rounded-lg">Sisa (OH)</TabsTrigger>
-          <TabsTrigger value="riwayat" className="rounded-lg">Riwayat</TabsTrigger>
-          <TabsTrigger value="rekap" className="rounded-lg">Rekap</TabsTrigger>
+        <TabsList className="grid w-full max-w-[600px] grid-cols-3 border-b border-border">
+          <TabsTrigger value="sisa-produksi" className="rounded-t-lg">Sisa (OH)</TabsTrigger>
+          <TabsTrigger value="riwayat" className="rounded-t-lg">Riwayat</TabsTrigger>
+          <TabsTrigger value="rekap" className="rounded-t-lg">Rekap</TabsTrigger>
         </TabsList>
 
         {/* ==================== TAB SISA PRODUKSI (OH) ==================== */}

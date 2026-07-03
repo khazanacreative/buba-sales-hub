@@ -161,11 +161,11 @@ export default function Keuangan() {
       </div>
 
       <Tabs defaultValue="jurnal" className="w-full">
-        <TabsList className="grid w-full max-w-[600px] grid-cols-4 mb-6 bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="jurnal" className="rounded-lg font-semibold">Jurnal Umum</TabsTrigger>
-          <TabsTrigger value="neraca" className="rounded-lg font-semibold">Neraca</TabsTrigger>
-          <TabsTrigger value="stok" className="rounded-lg font-semibold">Stok</TabsTrigger>
-          <TabsTrigger value="lr" className="rounded-lg font-semibold">Laba Rugi</TabsTrigger>
+        <TabsList className="grid w-full max-w-[600px] grid-cols-4 mb-6 border-b border-border">
+          <TabsTrigger value="jurnal" className="rounded-t-lg font-semibold">Jurnal Umum</TabsTrigger>
+          <TabsTrigger value="neraca" className="rounded-t-lg font-semibold">Neraca</TabsTrigger>
+          <TabsTrigger value="stok" className="rounded-t-lg font-semibold">Stok</TabsTrigger>
+          <TabsTrigger value="lr" className="rounded-t-lg font-semibold">Laba Rugi</TabsTrigger>
         </TabsList>
 
         <TabsContent value="jurnal" className="space-y-6">

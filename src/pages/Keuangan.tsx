@@ -20,7 +20,7 @@ import { TablePagination } from "@/components/TablePagination";
 const KATEGORI: AkunKategori[] = ["Aset", "Kewajiban", "Ekuitas", "Pendapatan", "Beban"];
 
 export default function Keuangan() {
-  const { jurnal, penjualan, coa } = useDB();
+  const { jurnal, penjualan, coa, bahan, stokMov } = useDB();
   const [tanggal, setTanggal] = useState(todayISO());
   const [keterangan, setKeterangan] = useState("");
   const [kodeAkun, setKodeAkun] = useState(coa[0]?.kode ?? "");
@@ -58,6 +58,40 @@ export default function Keuangan() {
   );
 
   const totalPenjualanOmzet = filteredPenjualan.reduce((s, p) => s + p.total, 0);
+
+  const filteredStokMov = useMemo(
+    () =>
+      stokMov
+        .filter((m) => inRange(m.tanggal, range))
+        .sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
+    [stokMov, range]
+  );
+
+  const stokMovValue = (mov: any) => {
+    const item = bahan.find((b) => b.id === mov.bahanId);
+    return (item?.hargaBeli ?? 0) * mov.qty;
+  };
+
+  const totalStokIn = filteredStokMov
+    .filter((m) => m.tipe === "IN")
+    .reduce((s, m) => s + m.qty, 0);
+  const totalStokOut = filteredStokMov
+    .filter((m) => m.tipe === "OUT")
+    .reduce((s, m) => s + m.qty, 0);
+  const totalStokInValue = filteredStokMov
+    .filter((m) => m.tipe === "IN")
+    .reduce((s, m) => s + stokMovValue(m), 0);
+  const totalStokOutValue = filteredStokMov
+    .filter((m) => m.tipe === "OUT")
+    .reduce((s, m) => s + stokMovValue(m), 0);
+  const totalReturInQty = filteredStokMov
+    .filter((m) => m.tipe === "IN" && m.keterangan?.toLowerCase().includes("retur"))
+    .reduce((s, m) => s + m.qty, 0);
+  const totalReturInValue = filteredStokMov
+    .filter((m) => m.tipe === "IN" && m.keterangan?.toLowerCase().includes("retur"))
+    .reduce((s, m) => s + stokMovValue(m), 0);
+
+  const stokMovPagination = usePagination(filteredStokMov, 10);
 
   const neracaJurnal = useMemo(() => {
     return jurnal.filter((j) => !range.to || j.tanggal <= range.to);
@@ -127,9 +161,10 @@ export default function Keuangan() {
       </div>
 
       <Tabs defaultValue="jurnal" className="w-full">
-        <TabsList className="grid w-full max-w-[450px] grid-cols-3 mb-6 bg-muted/50 p-1 rounded-xl">
+        <TabsList className="grid w-full max-w-[600px] grid-cols-4 mb-6 bg-muted/50 p-1 rounded-xl">
           <TabsTrigger value="jurnal" className="rounded-lg font-semibold">Jurnal Umum</TabsTrigger>
           <TabsTrigger value="neraca" className="rounded-lg font-semibold">Neraca</TabsTrigger>
+          <TabsTrigger value="stok" className="rounded-lg font-semibold">Stok</TabsTrigger>
           <TabsTrigger value="lr" className="rounded-lg font-semibold">Laba Rugi</TabsTrigger>
         </TabsList>
 
@@ -231,6 +266,98 @@ export default function Keuangan() {
                   <div className="flex justify-between"><span className="text-muted-foreground">Ekuitas</span><span>{rupiah(neraca.ekuitas)}</span></div>
                   <div className="flex justify-between border-t pt-2"><span>Total</span><span className="font-bold">{rupiah(neraca.total)}</span></div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="stok">
+          <Card className="glass border-0 shadow-card">
+            <CardHeader className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle>Mutasi Stok</CardTitle>
+                <p className="text-xs text-muted-foreground">Ringkasan stok masuk/keluar dan retur bahan dalam periode.</p>
+              </div>
+              <ExportButtons
+                filename="mutasi-stok"
+                title="Mutasi Stok"
+                headers={["Tanggal", "Bahan", "Tipe", "Qty", "Nilai", "Keterangan"]}
+                rows={filteredStokMov.map((m) => [
+                  m.tanggal,
+                  bahan.find((b: any) => b.id === m.bahanId)?.nama ?? m.bahanId,
+                  m.tipe,
+                  m.qty,
+                  rupiah(stokMovValue(m)),
+                  m.keterangan ?? ""
+                ])}
+              />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border p-4 bg-muted/30">
+                  <div className="text-sm text-muted-foreground">Total Mutasi</div>
+                  <div className="text-2xl font-bold">{filteredStokMov.length}</div>
+                </div>
+                <div className="rounded-2xl border p-4 bg-muted/30">
+                  <div className="text-sm text-muted-foreground">Stok Masuk</div>
+                  <div className="text-2xl font-bold">{totalStokIn}</div>
+                  <div className="text-xs text-muted-foreground">{rupiah(totalStokInValue)}</div>
+                </div>
+                <div className="rounded-2xl border p-4 bg-muted/30">
+                  <div className="text-sm text-muted-foreground">Stok Keluar</div>
+                  <div className="text-2xl font-bold">{totalStokOut}</div>
+                  <div className="text-xs text-muted-foreground">{rupiah(totalStokOutValue)}</div>
+                </div>
+              </div>
+              <div className="rounded-2xl border p-4 bg-muted/30">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Retur Bahan</p>
+                    <p className="text-lg font-semibold">{totalReturInQty}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Nilai Retur</p>
+                    <p className="text-lg font-semibold">{rupiah(totalReturInValue)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tanggal</TableHead>
+                        <TableHead>Bahan</TableHead>
+                        <TableHead>Tipe</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead className="text-right">Nilai</TableHead>
+                        <TableHead>Keterangan</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredStokMov.length === 0 && (
+                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Belum ada data stok sesuai filter</TableCell></TableRow>
+                      )}
+                      {stokMovPagination.paged.map((m: any) => (
+                        <TableRow key={m.id}>
+                          <TableCell>{m.tanggal}</TableCell>
+                          <TableCell>{bahan.find((b: any) => b.id === m.bahanId)?.nama ?? m.bahanId}</TableCell>
+                          <TableCell>{m.tipe}</TableCell>
+                          <TableCell className="text-right">{m.qty}</TableCell>
+                          <TableCell className="text-right">{rupiah(stokMovValue(m))}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{m.keterangan ?? "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <TablePagination
+                  page={stokMovPagination.page}
+                  totalPages={stokMovPagination.totalPages}
+                  total={stokMovPagination.total}
+                  pageSize={stokMovPagination.pageSize}
+                  onChange={stokMovPagination.setPage}
+                />
               </div>
             </CardContent>
           </Card>

@@ -42,7 +42,8 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   const [catatan, setCatatan] = useState("");
 
   // Retur state
-  const [returCupQty, setReturCupQty] = useState(0);
+  const [returProdukId, setReturProdukId] = useState("");
+  const [returQty, setReturQty] = useState(0);
   const [returTanggal, setReturTanggal] = useState(todayISO());
 
   const selectedProduct = useMemo(() => {
@@ -50,10 +51,11 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   }, [produk, produkId]);
 
   useEffect(() => {
-    if (supportItems.length > 0 && !produkId) {
-      setProdukId(supportItems[0].id);
+    if (supportItems.length > 0) {
+      if (!produkId) setProdukId(supportItems[0].id);
+      if (!returProdukId) setReturProdukId(supportItems[0].id);
     }
-  }, [supportItems, produkId]);
+  }, [supportItems, produkId, returProdukId]);
 
   const handleAddItem = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -97,31 +99,32 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
 
   const handleSubmitRetur = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (returCupQty <= 0) return toast.error("Masukkan jumlah retur Cup Bubur/Tim yang valid");
+    if (!returProdukId) return toast.error("Pilih perlengkapan");
+    if (returQty <= 0) return toast.error("Masukkan jumlah retur yang valid");
 
-    // Create permohonan stok with special catatan for retur
+    const prod = produk.find((p: any) => p.id === returProdukId);
     await db.addPermohonanStok({
       tanggal: returTanggal,
       tanggalKirim: returTanggal,
       outletId: user.outletId,
-      produkId: "b-cb01",
-      qty: returCupQty,
-      catatan: "RETUR CUP"
+      produkId: returProdukId,
+      qty: returQty,
+      catatan: "RETUR PERLENGKAPAN"
     });
 
-    toast.success("Retur Cup Bubur/Tim berhasil dikirim, menunggu persetujuan Admin");
-    setReturCupQty(0);
+    toast.success(`Retur ${prod?.nama ?? "perlengkapan"} berhasil dikirim, menunggu persetujuan Admin`);
+    setReturQty(0);
   };
 
   const myRequests = useMemo(() => {
     return (permohonanStok || [])
-      .filter((r: any) => r.outletId === user.outletId && r.catatan !== "RETUR CUP" && r.produkId?.startsWith("b-"))
+      .filter((r: any) => r.outletId === user.outletId && !r.catatan?.startsWith("RETUR") && r.produkId?.startsWith("b-"))
       .sort((a: any, b: any) => b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id));
   }, [permohonanStok, user.outletId]);
 
   const myReturRequests = useMemo(() => {
     return (permohonanStok || [])
-      .filter((r: any) => r.outletId === user.outletId && r.catatan === "RETUR CUP")
+      .filter((r: any) => r.outletId === user.outletId && r.catatan?.startsWith("RETUR"))
       .sort((a: any, b: any) => b.tanggal.localeCompare(a.tanggal) || b.id.localeCompare(a.id));
   }, [permohonanStok, user.outletId]);
 
@@ -132,7 +135,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-gradient">Permohonan Outlet</h1>
-        <p className="text-sm text-muted-foreground">Ajukan permohonan perlengkapan dan retur cup ke admin</p>
+        <p className="text-sm text-muted-foreground">Ajukan permohonan perlengkapan dan retur perlengkapan ke admin</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -315,8 +318,8 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
         <TabsContent value="retur" className="space-y-6">
           <Card className="glass border-0 shadow-card">
             <CardHeader>
-              <CardTitle>Form Retur Cup Bubur / Tim</CardTitle>
-              <p className="text-xs text-muted-foreground">Kembalikan Cup Bubur/Tim yang tidak terpakai ke gudang</p>
+              <CardTitle>Form Retur Perlengkapan</CardTitle>
+              <p className="text-xs text-muted-foreground">Kembalikan perlengkapan yang tidak terpakai ke gudang</p>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmitRetur} className="space-y-4">
@@ -331,25 +334,30 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Perlengkapan</Label>
-                    <Select value="b-cb01" disabled>
-                      <SelectTrigger className="h-10"><SelectValue>Cup Bubur / Tim</SelectValue></SelectTrigger>
+                    <Label>Pilih Perlengkapan</Label>
+                    <Select value={returProdukId} onValueChange={setReturProdukId}>
+                      <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {supportItems.map((p: any) => (
+                          <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Jumlah Retur (biji)</Label>
+                    <Label>Jumlah Retur</Label>
                     <Input
                       type="number"
                       min={1}
-                      value={returCupQty || ""}
-                      onChange={(e) => setReturCupQty(Number(e.target.value))}
+                      value={returQty || ""}
+                      onChange={(e) => setReturQty(Number(e.target.value))}
                       className="h-10"
                       placeholder="0"
                     />
                   </div>
                 </div>
-                <Button type="submit" disabled={returCupQty <= 0} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
-                  <RotateCcw className="mr-2 h-4 w-4" /> Ajukan Retur Cup ({returCupQty} biji)
+                <Button type="submit" disabled={returQty <= 0} className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                  <RotateCcw className="mr-2 h-4 w-4" /> Ajukan Retur
                 </Button>
               </form>
             </CardContent>
@@ -357,7 +365,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
 
           <Card className="glass border-0 shadow-card">
             <CardHeader>
-              <CardTitle>Riwayat Retur Cup</CardTitle>
+              <CardTitle>Riwayat Retur Perlengkapan</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="rounded-2xl border overflow-hidden">
@@ -376,44 +384,47 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                       {myReturRequests.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                            Belum ada retur cup
+                            Belum ada retur perlengkapan
                           </TableCell>
                         </TableRow>
                       )}
-                      {returPg.paged.map((r: any) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="whitespace-nowrap">{r.tanggal}</TableCell>
-                          <TableCell className="whitespace-nowrap font-medium">Cup Bubur / Tim</TableCell>
-                          <TableCell className="text-right font-semibold">{r.qty} biji</TableCell>
-                          <TableCell>
-                            {r.status === "Pending" && (
-                              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
-                                <Clock className="h-3 w-3" /> Pending
-                              </Badge>
-                            )}
-                            {r.status === "Disetujui" && (
-                              <Badge className="bg-success text-success-foreground gap-1">
-                                <Check className="h-3 w-3" /> Disetujui
-                              </Badge>
-                            )}
-                            {r.status === "Ditolak" && (
-                              <Badge variant="destructive" className="gap-1">
-                                <X className="h-3 w-3" /> Ditolak
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {r.status === "Pending" && (
-                              <Button size="icon" variant="ghost" onClick={() => {
-                                db.deletePermohonanStok(r.id);
-                                toast.success("Retur cup dibatalkan");
-                              }}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {returPg.paged.map((r: any) => {
+                        const prod = produk.find((p: any) => p.id === r.produkId);
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="whitespace-nowrap">{r.tanggal}</TableCell>
+                            <TableCell className="whitespace-nowrap font-medium">{prod?.nama ?? "-"}</TableCell>
+                            <TableCell className="text-right font-semibold">{r.qty} {prod?.satuan ?? "pcs"}</TableCell>
+                            <TableCell>
+                              {r.status === "Pending" && (
+                                <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+                                  <Clock className="h-3 w-3" /> Pending
+                                </Badge>
+                              )}
+                              {r.status === "Disetujui" && (
+                                <Badge className="bg-success text-success-foreground gap-1">
+                                  <Check className="h-3 w-3" /> Disetujui
+                                </Badge>
+                              )}
+                              {r.status === "Ditolak" && (
+                                <Badge variant="destructive" className="gap-1">
+                                  <X className="h-3 w-3" /> Ditolak
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {r.status === "Pending" && (
+                                <Button size="icon" variant="ghost" onClick={() => {
+                                  db.deletePermohonanStok(r.id);
+                                  toast.success("Retur dibatalkan");
+                                }}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -729,7 +740,7 @@ export default function StokGudang() {
                           {tipe === "IN" ? (
                             <>
                               <SelectItem value="Supplier">Supplier</SelectItem>
-                              <SelectItem value="Retur Cup">Retur Cup</SelectItem>
+                              <SelectItem value="Retur Perlengkapan">Retur Perlengkapan</SelectItem>
                               <SelectItem value="Lainnya">Lainnya (Tulis Manual)</SelectItem>
                             </>
                           ) : (
@@ -971,7 +982,7 @@ function AdminPermohonanOutletInner({ dbState }: { dbState: any }) {
   const filteredRequests = useMemo(() => {
     return (permohonanStok || []).filter((r: any) => {
       if (PRODUCTION_PRODUCTS.includes(r.produkId)) return false;
-      if (r.catatan === "RETUR CUP") return false; // Retur handled in Retur Perlengkapan tab
+      if (r.catatan?.startsWith("RETUR")) return false; // Retur handled in Retur Perlengkapan tab
       const matchDate = inRange(r.tanggalKirim, range);
       const matchOutlet = selectedOutletId === "all" || r.outletId === selectedOutletId;
       return matchDate && matchOutlet;
@@ -1094,7 +1105,7 @@ function AdminReturPerlengkapanInner({ dbState }: { dbState: any }) {
 
   const filteredRequests = useMemo(() => {
     return (permohonanStok || []).filter((r: any) => {
-      if (r.catatan !== "RETUR CUP") return false; // Only retur requests
+      if (!r.catatan?.startsWith("RETUR")) return false; // Only retur requests
       const matchDate = inRange(r.tanggalKirim, range);
       const matchOutlet = selectedOutletId === "all" || r.outletId === selectedOutletId;
       return matchDate && matchOutlet;
@@ -1116,7 +1127,7 @@ function AdminReturPerlengkapanInner({ dbState }: { dbState: any }) {
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <CardTitle className="text-sm">Retur Perlengkapan Outlet</CardTitle>
-          <p className="text-[10px] text-muted-foreground">Setujui retur cup — stok otomatis bertambah (IN)</p>
+          <p className="text-[10px] text-muted-foreground">Setujui retur perlengkapan — stok otomatis bertambah (IN)</p>
         </div>
         <div className="flex gap-2">
           <DateRangeFilter value={range} onChange={setRange} />
@@ -1159,8 +1170,8 @@ function AdminReturPerlengkapanInner({ dbState }: { dbState: any }) {
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap font-medium text-xs">{outlet?.nama ?? "-"}</TableCell>
-                      <TableCell className="whitespace-nowrap text-xs">{prod?.nama ?? "Cup Bubur / Tim"}</TableCell>
-                      <TableCell className="text-right font-semibold">{r.qty} biji</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{prod?.nama ?? "-"}</TableCell>
+                      <TableCell className="text-right font-semibold">{r.qty} {prod?.satuan ?? "pcs"}</TableCell>
                       <TableCell className="whitespace-nowrap text-xs">{r.tanggal}</TableCell>
                       <TableCell>
                         {r.status === "Pending" && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-[10px]"><Clock className="h-3 w-3" /> Pending</Badge>}

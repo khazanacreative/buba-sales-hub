@@ -12,11 +12,6 @@ export default function ProtectedRoute({ adminOnly, allowedRoles }: Props) {
 
   if (!user) return <Navigate to="/welcome" replace />;
 
-  // Perubahan: Menambahkan pengecekan role secara default jika tidak disetel
-  if (!allowedRoles) {
-    allowedRoles = ["user", "admin"]; // Default role
-  }
-
   if (adminOnly && user.role !== "admin") {
     return <Navigate to="/" replace />;
   }

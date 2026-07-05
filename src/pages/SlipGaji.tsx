@@ -54,7 +54,7 @@ export default function SlipGaji() {
 
   // Calculate salary details
   const payroll = useMemo(() => {
-    if (!activeKaryawan) return { pokok: 0, tunjangan: 0, bonusHarian: 0, bonusOmset: 0, bonusUlasan: 0, overtimeHours: 0, overtimePay: 0, total: 0 };
+    if (!activeKaryawan) return { pokok: 0, tunjangan: 0, bonusHarian: 0, bonusOmset: 0, bonusUlasan: 0, bonusOH: 0, overtimeHours: 0, overtimePay: 0, total: 0 };
     
     const pokok = stats.hadir * activeKaryawan.gajiPokok;
     
@@ -65,8 +65,9 @@ export default function SlipGaji() {
     
     const bonusOmset = activeKaryawan.bonusOmset ?? 0;
     const bonusUlasan = activeKaryawan.bonusUlasan ?? 0;
+    const bonusOH = activeKaryawan.bonusOH ?? 0;
     
-    const total = pokok + tunjangan + bonusHarian + bonusOmset + bonusUlasan + overtimePay;
+    const total = pokok + tunjangan + bonusHarian + bonusOmset + bonusUlasan + bonusOH + overtimePay;
     
     return {
       pokok,
@@ -74,6 +75,7 @@ export default function SlipGaji() {
       bonusHarian,
       bonusOmset,
       bonusUlasan,
+      bonusOH,
       overtimeHours,
       overtimePay,
       total
@@ -253,6 +255,12 @@ export default function SlipGaji() {
                   <div className="flex justify-between py-2.5">
                     <span className="text-muted-foreground">Bonus Ulasan Bintang 5</span>
                     <span className="font-medium text-success">+{rupiah(payroll.bonusUlasan)}</span>
+                  </div>
+                )}
+                {payroll.bonusOH > 0 && (
+                  <div className="flex justify-between py-2.5">
+                    <span className="text-muted-foreground">Bonus OH (Overhead ≤ 2%)</span>
+                    <span className="font-medium text-success">+{rupiah(payroll.bonusOH)}</span>
                   </div>
                 )}
                 {payroll.overtimePay > 0 && (

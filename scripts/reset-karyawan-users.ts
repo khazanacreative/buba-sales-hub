@@ -77,6 +77,7 @@ async function resetKaryawanUsers() {
       gaji_pokok: k.gajiPokok,
       bonus_omset: k.bonusOmset,
       bonus_ulasan: k.bonusUlasan,
+      bonus_oh: k.bonusOH ?? 0,
       tunjangan_harian: k.tunjanganHarian ?? 0,
       overtime_rate: k.overtimeRate ?? 0,
       jam_masuk: k.jamMasuk ?? null,

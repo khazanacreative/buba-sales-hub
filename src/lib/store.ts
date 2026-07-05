@@ -159,6 +159,7 @@ export async function fetchFromSupabase() {
         gajiPokok: Number(k.gaji_pokok),
         bonusOmset: Number(k.bonus_omset),
         bonusUlasan: Number(k.bonus_ulasan),
+        bonusOH: Number(k.bonus_oh ?? 0),
         tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
         overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
         jamMasuk: k.jam_masuk || undefined,
@@ -426,6 +427,7 @@ export const db = {
       gaji_pokok: k.gajiPokok,
       bonus_omset: k.bonusOmset,
       bonus_ulasan: k.bonusUlasan,
+      bonus_oh: k.bonusOH ?? 0,
       tunjangan_harian: k.tunjanganHarian ?? 0,
       overtime_rate: k.overtimeRate ?? 0,
       jam_masuk: k.jamMasuk ?? null,
@@ -471,6 +473,7 @@ export const db = {
     if (k.gajiPokok !== undefined) mapped.gaji_pokok = k.gajiPokok;
     if (k.bonusOmset !== undefined) mapped.bonus_omset = k.bonusOmset;
     if (k.bonusUlasan !== undefined) mapped.bonus_ulasan = k.bonusUlasan;
+    if (k.bonusOH !== undefined) mapped.bonus_oh = k.bonusOH;
     if (k.tunjanganHarian !== undefined) mapped.tunjangan_harian = k.tunjanganHarian;
     if (k.overtimeRate !== undefined) mapped.overtime_rate = k.overtimeRate;
     if (k.jamMasuk !== undefined) mapped.jam_masuk = k.jamMasuk;
@@ -691,6 +694,7 @@ export const db = {
         gaji_pokok: k.gajiPokok,
         bonus_omset: k.bonusOmset,
         bonus_ulasan: k.bonusUlasan,
+        bonus_oh: k.bonusOH ?? 0,
         tunjangan_harian: k.tunjanganHarian ?? 0,
         overtime_rate: k.overtimeRate ?? 0,
         jam_masuk: k.jamMasuk ?? null,

@@ -651,6 +651,7 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
   const [gajiPokok, setGajiPokok] = useState(17500);
   const [bonusOmset, setBonusOmset] = useState(0);
   const [bonusUlasan, setBonusUlasan] = useState(0);
+  const [bonusOH, setBonusOH] = useState(0);
   const [tunjanganHarian, setTunjanganHarian] = useState(0);
   const [overtimeRate, setOvertimeRate] = useState(0);
   const [jamMasuk, setJamMasuk] = useState("07:30");
@@ -677,6 +678,7 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
     setGajiPokok(17500);
     setBonusOmset(0);
     setBonusUlasan(0);
+    setBonusOH(0);
     setTunjanganHarian(0);
     setOvertimeRate(0);
     setJamMasuk("07:30");
@@ -712,6 +714,7 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
                   gajiPokok,
                   bonusOmset,
                   bonusUlasan,
+                  bonusOH,
                   tunjanganHarian,
                   overtimeRate,
                   jamMasuk,
@@ -821,9 +824,7 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
             <div>
               <Label>Gaji Pokok (per Hari)</Label>
               <Input type="number" value={gajiPokok} onChange={(e) => setGajiPokok(Number(e.target.value))} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
+            </div>              <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Bonus Omset (Bulanan)</Label>
                 <Input type="number" value={bonusOmset} onChange={(e) => setBonusOmset(Number(e.target.value))} />
@@ -831,6 +832,13 @@ function TambahKaryawanDialog({ outlets }: { outlets: any[] }) {
               <div>
                 <Label>Bonus Ulasan (Bulanan)</Label>
                 <Input type="number" value={bonusUlasan} onChange={(e) => setBonusUlasan(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Bonus OH (Bulanan)</Label>
+                <Input type="number" value={bonusOH} onChange={(e) => setBonusOH(Number(e.target.value))} />
               </div>
             </div>
 
@@ -1078,6 +1086,7 @@ function EditKaryawanDialog({ karyawan, outlets }: { karyawan: any; outlets: any
   const [gajiPokok, setGajiPokok] = useState(karyawan.gajiPokok);
   const [bonusOmset, setBonusOmset] = useState(karyawan.bonusOmset ?? 0);
   const [bonusUlasan, setBonusUlasan] = useState(karyawan.bonusUlasan ?? 0);
+  const [bonusOH, setBonusOH] = useState(karyawan.bonusOH ?? 0);
   const [tunjanganHarian, setTunjanganHarian] = useState(karyawan.tunjanganHarian ?? 0);
   const [overtimeRate, setOvertimeRate] = useState(karyawan.overtimeRate ?? 0);
   const [jamMasuk, setJamMasuk] = useState(karyawan.jamMasuk || "07:30");
@@ -1115,6 +1124,7 @@ function EditKaryawanDialog({ karyawan, outlets }: { karyawan: any; outlets: any
                   gajiPokok,
                   bonusOmset,
                   bonusUlasan,
+                  bonusOH,
                   tunjanganHarian,
                   overtimeRate,
                   jamMasuk,
@@ -1208,9 +1218,7 @@ function EditKaryawanDialog({ karyawan, outlets }: { karyawan: any; outlets: any
             <div>
               <Label>Gaji Pokok (per Hari)</Label>
               <Input type="number" value={gajiPokok} onChange={(e) => setGajiPokok(Number(e.target.value))} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
+            </div>              <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Bonus Omset (Bulanan)</Label>
                 <Input type="number" value={bonusOmset} onChange={(e) => setBonusOmset(Number(e.target.value))} />
@@ -1218,6 +1226,13 @@ function EditKaryawanDialog({ karyawan, outlets }: { karyawan: any; outlets: any
               <div>
                 <Label>Bonus Ulasan (Bulanan)</Label>
                 <Input type="number" value={bonusUlasan} onChange={(e) => setBonusUlasan(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Bonus OH (Bulanan)</Label>
+                <Input type="number" value={bonusOH} onChange={(e) => setBonusOH(Number(e.target.value))} />
               </div>
             </div>
 

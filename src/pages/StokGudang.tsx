@@ -1121,7 +1121,7 @@ function AdminPermohonanOutletInner({ dbState }: { dbState: any }) {
 
 // === SUBCOMPONENT FOR RETUR PERLENGKAPAN TAB ===
 function AdminReturPerlengkapanInner({ dbState }: { dbState: any }) {
-  const { permohonanStok = [], outlets = [], produk = [] } = dbState;
+  const { permohonanStok = [], outlets = [], produk = [], bahan = [] } = dbState;
 
   const [range, setRange] = useState<DateRange>({
     from: todayISO().slice(0, 7) + "-01",

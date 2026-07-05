@@ -327,8 +327,9 @@ export default function Absensi() {
       // Flat monthly bonuses
       const flatBonusOmset = k.bonusOmset ?? 0;
       const flatBonusUlasan = k.bonusUlasan ?? 0;
+      const flatBonusOH = k.bonusOH ?? 0;
 
-      const totalBonus = dailyBonusTotal + flatBonusOmset + flatBonusUlasan;
+      const totalBonus = dailyBonusTotal + flatBonusOmset + flatBonusUlasan + flatBonusOH;
       const totalGaji = (hadir * k.gajiPokok) + tunjanganTotal + totalBonus + overtimePay;
 
       return {

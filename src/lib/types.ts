@@ -100,6 +100,7 @@ export interface Karyawan {
   gajiPokok: number; // per hari
   bonusOmset?: number;
   bonusUlasan?: number;
+  bonusOH?: number;
   tunjanganHarian?: number;
   overtimeRate?: number;
   jamMasuk?: string; // "HH:mm"

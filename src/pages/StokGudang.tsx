@@ -30,9 +30,19 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   const [activeTab, setActiveTab] = useState("request");
 
   // === REQUEST PERLENGKAPAN ===
+  // Poin 2: Item yang boleh direquest outlet — hanya Cup Bubur/Tim, Tutup, Sendok, Kresek, Tisu
+  const ALLOWED_REQUEST_IDS = new Set(["b-cb01", "b-ttp01", "b-sen01", "b-ts01", "b-krs01"]);
+  // Poin 3: Item yang boleh diretur outlet — hanya Cup Bubur/Tim & Tutup Bubur/Tim
+  const ALLOWED_RETUR_IDS = new Set(["b-cb01", "b-ttp01"]);
+
   const supportItems = useMemo(() => {
-    // Filter only supply/perlengkapan items (id mulai dengan b-)
-    return (produk || []).filter((p: any) => p.id.startsWith("b-"));
+    // Filter only supply/perlengkapan items yang boleh direquest
+    return (produk || []).filter((p: any) => ALLOWED_REQUEST_IDS.has(p.id));
+  }, [produk]);
+
+  const returItems = useMemo(() => {
+    // Filter only supply/perlengkapan items yang boleh diretur
+    return (produk || []).filter((p: any) => ALLOWED_RETUR_IDS.has(p.id));
   }, [produk]);
 
   const [selectedItems, setSelectedItems] = useState<{ produkId: string; qty: number }[]>([]);
@@ -53,9 +63,11 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
   useEffect(() => {
     if (supportItems.length > 0) {
       if (!produkId) setProdukId(supportItems[0].id);
-      if (!returProdukId) setReturProdukId(supportItems[0].id);
     }
-  }, [supportItems, produkId, returProdukId]);
+    if (returItems.length > 0) {
+      if (!returProdukId) setReturProdukId(returItems[0].id);
+    }
+  }, [supportItems, returItems, produkId, returProdukId]);
 
   const handleAddItem = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -319,7 +331,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
           <Card className="glass border-0 shadow-card">
             <CardHeader>
               <CardTitle>Form Retur Perlengkapan</CardTitle>
-              <p className="text-xs text-muted-foreground">Kembalikan perlengkapan yang tidak terpakai ke gudang</p>
+              <p className="text-xs text-muted-foreground">Kembalikan Cup Bubur/Tim &amp; Tutup yang tidak terpakai ke gudang</p>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmitRetur} className="space-y-4">
@@ -338,7 +350,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
                     <Select value={returProdukId} onValueChange={setReturProdukId}>
                       <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {supportItems.map((p: any) => (
+                        {returItems.map((p: any) => (
                           <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>
                         ))}
                       </SelectContent>

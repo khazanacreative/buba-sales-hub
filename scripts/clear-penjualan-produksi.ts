@@ -35,44 +35,56 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function clearData() {
-  console.log("1. Menghapus data stok_movement (hapus dulu karena ada FK ke produksi)...");
+  console.log("🧹 Mengosongkan semua data transaksional...\n");
+
+  console.log("1. Menghapus stok_movement...");
   const { error: stokErr } = await supabase
     .from("stok_movement")
     .delete()
     .neq("id", "");
+  if (stokErr) console.error("   ❌ Gagal:", stokErr.message);
+  else console.log("   ✅ stok_movement berhasil dikosongkan.");
 
-  if (stokErr) {
-    console.error("   ❌ Gagal menghapus stok_movement:", stokErr.message);
-  } else {
-    console.log("   ✅ Data stok_movement berhasil dihapus.");
-  }
+  console.log("2. Menghapus permohonan_stok (distribusi)...");
+  const { error: permohonanErr } = await supabase
+    .from("permohonan_stok")
+    .delete()
+    .neq("id", "");
+  if (permohonanErr) console.error("   ❌ Gagal:", permohonanErr.message);
+  else console.log("   ✅ permohonan_stok berhasil dikosongkan.");
 
-  console.log("2. Menghapus data produksi...");
+  console.log("3. Menghapus produksi...");
   const { error: produksiErr } = await supabase
     .from("produksi")
     .delete()
     .neq("id", "");
+  if (produksiErr) console.error("   ❌ Gagal:", produksiErr.message);
+  else console.log("   ✅ produksi berhasil dikosongkan.");
 
-  if (produksiErr) {
-    console.error("   ❌ Gagal menghapus produksi:", produksiErr.message);
-  } else {
-    console.log("   ✅ Data produksi berhasil dihapus.");
-  }
-
-  console.log("3. Menghapus data penjualan...");
+  console.log("4. Menghapus penjualan...");
   const { error: penjualanErr } = await supabase
     .from("penjualan")
     .delete()
     .neq("id", "");
+  if (penjualanErr) console.error("   ❌ Gagal:", penjualanErr.message);
+  else console.log("   ✅ penjualan berhasil dikosongkan.");
 
-  if (penjualanErr) {
-    console.error("   ❌ Gagal menghapus penjualan:", penjualanErr.message);
-  } else {
-    console.log("   ✅ Data penjualan berhasil dihapus.");
-  }
+  console.log("5. Menghapus jurnal (termasuk OUT-SALES)...");
+  const { error: jurnalErr } = await supabase
+    .from("jurnal")
+    .delete()
+    .neq("id", "");
+  if (jurnalErr) console.error("   ❌ Gagal:", jurnalErr.message);
+  else console.log("   ✅ jurnal berhasil dikosongkan.");
 
-  console.log("\nSelesai! Tabel penjualan, produksi, dan stok_movement telah dikosongkan.");
-  console.log("Tabel lain (outlets, produk, bahan_baku, users, dll) tetap aman.");
+  console.log("\n✅ Selesai! Semua data transaksional telah dikosongkan:");
+  console.log("   - stok_movement");
+  console.log("   - permohonan_stok (distribusi)");
+  console.log("   - produksi");
+  console.log("   - penjualan");
+  console.log("   - jurnal");
+  console.log("\n📌 Tabel master (outlets, produk, bahan_baku, coa, karyawan, users) tetap aman.");
+  console.log("📌 Refresh browser untuk melihat perubahan di aplikasi.\n");
   process.exit(0);
 }
 

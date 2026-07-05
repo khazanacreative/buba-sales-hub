@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Save, Package, Edit3, Percent, TrendingUp, AlertTriangle, CheckCircle2, Clock, Lock } from "lucide-react";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import {
   Dialog,
   DialogContent,
@@ -523,147 +524,152 @@ function OHPersentaseTab({
         ))}
       </div>
 
-      {/* Daily OH% Table */}
-      <Card className="glass border-0 shadow-card">
-        <CardHeader>
-          <CardTitle>Detail OH% Harian</CardTitle>
-          <div className="flex items-center gap-2 pt-1">
-            <DateRangeFilter value={range} onChange={setRange} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-xl border overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead>Tanggal</TableHead>
-                    <TableHead>Outlet</TableHead>
-                    <TableHead className="text-right">Distribusi (Cup)</TableHead>
-                    <TableHead className="text-right">Terjual (Cup)</TableHead>
-                    <TableHead className="text-right">Sisa (Cup)</TableHead>
-                    <TableHead className="text-right">OH %</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dailyOHData.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        Belum ada data distribusi & penjualan untuk periode ini
-                      </TableCell>
+      {/* Date Range Filter */}
+      <div className="flex items-center gap-2">
+        <DateRangeFilter value={range} onChange={setRange} />
+      </div>
+
+      {/* Accordion: Detail Tables */}
+      <Accordion type="multiple" className="space-y-3">
+        <AccordionItem value="daily" className="border rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3 bg-muted/20 hover:bg-muted/30 hover:no-underline text-sm font-bold">
+            <span>📋 Detail OH% Harian</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-0 pb-0">
+            <div className="rounded-xl border overflow-hidden mx-0 border-0 rounded-none">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead>Outlet</TableHead>
+                      <TableHead className="text-right">Distribusi (Cup)</TableHead>
+                      <TableHead className="text-right">Terjual (Cup)</TableHead>
+                      <TableHead className="text-right">Sisa (Cup)</TableHead>
+                      <TableHead className="text-right">OH %</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                     </TableRow>
-                  )}
-                  {pg.paged.map((row, idx) => {
-                    const isTotal = row.outletId === "__total__";
-                    const isOver = row.ohPercent > 2;
-                    return (
-                      <TableRow key={`${row.date}-${row.outletId}-${idx}`} className={isTotal ? "bg-muted/30 font-bold" : ""}>
-                        <TableCell className="whitespace-nowrap">{row.date}</TableCell>
-                        <TableCell className={`whitespace-nowrap ${isTotal ? "text-primary" : ""}`}>{row.outletName}</TableCell>
-                        <TableCell className="text-right">{row.distributed}</TableCell>
-                        <TableCell className="text-right">{row.sold}</TableCell>
-                        <TableCell className="text-right text-warning">{row.oh}</TableCell>
-                        <TableCell className={`text-right font-bold ${isOver ? "text-destructive" : "text-success"}`}>
-                          {row.ohPercent}%
+                  </TableHeader>
+                  <TableBody>
+                    {dailyOHData.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          Belum ada data distribusi & penjualan untuk periode ini
                         </TableCell>
-                        <TableCell className="text-center">
-                          {row.distributed > 0 ? (
-                            isOver ? (
-                              <Badge variant="destructive" className="text-[10px]">
-                                <AlertTriangle className="h-3 w-3 mr-0.5" /> &gt; 2%
+                      </TableRow>
+                    )}
+                    {pg.paged.map((row, idx) => {
+                      const isTotal = row.outletId === "__total__";
+                      const isOver = row.ohPercent > 2;
+                      return (
+                        <TableRow key={`${row.date}-${row.outletId}-${idx}`} className={isTotal ? "bg-muted/30 font-bold" : ""}>
+                          <TableCell className="whitespace-nowrap">{row.date}</TableCell>
+                          <TableCell className={`whitespace-nowrap ${isTotal ? "text-primary" : ""}`}>{row.outletName}</TableCell>
+                          <TableCell className="text-right">{row.distributed}</TableCell>
+                          <TableCell className="text-right">{row.sold}</TableCell>
+                          <TableCell className="text-right text-warning">{row.oh}</TableCell>
+                          <TableCell className={`text-right font-bold ${isOver ? "text-destructive" : "text-success"}`}>
+                            {row.ohPercent}%
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {row.distributed > 0 ? (
+                              isOver ? (
+                                <Badge variant="destructive" className="text-[10px]">
+                                  <AlertTriangle className="h-3 w-3 mr-0.5" /> &gt; 2%
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-success text-success-foreground text-[10px]">
+                                  <CheckCircle2 className="h-3 w-3 mr-0.5" /> ≤ 2%
+                                </Badge>
+                              )
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+            <div className="p-2">
+              <TablePagination
+                page={pg.page}
+                totalPages={pg.totalPages}
+                total={pg.total}
+                pageSize={pg.pageSize}
+                onChange={pg.setPage}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="monthly" className="border rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3 bg-muted/20 hover:bg-muted/30 hover:no-underline text-sm font-bold">
+            <span>📊 Rata-rata OH% Bulanan</span>
+          </AccordionTrigger>
+          <AccordionContent className="px-0 pb-0">
+            <p className="text-xs text-muted-foreground px-4 pb-2">Rata-rata OH% per bulan per outlet. Jika ≤ 2% maka memenuhi syarat Bonus OH.</p>
+            <div className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead>Bulan</TableHead>
+                      <TableHead>Outlet</TableHead>
+                      <TableHead className="text-right">Hari Aktif</TableHead>
+                      <TableHead className="text-right">Rata-rata OH %</TableHead>
+                      <TableHead className="text-center">Syarat ≤ 2%</TableHead>
+                      <TableHead className="text-center">Bonus OH</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {monthlyAvg.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          Belum ada data bulanan
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {monthlyAvg.map((m, idx) => {
+                      const isTotal = m.outletId === "__total__";
+                      return (
+                        <TableRow key={`${m.month}-${m.outletId}-${idx}`} className={isTotal ? "bg-muted/30 font-bold" : ""}>
+                          <TableCell className="whitespace-nowrap">{m.month}</TableCell>
+                          <TableCell className={`whitespace-nowrap ${isTotal ? "text-primary" : ""}`}>{m.outletName}</TableCell>
+                          <TableCell className="text-right">{m.days}</TableCell>
+                          <TableCell className={`text-right font-bold ${m.pass ? "text-success" : "text-destructive"}`}>
+                            {m.avgOhPercent}%
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {m.pass ? (
+                              <Badge className="bg-success text-success-foreground">
+                                <CheckCircle2 className="h-3 w-3 mr-0.5" /> Lolos
                               </Badge>
                             ) : (
-                              <Badge className="bg-success text-success-foreground text-[10px]">
-                                <CheckCircle2 className="h-3 w-3 mr-0.5" /> ≤ 2%
+                              <Badge variant="destructive">
+                                <AlertTriangle className="h-3 w-3 mr-0.5" /> Tidak
                               </Badge>
-                            )
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {m.pass ? (
+                              <span className="text-xs text-success font-semibold">✅ Dapat Bonus</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
-          <TablePagination
-            page={pg.page}
-            totalPages={pg.totalPages}
-            total={pg.total}
-            pageSize={pg.pageSize}
-            onChange={pg.setPage}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Monthly Average Table */}
-      <Card className="glass border-0 shadow-card">
-        <CardHeader>
-          <CardTitle>Rata-rata OH% Bulanan</CardTitle>
-          <p className="text-xs text-muted-foreground">Rata-rata OH% per bulan per outlet. Jika ≤ 2% maka memenuhi syarat Bonus OH.</p>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-xl border overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead>Bulan</TableHead>
-                    <TableHead>Outlet</TableHead>
-                    <TableHead className="text-right">Hari Aktif</TableHead>
-                    <TableHead className="text-right">Rata-rata OH %</TableHead>
-                    <TableHead className="text-center">Syarat ≤ 2%</TableHead>
-                    <TableHead className="text-center">Bonus OH</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {monthlyAvg.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        Belum ada data bulanan
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {monthlyAvg.map((m, idx) => {
-                    const isTotal = m.outletId === "__total__";
-                    return (
-                      <TableRow key={`${m.month}-${m.outletId}-${idx}`} className={isTotal ? "bg-muted/30 font-bold" : ""}>
-                        <TableCell className="whitespace-nowrap">{m.month}</TableCell>
-                        <TableCell className={`whitespace-nowrap ${isTotal ? "text-primary" : ""}`}>{m.outletName}</TableCell>
-                        <TableCell className="text-right">{m.days}</TableCell>
-                        <TableCell className={`text-right font-bold ${m.pass ? "text-success" : "text-destructive"}`}>
-                          {m.avgOhPercent}%
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {m.pass ? (
-                            <Badge className="bg-success text-success-foreground">
-                              <CheckCircle2 className="h-3 w-3 mr-0.5" /> Lolos
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive">
-                              <AlertTriangle className="h-3 w-3 mr-0.5" /> Tidak
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {m.pass ? (
-                            <span className="text-xs text-success font-semibold">✅ Dapat Bonus</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

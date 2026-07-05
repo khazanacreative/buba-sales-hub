@@ -808,6 +808,8 @@ export default function Produksi() {
     }
 
     setReturGrid(rGrid);
+    // Reset modification flag so returGrid auto-refreshes with latest penjualan data from outlet
+    hasUserModifiedGrids.current = false;
     setStep(5);
   };
 
@@ -832,7 +834,55 @@ export default function Produksi() {
         totalSalesRevenue += p.qty * p.harga;
       });
 
-      // 3. Hitung recovered ingredients dari returGrid (admin bisa edit)
+      // 3. Recalculate returGrid from latest penjualan data before computing recovered ingredients.
+      //    This ensures that even if returGrid state is stale (due to hasUserModifiedGrids blocking auto-refresh),
+      //    the stok retur calculation uses the correct latest data from outlet.
+      //    If admin has manually edited returGrid (handleReturChange was called), those edits will be overwritten
+      //    by the recalculated values — this is intentional to prevent stale-data bugs.
+      const freshReturGrid: Record<string, Record<string, number>> = {};
+      outlets.forEach(o => {
+        freshReturGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+      });
+      if (existingPenjualan.length > 0) {
+        outlets.forEach((o) => {
+          const sent = distGrid[o.id] || {};
+          if (!sent) return;
+
+          const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
+            const totalSent = dSent + iSent;
+            const sold = existingPenjualan
+              .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+              .reduce((s: number, p: any) => s + p.qty, 0);
+            const totalRetur = Math.max(0, totalSent - sold);
+            if (totalSent > 0) {
+              freshReturGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
+              freshReturGrid[o.id][iField] = totalRetur - freshReturGrid[o.id][dField];
+            }
+          };
+
+          calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
+          calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
+
+          freshReturGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingPenjualan
+            .filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal")
+            .reduce((s: number, p: any) => s + p.qty, 0));
+          freshReturGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingPenjualan
+            .filter((p: any) => p.outletId === o.id && p.produkId === "p-puding")
+            .reduce((s: number, p: any) => s + p.qty, 0));
+          freshReturGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingPenjualan
+            .filter((p: any) => p.outletId === o.id && p.produkId === "p-abon")
+            .reduce((s: number, p: any) => s + p.qty, 0));
+        });
+      }
+
+      // Use freshReturGrid to update returGrid state and for recovered ingredients calculation
+      setReturGrid(freshReturGrid);
+      lastSyncedSalesRef.current = penjualan
+        .filter((p: any) => p.tanggal === tanggal)
+        .reduce((s: number, p: any) => s + p.qty, 0)
+        .toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
+
+      // 4. Hitung recovered ingredients dari recalculated returGrid
       const recoveredIngredients = {
         beras: 0,
         puding: 0,
@@ -845,7 +895,7 @@ export default function Produksi() {
 
       outlets.forEach((o) => {
         const sent = distGrid[o.id] || {};
-        const retur = returGrid[o.id] || {};
+        const retur = freshReturGrid[o.id] || {};
 
         // Cek apakah stok retur sudah pernah diposting untuk tanggal ini
         const existingReturStok = (dbState.stokMov || []).filter(

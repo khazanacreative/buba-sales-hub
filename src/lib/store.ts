@@ -240,7 +240,7 @@ export const db = {
       harga: p.harga,
       total
     }]);
-    fetchFromSupabase();
+    await fetchFromSupabase();
   },
   async addPenjualanBulk(items: Omit<Penjualan, "id" | "total">[]) {
     const records = items.map((p) => ({
@@ -253,11 +253,11 @@ export const db = {
       total: p.qty * p.harga
     }));
     await supabase.from("penjualan").insert(records);
-    fetchFromSupabase();
+    await fetchFromSupabase();
   },
   async deletePenjualan(id: string) {
     await supabase.from("penjualan").delete().eq("id", id);
-    fetchFromSupabase();
+    await fetchFromSupabase();
   },
 
   async addProduksi(p: Omit<Produksi, "id">) {

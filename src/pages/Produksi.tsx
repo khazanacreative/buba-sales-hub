@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { db, useDB, saldoBahan, getBubaSettings } from "@/lib/store";
+import { supabase } from "@/lib/supabaseClient";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
 import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
@@ -178,9 +179,22 @@ export default function Produksi() {
     return { d: 0, i: 0 };
   };
 
-  const serializeSplit = (d: number, i: number, originalCatatan = "") => {
-    const cleanCat = originalCatatan.replace(/\[D:\d+,I:\d+\]\s*/, "");
-    return `[D:${d},I:${i}] ${cleanCat}`.trim();
+  // Serialize split + variant names into catatan
+  // Format: [D:X,I:Y] [V:v1Name,v2Name] rest
+  // v1Name/v2Name = nama varian untuk bubur/tim 1 dan 2
+  const serializeSplit = (d: number, i: number, originalCatatan = "", variant1 = "", variant2 = "") => {
+    const cleanCat = originalCatatan.replace(/\[D:\d+,I:\d+\]\s*/, "").replace(/\[V:[^\]]*\]\s*/, "");
+    const variantPart = (variant1 || variant2) ? `[V:${variant1},${variant2}] ` : "";
+    return `[D:${d},I:${i}] ${variantPart}${cleanCat}`.trim();
+  };
+
+  // Parse variant names from catatan
+  const parseVariants = (catatan: string) => {
+    const match = catatan?.match(/\[V:([^,\]]+),([^,\]]+)\]/);
+    if (match) {
+      return { v1: match[1], v2: match[2] };
+    }
+    return { v1: "", v2: "" };
   };
 
   // Load plan for date
@@ -414,7 +428,7 @@ export default function Produksi() {
           outletId,
           produkId: "p-bubur",
           qty: totalBubur,
-          catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0)
+          catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0, "", bubur1Name, bubur2Name)
         });
       }
 
@@ -426,7 +440,7 @@ export default function Produksi() {
           outletId,
           produkId: "p-nasitim",
           qty: totalTim,
-          catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0)
+          catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0, "", tim1Name, tim2Name)
         });
       }
 
@@ -505,7 +519,7 @@ export default function Produksi() {
         bahanId: "b-brs01",
         kode: "BRS01",
         nama: "BERAS",
-        qty: Math.ceil(berasGr / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 1000)), // Pack
+        qty: Math.ceil(berasGr / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 600)), // Pack
         rawQtyGrams: berasGr,
         satuan: "Pack"
       });
@@ -583,7 +597,7 @@ export default function Produksi() {
         bahanId: "b-pud01",
         kode: "PUD01",
         nama: "PUDING",
-        qty: Math.ceil(pudingGr / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 100)), // sachet
+        qty: Math.ceil(pudingGr / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 130)), // sachet
         rawQtyGrams: pudingGr,
         satuan: "sachet"
       });
@@ -596,7 +610,7 @@ export default function Produksi() {
         bahanId: "b-oat01",
         kode: "OAT01",
         nama: "OAT",
-        qty: Math.ceil(oatGr / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 100)), // sachet
+        qty: Math.ceil(oatGr / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 154)), // sachet
         rawQtyGrams: oatGr,
         satuan: "sachet"
       });
@@ -609,7 +623,7 @@ export default function Produksi() {
         bahanId: "b-ab01",
         kode: "AB01",
         nama: "ABON",
-        qty: Math.ceil(abonGr / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 100)), // cup
+        qty: Math.ceil(abonGr / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 10)), // cup
         rawQtyGrams: abonGr,
         satuan: "cup"
       });
@@ -736,10 +750,13 @@ export default function Produksi() {
 
       if (r.produkId === "p-bubur") {
         sentQty = (outletAlloc.bubur_d || 0) + (outletAlloc.bubur_i || 0);
-        notes = serializeSplit(outletAlloc.bubur_d || 0, outletAlloc.bubur_i || 0, r.catatan);
+        // Extract existing variant names before re-serializing
+        const existingVariants = parseVariants(r.catatan || "");
+        notes = serializeSplit(outletAlloc.bubur_d || 0, outletAlloc.bubur_i || 0, r.catatan, existingVariants.v1, existingVariants.v2);
       } else if (r.produkId === "p-nasitim") {
         sentQty = (outletAlloc.tim_d || 0) + (outletAlloc.tim_i || 0);
-        notes = serializeSplit(outletAlloc.tim_d || 0, outletAlloc.tim_i || 0, r.catatan);
+        const existingVariants = parseVariants(r.catatan || "");
+        notes = serializeSplit(outletAlloc.tim_d || 0, outletAlloc.tim_i || 0, r.catatan, existingVariants.v1, existingVariants.v2);
       } else if (r.produkId === "p-oatmeal") {
         sentQty = outletAlloc.oatmeal || 0;
       } else if (r.produkId === "p-puding") {
@@ -897,14 +914,7 @@ export default function Produksi() {
         const sent = distGrid[o.id] || {};
         const retur = freshReturGrid[o.id] || {};
 
-        // Cek apakah stok retur sudah pernah diposting untuk tanggal ini
-        const existingReturStok = (dbState.stokMov || []).filter(
-          (m: any) => m.tanggal === tanggal && m.tipe === "IN" && m.keterangan?.includes("Retur Bahan")
-        );
-        if (existingReturStok.length > 0) {
-          // Stok retur sudah diposting, skip perhitungan ulang agar tidak duplikasi
-          // Tapi jurnal tetap diposting jika belum ada
-        } else {
+        // Always recalculate — previous retur stok will be deleted and re-created below
           // Bubur D & I: retur * beras per cup
           if (sent.bubur_d > 0) {
             const actualRetur = Math.min(retur.bubur_d || 0, sent.bubur_d);
@@ -962,17 +972,18 @@ export default function Produksi() {
             const actualRetur = Math.min(retur.abon || 0, sent.abon);
             if (actualRetur > 0) recoveredIngredients.abon += actualRetur * settings.abonCup;
           }
-        }
       });
 
       // 4. Jurnal posting — berdasarkan penjualan outlet (TIDAK dihapus/direcreate)
       if (totalSalesRevenue > 0) {
-        // Cek apakah jurnal sudah pernah diposting untuk tanggal ini (cegah duplikasi)
+        // Hapus jurnal lama, lalu buat ulang (update revenue)
         const existingJurnal = (dbState.jurnal || []).filter(
           (j: any) => j.tanggal === tanggal && j.ref === "OUT-SALES"
         );
-        if (existingJurnal.length === 0) {
-          await db.addJurnalBulk([
+        for (const j of existingJurnal) {
+          await supabase.from("jurnal").delete().eq("id", j.id);
+        }
+        await db.addJurnalBulk([
             {
               tanggal,
               ref: "OUT-SALES",
@@ -997,33 +1008,40 @@ export default function Produksi() {
         }
       }
 
-      // 5. Stok retur movements — berdasarkan returGrid (bisa diedit admin)
+      // 5. Delete existing retur stok movements for this tanggal, then re-create
+      const existingReturMov = (dbState.stokMov || []).filter(
+        (m: any) => m.tanggal === tanggal && m.tipe === "IN" && m.keterangan?.includes("Retur Bahan")
+      );
+      for (const m of existingReturMov) {
+        await supabase.from("stok_movement").delete().eq("id", m.id);
+      }
+      // 6. Stok retur movements — berdasarkan returGrid (bisa diedit admin)
       const movPromises: Promise<any>[] = [];
       if (recoveredIngredients.beras > 1) {
         movPromises.push(db.addStokMov({
           tanggal, bahanId: "b-brs01", tipe: "IN",
-          qty: Math.ceil(recoveredIngredients.beras / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 1000)),
+          qty: Math.ceil(recoveredIngredients.beras / (bahan.find(x => x.id === "b-brs01")?.konversiGram ?? 600)),
           keterangan: `Retur Bahan Baku (Pack) [${tanggal}]`
         }));
       }
       if (recoveredIngredients.puding > 1) {
         movPromises.push(db.addStokMov({
           tanggal, bahanId: "b-pud01", tipe: "IN",
-          qty: Math.ceil(recoveredIngredients.puding / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 100)),
+          qty: Math.ceil(recoveredIngredients.puding / (bahan.find(x => x.id === "b-pud01")?.konversiGram ?? 130)),
           keterangan: `Retur Bahan Baku (sachet) [${tanggal}]`
         }));
       }
       if (recoveredIngredients.oat > 1) {
         movPromises.push(db.addStokMov({
           tanggal, bahanId: "b-oat01", tipe: "IN",
-          qty: Math.ceil(recoveredIngredients.oat / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 100)),
+          qty: Math.ceil(recoveredIngredients.oat / (bahan.find(x => x.id === "b-oat01")?.konversiGram ?? 154)),
           keterangan: `Retur Bahan Baku (sachet) [${tanggal}]`
         }));
       }
       if (recoveredIngredients.abon > 1) {
         movPromises.push(db.addStokMov({
           tanggal, bahanId: "b-ab01", tipe: "IN",
-          qty: Math.ceil(recoveredIngredients.abon / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 100)),
+          qty: Math.ceil(recoveredIngredients.abon / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 10)),
           keterangan: `Retur Bahan Baku (cup) [${tanggal}]`
         }));
       }
@@ -2275,8 +2293,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_d || 0} cup / {sent.bubur_d} cup kirim</span>
-                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.bubur_d * 118}g | Retur: {(row.bubur_d || 0) * 118}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_d || 0} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_d || 0) - (row.bubur_d || 0))} cup ({(Math.max(0, (sent.bubur_d || 0) - (row.bubur_d || 0)) * 118).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name} Retur`}>B. {bubur2Name}</Label>
@@ -2293,8 +2311,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_i || 0} cup / {sent.bubur_i} cup kirim</span>
-                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.bubur_i * 118}g | Retur: {(row.bubur_i || 0) * 118}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_i || 0} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_i || 0) - (row.bubur_i || 0))} cup ({(Math.max(0, (sent.bubur_i || 0) - (row.bubur_i || 0)) * 118).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name} Retur`}>T. {tim1Name}</Label>
@@ -2311,8 +2329,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-amber-300 focus-visible:ring-amber-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_d || 0} cup / {sent.tim_d} cup kirim</span>
-                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.tim_d * 108}g | Retur: {(row.tim_d || 0) * 108}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_d || 0} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_d || 0) - (row.tim_d || 0))} cup ({(Math.max(0, (sent.tim_d || 0) - (row.tim_d || 0)) * 108).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name} Retur`}>T. {tim2Name}</Label>
@@ -2329,8 +2347,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_i || 0} cup / {sent.tim_i} cup kirim</span>
-                    <span className="text-[9px] text-muted-foreground block text-center">Kirim: {sent.tim_i * 108}g | Retur: {(row.tim_i || 0) * 108}g</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_i || 0} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_i || 0) - (row.tim_i || 0))} cup ({(Math.max(0, (sent.tim_i || 0) - (row.tim_i || 0)) * 108).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal Retur</Label>
@@ -2343,8 +2361,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.oatmeal} ({sent.oatmeal * 100}g)</span>
-                    <span className="text-[9px] text-destructive block text-center">Retur: {row.oatmeal * 100}g</span>
+                    <span className="text-[9px] text-destructive block text-center mt-0.5">Retur: {row.oatmeal} cup ({(row.oatmeal || 0) * 100}g)</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.oatmeal || 0) - (row.oatmeal || 0))} cup</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding Retur</Label>
@@ -2357,8 +2375,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.puding} ({sent.puding * 80}g)</span>
-                    <span className="text-[9px] text-destructive block text-center">Retur: {row.puding * 80}g</span>
+                    <span className="text-[9px] text-destructive block text-center mt-0.5">Retur: {row.puding} cup ({(row.puding || 0) * 80}g)</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.puding || 0) - (row.puding || 0))} cup</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon Retur</Label>
@@ -2371,8 +2389,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center font-medium"
                       placeholder="0"
                     />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Kirim: {sent.abon} ({sent.abon * 10}g)</span>
-                    <span className="text-[9px] text-destructive block text-center">Retur: {row.abon * 10}g</span>
+                    <span className="text-[9px] text-destructive block text-center mt-0.5">Retur: {row.abon} pcs ({(row.abon || 0) * 10}g)</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.abon || 0) - (row.abon || 0))} pcs</span>
                   </div>
                 </div>
               );
@@ -2388,13 +2406,13 @@ export default function Produksi() {
                   <TableHeader>
                     <TableRow className="bg-muted/40">
                       <TableHead>Outlet</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur1Name} Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name} Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim {tim1Name} Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name} Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Oatmeal Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Puding Retur/Kirim</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Abon Retur/Kirim</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur1Name} Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name} Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim {tim1Name} Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name} Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Oatmeal Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Puding Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Abon Retur/Terjual</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2427,51 +2445,51 @@ export default function Produksi() {
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.bubur_d || 0}</span>
-                              <span className="text-muted-foreground/60">/{sent.bubur_d || 0}</span>
+                              <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-muted-foreground">{(row.bubur_d || 0) * 118}g / {(sent.bubur_d || 0) * 118}g</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_d || 0) - (row.bubur_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.bubur_i || 0}</span>
-                              <span className="text-muted-foreground/60">/{sent.bubur_i || 0}</span>
+                              <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-muted-foreground">{(row.bubur_i || 0) * 118}g / {(sent.bubur_i || 0) * 118}g</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_i || 0) - (row.bubur_i || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_d || 0}</span>
-                              <span className="text-muted-foreground/60">/{sent.tim_d || 0}</span>
+                              <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-muted-foreground">{(row.tim_d || 0) * 108}g / {(sent.tim_d || 0) * 108}g</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_d || 0) - (row.tim_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_i || 0}</span>
-                              <span className="text-muted-foreground/60">/{sent.tim_i || 0}</span>
+                              <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-muted-foreground">{(row.tim_i || 0) * 108}g / {(sent.tim_i || 0) * 108}g</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_i || 0) - (row.tim_i || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
                             <div className="font-medium text-xs">
                               <span className="text-destructive">{row.oatmeal || 0}</span>
-                              <span className="text-muted-foreground/60">/{sent.oatmeal || 0}</span>
+                              <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-muted-foreground">{(row.oatmeal || 0) * 100}g / {(sent.oatmeal || 0) * 100}g</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.oatmeal || 0) - (row.oatmeal || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
                             <div className="font-medium text-xs">
                               <span className="text-destructive">{row.puding || 0}</span>
-                              <span className="text-muted-foreground/60">/{sent.puding || 0}</span>
+                              <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-muted-foreground">{(row.puding || 0) * 80}g / {(sent.puding || 0) * 80}g</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.puding || 0) - (row.puding || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
                             <div className="font-medium text-xs">
                               <span className="text-destructive">{row.abon || 0}</span>
-                              <span className="text-muted-foreground/60">/{sent.abon || 0}</span>
+                              <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-muted-foreground">{(row.abon || 0) * 10}g / {(sent.abon || 0) * 10}g</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.abon || 0) - (row.abon || 0))} pcs</div>
                           </TableCell>
                         </TableRow>
                       );

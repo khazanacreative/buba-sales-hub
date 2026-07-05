@@ -59,6 +59,28 @@ const parseSplit = (catatan: string) => {
   return { d: 0, i: 0 };
 };
 
+// Parse [V:v1Name,v2Name] from catatan untuk nama varian
+const parseVariants = (catatan: string) => {
+  const match = catatan?.match(/\[V:([^,\]]+),([^,\]]+)\]/);
+  if (match) {
+    return { v1: match[1], v2: match[2] };
+  }
+  return { v1: "", v2: "" };
+};
+
+// Get dynamic variant labels from permohonanStok records
+const getVariantLabels = (permohonanStok: any[]) => {
+  let bubur1 = "Daging", bubur2 = "Ikan", tim1 = "Daging", tim2 = "Ikan";
+  (permohonanStok || []).forEach((r: any) => {
+    const v = parseVariants(r.catatan || "");
+    if (v.v1 && v.v2) {
+      if (r.produkId === "p-bubur") { bubur1 = v.v1; bubur2 = v.v2; }
+      if (r.produkId === "p-nasitim") { tim1 = v.v1; tim2 = v.v2; }
+    }
+  });
+  return { bubur1, bubur2, tim1, tim2 };
+};
+
 export default function Laporan() {
   const { penjualan, outlets, produk, permohonanStok } = useDB();
   const { user } = useAuth();
@@ -288,16 +310,19 @@ function SisaProduksiOH({
   // Prevents auto-recalculation from overwriting user input.
   const [userModifiedSisa, setUserModifiedSisa] = useState(false);
 
-  // 7 Menu items for daily input
-  const MENU_ITEMS = [
-    { subId: "bubur_d", baseId: "p-bubur", label: "Bubur Daging", gramPerCup: 118 },
-    { subId: "bubur_i", baseId: "p-bubur", label: "Bubur Ikan", gramPerCup: 118 },
-    { subId: "tim_d", baseId: "p-nasitim", label: "Nasi Tim Daging", gramPerCup: 108 },
-    { subId: "tim_i", baseId: "p-nasitim", label: "Nasi Tim Ikan", gramPerCup: 108 },
+  // Dynamic variant labels from production
+  const variantLabels = useMemo(() => getVariantLabels(permohonanStok), [permohonanStok]);
+
+  // 7 Menu items for daily input — labels sinkron dengan pilihan produksi
+  const MENU_ITEMS = useMemo(() => [
+    { subId: "bubur_d", baseId: "p-bubur", label: `Bubur ${variantLabels.bubur1}`, gramPerCup: 118 },
+    { subId: "bubur_i", baseId: "p-bubur", label: `Bubur ${variantLabels.bubur2}`, gramPerCup: 118 },
+    { subId: "tim_d", baseId: "p-nasitim", label: `Nasi Tim ${variantLabels.tim1}`, gramPerCup: 108 },
+    { subId: "tim_i", baseId: "p-nasitim", label: `Nasi Tim ${variantLabels.tim2}`, gramPerCup: 108 },
     { subId: "oatmeal", baseId: "p-oatmeal", label: "Oatmeal", gramPerCup: 100 },
     { subId: "puding", baseId: "p-puding", label: "Puding", gramPerCup: 80 },
     { subId: "abon", baseId: "p-abon", label: "Abon", gramPerCup: 10 },
-  ];
+  ], [variantLabels]);
 
   // Look up distribution for selected date
   const distributions = useMemo(() => {
@@ -746,16 +771,19 @@ function SisaProduksiAdminView({
   // Prevents auto-recalculation from overwriting admin input.
   const [userModifiedSisa, setUserModifiedSisa] = useState(false);
 
-  // 7 Menu items
-  const MENU_ITEMS = [
-    { subId: "bubur_d", baseId: "p-bubur", label: "Bubur Daging", gramPerCup: 118 },
-    { subId: "bubur_i", baseId: "p-bubur", label: "Bubur Ikan", gramPerCup: 118 },
-    { subId: "tim_d", baseId: "p-nasitim", label: "Nasi Tim Daging", gramPerCup: 108 },
-    { subId: "tim_i", baseId: "p-nasitim", label: "Nasi Tim Ikan", gramPerCup: 108 },
+  // Dynamic variant labels from production
+  const variantLabels = useMemo(() => getVariantLabels(permohonanStok), [permohonanStok]);
+
+  // 7 Menu items — labels sinkron dengan pilihan produksi
+  const MENU_ITEMS = useMemo(() => [
+    { subId: "bubur_d", baseId: "p-bubur", label: `Bubur ${variantLabels.bubur1}`, gramPerCup: 118 },
+    { subId: "bubur_i", baseId: "p-bubur", label: `Bubur ${variantLabels.bubur2}`, gramPerCup: 118 },
+    { subId: "tim_d", baseId: "p-nasitim", label: `Nasi Tim ${variantLabels.tim1}`, gramPerCup: 108 },
+    { subId: "tim_i", baseId: "p-nasitim", label: `Nasi Tim ${variantLabels.tim2}`, gramPerCup: 108 },
     { subId: "oatmeal", baseId: "p-oatmeal", label: "Oatmeal", gramPerCup: 100 },
     { subId: "puding", baseId: "p-puding", label: "Puding", gramPerCup: 80 },
     { subId: "abon", baseId: "p-abon", label: "Abon", gramPerCup: 10 },
-  ];
+  ], [variantLabels]);
 
   // Build distribution map per outlet, and pre-fill sisa from penjualan
   const outletDataMap = useMemo(() => {

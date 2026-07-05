@@ -2676,7 +2676,7 @@ export default function Produksi() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-          <TabsList className="grid w-full max-w-[400px] grid-cols-2 border-b border-border">
+          <TabsList className="grid w-full max-w-[400px] grid-cols-2 ">
             <TabsTrigger value="siklus" className="rounded-t-lg font-semibold">Siklus Produksi Harian</TabsTrigger>
             <TabsTrigger value="riwayat" className="rounded-t-lg font-semibold">Riwayat Produksi</TabsTrigger>
           </TabsList>

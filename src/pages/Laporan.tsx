@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Save, Package, Edit3, Percent, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Save, Package, Edit3, Percent, TrendingUp, AlertTriangle, CheckCircle2, Clock, Lock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -84,7 +84,7 @@ const getVariantLabels = (permohonanStok: any[], tanggal?: string) => {
 };
 
 export default function Laporan() {
-  const { penjualan, outlets, produk, permohonanStok } = useDB();
+  const { penjualan, outlets, produk, permohonanStok, jurnal } = useDB();
   const { user } = useAuth();
   const isOutlet = user?.role === "outlet";
 
@@ -164,6 +164,7 @@ export default function Laporan() {
               produk={produk}
               penjualan={penjualan}
               permohonanStok={permohonanStok}
+              jurnal={jurnal}
             />
           ) : (
             <SisaProduksiAdminView
@@ -171,6 +172,7 @@ export default function Laporan() {
               produk={produk}
               penjualan={penjualan}
               permohonanStok={permohonanStok}
+              jurnal={jurnal}
             />
           )}
         </TabsContent>
@@ -674,11 +676,13 @@ function SisaProduksiOH({
   produk,
   penjualan,
   permohonanStok,
+  jurnal,
 }: {
   user: any;
   produk: any[];
   penjualan: any[];
   permohonanStok: any[];
+  jurnal: any[];
 }) {
   const [tanggal, setTanggal] = useState(todayISO());
   const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
@@ -842,6 +846,24 @@ function SisaProduksiOH({
     return { totalDistribusi, totalSisa, totalTerjual, totalOmset };
   }, [rows]);
 
+  // Lock check: waktu (11:00) dan status siklus
+  const isPastTimeDeadline = useMemo(() => {
+    const today = todayISO();
+    if (tanggal !== today) return false;
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    return hour > 11 || (hour === 11 && minute > 0);
+  }, [tanggal]);
+
+  const isCycleClosed = useMemo(() => {
+    return (jurnal || []).some(
+      (j: any) => j.tanggal === tanggal && j.ref === "OUT-SALES"
+    );
+  }, [tanggal, jurnal]);
+
+  const isLocked = isPastTimeDeadline || isCycleClosed;
+
   const handleSubmit = useCallback(async () => {
     setSaving(true);
     try {
@@ -922,6 +944,25 @@ function SisaProduksiOH({
         </div>
       </div>
 
+      {/* Lock Banner */}
+      {isLocked && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <Lock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-xs text-muted-foreground">
+              <p className="font-bold text-amber-700 dark:text-amber-300 text-sm mb-1">
+                🔒 {isCycleClosed ? "Siklus Produksi Ditutup" : "Batas Waktu Input Sisa"}
+              </p>
+              <p>
+                {isCycleClosed
+                  ? "Siklus produksi untuk tanggal ini sudah ditutup oleh admin. Data sisa produksi tidak dapat diubah lagi."
+                  : "Batas input sisa produksi harian adalah pukul 11:00. Saat ini sudah melewati batas waktu, data tidak dapat diubah."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Card className="glass border-0 shadow-card">
         <CardContent className="p-4 md:p-6 space-y-4">
           {/* Toolbar: Date picker + Summary + Save */}
@@ -951,13 +992,14 @@ function SisaProduksiOH({
                 size="sm"
                 variant="outline"
                 className="h-9 shrink-0"
+                disabled={isLocked}
               >
                 <Edit3 className="h-4 w-4 mr-1.5" />
                 Input Sisa
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={saving || rows.every(r => r.sisa === 0)}
+                disabled={saving || rows.every(r => r.sisa === 0) || isLocked}
                 size="sm"
                 className="gradient-primary text-primary-foreground h-9 shrink-0"
               >
@@ -1103,7 +1145,7 @@ function SisaProduksiOH({
                         const storeVal = isCupUnit ? clamped * item.gramPerCup : clamped;
                         handleDraftChange(key, storeVal);
                       }}
-                      disabled={distQty <= 0}
+                      disabled={distQty <= 0 || isLocked}
                       className="w-24 h-9 text-xs text-center"
                       placeholder="0"
                     />
@@ -1118,7 +1160,7 @@ function SisaProduksiOH({
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Batal
             </Button>
-            <Button onClick={confirmDialog} className="gradient-primary">
+            <Button onClick={confirmDialog} className="gradient-primary" disabled={isLocked}>
               <Save className="h-4 w-4 mr-1.5" />
               Simpan
             </Button>
@@ -1137,11 +1179,13 @@ function SisaProduksiAdminView({
   produk,
   penjualan,
   permohonanStok,
+  jurnal,
 }: {
   outlets: any[];
   produk: any[];
   penjualan: any[];
   permohonanStok: any[];
+  jurnal: any[];
 }) {
   const [tanggal, setTanggal] = useState(todayISO());
   const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
@@ -1279,6 +1323,13 @@ function SisaProduksiAdminView({
       .filter(Boolean) as { outlet: any; items: any[] }[];
   }, [outlets, outletDataMap, sisaGrid]);
 
+  // Lock check: apakah siklus sudah ditutup (berdasarkan jurnal OUT-SALES)
+  const isCycleClosed = useMemo(() => {
+    return (jurnal || []).some(
+      (j: any) => j.tanggal === tanggal && j.ref === "OUT-SALES"
+    );
+  }, [tanggal, jurnal]);
+
   // Grand total across all outlets (auto-calculated)
   const grandTotal = useMemo(() => {
     let totalDist = 0, totalSisa = 0, totalTerjual = 0, totalOmset = 0;
@@ -1371,6 +1422,23 @@ function SisaProduksiAdminView({
           </div>
         </div>
       </div>
+
+      {/* Info cycle closed banner (admin view) */}
+      {isCycleClosed && (
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800/30 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <Clock className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+            <div className="text-xs text-muted-foreground">
+              <p className="font-bold text-emerald-700 dark:text-emerald-300 text-sm mb-1 flex items-center gap-2">
+                🔒 Siklus Produksi Ditutup
+              </p>
+              <p>
+                Siklus produksi untuk tanggal ini sudah ditutup. Outlet <strong>tidak dapat mengubah</strong> data sisa produksi lagi. Data yang Anda ubah di sini akan langsung tersimpan ke penjualan.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Card className="glass border-0 shadow-card">
         <CardContent className="p-4 md:p-6 space-y-4">

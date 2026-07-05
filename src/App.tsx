@@ -46,6 +46,10 @@ const App = () => (
                 {/* Pages accessible to Admin only */}
                 <Route element={<ProtectedRoute adminOnly />}>
                   <Route path="/keuangan" element={<Keuangan />} />
+                </Route>
+
+                {/* Master Data accessible to all roles (admin, produksi, outlet) */}
+                <Route element={<ProtectedRoute allowedRoles={["admin", "produksi", "outlet"]} />}>
                   <Route path="/master" element={<MasterData />} />
                 </Route>
 

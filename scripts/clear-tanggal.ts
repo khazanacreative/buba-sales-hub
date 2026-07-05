@@ -76,7 +76,20 @@ async function clearData() {
     console.log("   ✅ Data distribusi berhasil dihapus.");
   }
 
-  console.log("\nSelesai! Hanya data tanggal", TANGGAL, "yang dihapus dari tabel penjualan, produksi, dan permohonan_stok.");
+  // 4. Hapus jurnal OUT-SALES — buka kunci siklus produksi
+  console.log("4. Menghapus jurnal OUT-SALES...");
+  const { error: jurnalErr } = await supabase
+    .from("jurnal")
+    .delete()
+    .eq("tanggal", TANGGAL)
+    .eq("ref", "OUT-SALES");
+  if (jurnalErr) {
+    console.error("   ❌ Gagal:", jurnalErr.message);
+  } else {
+    console.log("   ✅ Jurnal OUT-SALES berhasil dihapus.");
+  }
+
+  console.log("\nSelesai! Hanya data tanggal", TANGGAL, "yang dihapus dari tabel penjualan, produksi, permohonan_stok, dan jurnal OUT-SALES.");
   process.exit(0);
 }
 

@@ -35,31 +35,43 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function clearData() {
-  console.log("Menghapus data penjualan...");
-  const { data: penjualanDel, error: penjualanErr } = await supabase
-    .from("penjualan")
+  console.log("1. Menghapus data stok_movement (hapus dulu karena ada FK ke produksi)...");
+  const { error: stokErr } = await supabase
+    .from("stok_movement")
     .delete()
     .neq("id", "");
 
-  if (penjualanErr) {
-    console.error("❌ Gagal menghapus penjualan:", penjualanErr.message);
+  if (stokErr) {
+    console.error("   ❌ Gagal menghapus stok_movement:", stokErr.message);
   } else {
-    console.log("✅ Data penjualan berhasil dihapus.");
+    console.log("   ✅ Data stok_movement berhasil dihapus.");
   }
 
-  console.log("Menghapus data produksi...");
-  const { data: produksiDel, error: produksiErr } = await supabase
+  console.log("2. Menghapus data produksi...");
+  const { error: produksiErr } = await supabase
     .from("produksi")
     .delete()
     .neq("id", "");
 
   if (produksiErr) {
-    console.error("❌ Gagal menghapus produksi:", produksiErr.message);
+    console.error("   ❌ Gagal menghapus produksi:", produksiErr.message);
   } else {
-    console.log("✅ Data produksi berhasil dihapus.");
+    console.log("   ✅ Data produksi berhasil dihapus.");
   }
 
-  console.log("\nSelesai! Hanya tabel penjualan & produksi yang dihapus.");
+  console.log("3. Menghapus data penjualan...");
+  const { error: penjualanErr } = await supabase
+    .from("penjualan")
+    .delete()
+    .neq("id", "");
+
+  if (penjualanErr) {
+    console.error("   ❌ Gagal menghapus penjualan:", penjualanErr.message);
+  } else {
+    console.log("   ✅ Data penjualan berhasil dihapus.");
+  }
+
+  console.log("\nSelesai! Tabel penjualan, produksi, dan stok_movement telah dikosongkan.");
   console.log("Tabel lain (outlets, produk, bahan_baku, users, dll) tetap aman.");
   process.exit(0);
 }

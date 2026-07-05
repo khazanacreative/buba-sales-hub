@@ -51,134 +51,146 @@ export function useDB(): DB {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
-// Fetch all tables from Supabase and update state cache
-export async function fetchFromSupabase() {
+// Helper: fetch a single table and return { data, error }. Never throws.
+async function safeFetch(table: string) {
   try {
-    const [
-      outletsRes,
-      produkRes,
-      penjualanRes,
-      produksiRes,
-      jurnalRes,
-      coaRes,
-      bahanRes,
-      stokMovRes,
-      karyawanRes,
-      absensiRes,
-      permohonanRes,
-      usersRes
-    ] = await Promise.all([
-      supabase.from("outlets").select("*"),
-      supabase.from("produk").select("*"),
-      supabase.from("penjualan").select("*"),
-      supabase.from("produksi").select("*"),
-      supabase.from("jurnal").select("*"),
-      supabase.from("coa").select("*"),
-      supabase.from("bahan_baku").select("*"),
-      supabase.from("stok_movement").select("*"),
-      supabase.from("karyawan").select("*"),
-      supabase.from("absensi").select("*"),
-      supabase.from("permohonan_stok").select("*"),
-      supabase.from("users").select("*")
-    ]);
-
-    state = {
-      outlets: outletsRes.data || [],
-      produk: produkRes.data || [],
-      penjualan: penjualanRes.data || [],
-      produksi: (produksiRes.data || []).map((p: any) => ({
-        id: p.id,
-        tanggal: p.tanggal,
-        produkId: p.produk_id,
-        qtyRencana: p.qty_rencana,
-        qtyRealisasi: p.qty_realisasi
-      })),
-      jurnal: (jurnalRes.data || []).map((j: any) => ({
-        id: j.id,
-        tanggal: j.tanggal,
-        ref: j.ref,
-        keterangan: j.keterangan,
-        kodeAkun: j.kode_akun,
-        akun: j.akun,
-        tipe: j.tipe,
-        jumlah: Number(j.jumlah),
-        kategori: j.kategori
-      })),
-      coa: coaRes.data || [],
-      bahan: (bahanRes.data || []).map((b: any) => ({
-        id: b.id,
-        kode: b.kode,
-        nama: b.nama,
-        satuan: b.satuan,
-        stokMin: b.stok_min,
-        stokAwal: b.stok_awal,
-        hargaBeli: Number(b.harga_beli),
-        konversiGram: b.konversi_gram ?? undefined
-      })),
-      stokMov: (stokMovRes.data || []).map((m: any) => ({
-        id: m.id,
-        tanggal: m.tanggal,
-        bahanId: m.bahan_id,
-        tipe: m.tipe,
-        qty: m.qty,
-        keterangan: m.keterangan,
-        produksiId: m.produksi_id
-      })),
-      karyawan: (karyawanRes.data || []).map((k: any) => {
-        // Find linked user account for role, username, password
-        const linkedUser = (usersRes.data || []).find((u: any) => u.karyawan_id === k.id);
-        return {
-          id: k.id,
-          nama: k.nama,
-          posisi: k.posisi,
-          role: k.role || linkedUser?.role || "outlet",
-          outletId: k.outlet_id,
-          gajiPokok: Number(k.gaji_pokok),
-          bonusOmset: Number(k.bonus_omset),
-          bonusUlasan: Number(k.bonus_ulasan),
-          tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
-          overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
-          jamMasuk: k.jam_masuk || undefined,
-          jamPulang: k.jam_pulang || undefined,
-          username: linkedUser?.username || undefined,
-          password: linkedUser?.password || undefined
-        };
-      }),
-      absensi: (absensiRes.data || []).map((a: any) => ({
-        id: a.id,
-        tanggal: a.tanggal,
-        karyawanId: a.karyawan_id,
-        jamMasuk: a.jam_masuk,
-        jamPulang: a.jam_pulang,
-        status: a.status,
-        catatan: a.catatan,
-        bonus: a.bonus ? Number(a.bonus) : 0,
-        tunjangan: a.tunjangan ? Number(a.tunjangan) : 0,
-        overtime: a.overtime ? Number(a.overtime) : 0
-      })),
-      permohonanStok: (permohonanRes.data || []).map((p: any) => ({
-        id: p.id,
-        tanggal: p.tanggal,
-        tanggalKirim: p.tanggal_kirim,
-        outletId: p.outlet_id,
-        produkId: p.produk_id,
-        qty: p.qty,
-        status: p.status,
-        catatan: p.catatan
-      })),
-      users: (usersRes.data || []).map((u: any) => ({
-        username: u.username,
-        password: u.password,
-        nama: u.nama,
-        role: u.username === "produksi" ? "produksi" : u.role,
-        outletId: u.outlet_id,
-        karyawanId: u.karyawan_id
-      }))
-    };
-    notify();
+    const res = await supabase.from(table).select("*");
+    if (res.error) {
+      console.warn(`safeFetch(${table}):`, res.error);
+      return { data: null, error: res.error };
+    }
+    return { data: res.data, error: null };
   } catch (err) {
-    console.error("Failed to fetch data from Supabase:", err);
+    console.warn(`safeFetch(${table}) exception:`, err);
+    return { data: null, error: err };
   }
+}
+
+// Fetch all tables from Supabase and update state cache.
+// Each table is fetched independently — one failure does NOT block others.
+export async function fetchFromSupabase() {
+  const [
+    outletsRes,
+    produkRes,
+    penjualanRes,
+    produksiRes,
+    jurnalRes,
+    coaRes,
+    bahanRes,
+    stokMovRes,
+    karyawanRes,
+    absensiRes,
+    permohonanRes,
+    usersRes
+  ] = await Promise.all([
+    safeFetch("outlets"),
+    safeFetch("produk"),
+    safeFetch("penjualan"),
+    safeFetch("produksi"),
+    safeFetch("jurnal"),
+    safeFetch("coa"),
+    safeFetch("bahan_baku"),
+    safeFetch("stok_movement"),
+    safeFetch("karyawan"),
+    safeFetch("absensi"),
+    safeFetch("permohonan_stok"),
+    safeFetch("users")
+  ]);
+
+  state = {
+    outlets: outletsRes.data || [],
+    produk: produkRes.data || [],
+    penjualan: penjualanRes.data || [],
+    produksi: (produksiRes.data || []).map((p: any) => ({
+      id: p.id,
+      tanggal: p.tanggal,
+      produkId: p.produk_id,
+      qtyRencana: p.qty_rencana,
+      qtyRealisasi: p.qty_realisasi
+    })),
+    jurnal: (jurnalRes.data || []).map((j: any) => ({
+      id: j.id,
+      tanggal: j.tanggal,
+      ref: j.ref,
+      keterangan: j.keterangan,
+      kodeAkun: j.kode_akun,
+      akun: j.akun,
+      tipe: j.tipe,
+      jumlah: Number(j.jumlah),
+      kategori: j.kategori
+    })),
+    coa: coaRes.data || [],
+    bahan: (bahanRes.data || []).map((b: any) => ({
+      id: b.id,
+      kode: b.kode,
+      nama: b.nama,
+      satuan: b.satuan,
+      stokMin: b.stok_min,
+      stokAwal: b.stok_awal,
+      hargaBeli: Number(b.harga_beli),
+      konversiGram: b.konversi_gram ?? undefined
+    })),
+    stokMov: (stokMovRes.data || []).map((m: any) => ({
+      id: m.id,
+      tanggal: m.tanggal,
+      bahanId: m.bahan_id,
+      tipe: m.tipe,
+      qty: m.qty,
+      keterangan: m.keterangan,
+      produksiId: m.produksi_id
+    })),
+    karyawan: (karyawanRes.data || []).map((k: any) => {
+      // Find linked user account for role, username, password
+      const linkedUser = (usersRes.data || []).find((u: any) => u.karyawan_id === k.id);
+      return {
+        id: k.id,
+        nama: k.nama,
+        posisi: k.posisi,
+        role: k.role || linkedUser?.role || "outlet",
+        outletId: k.outlet_id,
+        gajiPokok: Number(k.gaji_pokok),
+        bonusOmset: Number(k.bonus_omset),
+        bonusUlasan: Number(k.bonus_ulasan),
+        tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
+        overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
+        jamMasuk: k.jam_masuk || undefined,
+        jamPulang: k.jam_pulang || undefined,
+        username: linkedUser?.username || undefined,
+        password: linkedUser?.password || undefined
+      };
+    }),
+    absensi: (absensiRes.data || []).map((a: any) => ({
+      id: a.id,
+      tanggal: a.tanggal,
+      karyawanId: a.karyawan_id,
+      jamMasuk: a.jam_masuk,
+      jamPulang: a.jam_pulang,
+      status: a.status,
+      catatan: a.catatan,
+      bonus: a.bonus ? Number(a.bonus) : 0,
+      tunjangan: a.tunjangan ? Number(a.tunjangan) : 0,
+      overtime: a.overtime ? Number(a.overtime) : 0
+    })),
+    permohonanStok: (permohonanRes.data || []).map((p: any) => ({
+      id: p.id,
+      tanggal: p.tanggal,
+      tanggalKirim: p.tanggal_kirim,
+      outletId: p.outlet_id,
+      produkId: p.produk_id,
+      qty: p.qty,
+      status: p.status,
+      catatan: p.catatan
+    })),
+    users: (usersRes.data || []).map((u: any) => ({
+      username: u.username,
+      password: u.password,
+      nama: u.nama,
+      role: u.username === "produksi" ? "produksi" : u.role,
+      outletId: u.outlet_id,
+      karyawanId: u.karyawan_id
+    }))
+  };
+  notify();
 }
 
 // Initial fetch when module loads
@@ -231,7 +243,7 @@ export const db = {
   async addPenjualan(p: Omit<Penjualan, "id" | "total">) {
     const total = p.qty * p.harga;
     const id = uid();
-    await supabase.from("penjualan").insert([{
+    const { error } = await supabase.from("penjualan").insert([{
       id,
       tanggal: p.tanggal,
       outlet_id: p.outletId,
@@ -240,6 +252,7 @@ export const db = {
       harga: p.harga,
       total
     }]);
+    if (error) throw error;
     await fetchFromSupabase();
   },
   async addPenjualanBulk(items: Omit<Penjualan, "id" | "total">[]) {
@@ -252,11 +265,13 @@ export const db = {
       harga: p.harga,
       total: p.qty * p.harga
     }));
-    await supabase.from("penjualan").insert(records);
+    const { error } = await supabase.from("penjualan").insert(records);
+    if (error) throw error;
     await fetchFromSupabase();
   },
   async deletePenjualan(id: string) {
-    await supabase.from("penjualan").delete().eq("id", id);
+    const { error } = await supabase.from("penjualan").delete().eq("id", id);
+    if (error) throw error;
     await fetchFromSupabase();
   },
 

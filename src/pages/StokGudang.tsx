@@ -139,7 +139,7 @@ function OutletPermohonanStok({ user, dbState }: { user: any; dbState: any }) {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+        <TabsList className="grid w-full grid-cols-2 gap-0">
           <TabsTrigger value="request" className="rounded-t-lg">Request Perlengkapan</TabsTrigger>
           <TabsTrigger value="retur" className="rounded-t-lg">Retur Perlengkapan</TabsTrigger>
         </TabsList>

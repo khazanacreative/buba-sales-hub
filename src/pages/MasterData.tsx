@@ -887,8 +887,8 @@ function EditOutletDialog({ outlet }) {
 
   return (
     <>
-      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
-        <Pencil className="h-4 w-4 text-primary" />
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setOpen(true)}>
+        <Pencil className="h-3.5 w-3.5 text-primary" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -954,8 +954,8 @@ function EditBahanDialog({ bahan }) {
 
   return (
     <>
-      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
-        <Pencil className="h-4 w-4 text-primary" />
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setOpen(true)}>
+        <Pencil className="h-3.5 w-3.5 text-primary" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -1024,8 +1024,8 @@ function EditProdukDialog({ produk }) {
 
   return (
     <>
-      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
-        <Pencil className="h-4 w-4 text-primary" />
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setOpen(true)}>
+        <Pencil className="h-3.5 w-3.5 text-primary" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -1087,8 +1087,8 @@ function EditKaryawanDialog({ karyawan, outlets }: { karyawan: any; outlets: any
 
   return (
     <>
-      <Button size="icon" variant="ghost" onClick={() => { setOpen(true); setNewPassword(""); }}>
-        <Pencil className="h-4 w-4 text-primary" />
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setOpen(true); setNewPassword(""); }}>
+        <Pencil className="h-3.5 w-3.5 text-primary" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -1151,7 +1151,7 @@ function EditKaryawanDialog({ karyawan, outlets }: { karyawan: any; outlets: any
                 </div>
                 <div>
                   <Label className="text-[11px]">
-                    {hasAkun ? "Password Baru (kosongkan jika tidak diganti)" : "Password"}
+                    {hasAkun ? "Password Baru (kosongkan jika tetap)" : "Password"}
                   </Label>
                   <Input
                     type="text"
@@ -1269,8 +1269,8 @@ function EditUserDialog({ userAccount, outlets }: { userAccount: any; outlets: a
 
   return (
     <>
-      <Button size="icon" variant="ghost" onClick={() => setOpen(true)}>
-        <Pencil className="h-4 w-4 text-primary" />
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setOpen(true)}>
+        <Pencil className="h-3.5 w-3.5 text-primary" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

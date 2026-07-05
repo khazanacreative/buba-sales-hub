@@ -683,13 +683,12 @@ export default function StokGudang() {
         </Card>
       </div>
 
-            <Tabs defaultValue="pergerakan" className="w-full space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="pergerakan" className="rounded-t-lg">Pergerakan Stok</TabsTrigger>
-            <TabsTrigger value="supplier" className="rounded-t-lg">Kiriman Supplier</TabsTrigger>
-            <TabsTrigger value="permohonan" className="rounded-t-lg">Permohonan Outlet</TabsTrigger>
-            <TabsTrigger value="retur-perlengkapan" className="rounded-t-lg">Retur Perlengkapan</TabsTrigger>
-            <TabsTrigger value="rusak" className="rounded-t-lg">Barang Rusak</TabsTrigger>
+            <Tabs defaultValue="pergerakan" className="w-full space-y-4">            <TabsList className="flex flex-wrap w-full md:grid md:grid-cols-5 gap-0 md:gap-1">
+            <TabsTrigger value="pergerakan" className="w-1/3 md:w-auto data-[state=active]:order-10 md:data-[state=active]:order-none rounded-t-lg px-1.5 md:px-4 text-[11px] md:text-sm">Pergerakan Stok</TabsTrigger>
+            <TabsTrigger value="supplier" className="w-1/3 md:w-auto data-[state=active]:order-10 md:data-[state=active]:order-none rounded-t-lg px-1.5 md:px-4 text-[11px] md:text-sm">Kiriman Supplier</TabsTrigger>
+            <TabsTrigger value="permohonan" className="w-1/3 md:w-auto data-[state=active]:order-10 md:data-[state=active]:order-none rounded-t-lg px-1.5 md:px-4 text-[11px] md:text-sm">Permohonan Outlet</TabsTrigger>
+            <TabsTrigger value="retur-perlengkapan" className="w-1/3 md:w-auto data-[state=active]:order-10 md:data-[state=active]:order-none rounded-t-lg px-1.5 md:px-4 text-[11px] md:text-sm">Retur Perlengkapan</TabsTrigger>
+            <TabsTrigger value="rusak" className="w-1/3 md:w-auto data-[state=active]:order-10 md:data-[state=active]:order-none rounded-t-lg px-1.5 md:px-4 text-[11px] md:text-sm">Barang Rusak</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pergerakan" className="m-0">

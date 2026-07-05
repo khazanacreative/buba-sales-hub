@@ -95,6 +95,8 @@ export default function MasterData() {
   const [sOatmealCup, setSOatmealCup] = useState(globalSettings.oatmealCup);
   const [sPudingCup, setSPudingCup] = useState(globalSettings.pudingCup);
   const [sAbonCup, setSAbonCup] = useState(globalSettings.abonCup);
+  const [sLockDeadline, setSLockDeadline] = useState(globalSettings.lockDeadlineTime || "11:00");
+  const [sLockEnabled, setSLockEnabled] = useState(globalSettings.lockEnabled !== false);
 
   useEffect(() => {
     const handler = () => {
@@ -115,6 +117,8 @@ export default function MasterData() {
       setSOatmealCup(gs.oatmealCup);
       setSPudingCup(gs.pudingCup);
       setSAbonCup(gs.abonCup);
+      setSLockDeadline(gs.lockDeadlineTime || "11:00");
+      setSLockEnabled(gs.lockEnabled !== false);
     };
     window.addEventListener("buba_settings_changed", handler);
     return () => window.removeEventListener("buba_settings_changed", handler);
@@ -142,6 +146,8 @@ export default function MasterData() {
       oatmealCup: Number(sOatmealCup),
       pudingCup: Number(sPudingCup),
       abonCup: Number(sAbonCup),
+      lockDeadlineTime: sLockDeadline || "11:00",
+      lockEnabled: sLockEnabled,
     });
     toast.success("Pengaturan gramasi berhasil disimpan!");
   };
@@ -604,7 +610,40 @@ export default function MasterData() {
                         <div><Label className="text-[10px]">Abon (gr/pcs)</Label><Input type="number" step="any" value={sAbonCup} onChange={(e) => setSAbonCup(Number(e.target.value))} /></div>
                       </div>
                     </div>
-                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground text-xs">Simpan Pengaturan Gramasi</Button>
+                    <div className="border-t pt-4 mt-4 space-y-3">
+                      <h4 className="text-xs font-bold text-primary">⏰ Pengaturan Deadline Input Outlet</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <Label className="text-[10px] cursor-pointer" htmlFor="lock-toggle">Aktifkan Penguncian</Label>
+                            <button
+                              id="lock-toggle"
+                              type="button"
+                              role="switch"
+                              aria-checked={sLockEnabled}
+                              onClick={() => setSLockEnabled(!sLockEnabled)}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${sLockEnabled ? 'bg-primary' : 'bg-muted'}`}
+                            >
+                              <span className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${sLockEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {sLockEnabled ? `Outlet tidak dapat mengubah sisa produksi setelah pukul ${sLockDeadline || "11:00"}.` : "Outlet dapat menginput sisa produksi kapan saja."}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-[10px]">Batas Waktu Input Sisa (HH:mm)</Label>
+                          <Input
+                            type="time"
+                            value={sLockDeadline}
+                            onChange={(e) => setSLockDeadline(e.target.value)}
+                            className="h-9"
+                            disabled={!sLockEnabled}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground text-xs">Simpan Pengaturan</Button>
                   </CardContent>
                 </Card>
               </form>

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { db, useDB } from "@/lib/store";
+import { db, useDB, getBubaSettings } from "@/lib/store";
 import { rupiah, monthKey, DateRange, inRange, todayISO } from "@/lib/format";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useAuth } from "@/lib/auth";
@@ -88,6 +88,7 @@ export default function Laporan() {
   const { penjualan, outlets, produk, permohonanStok, jurnal } = useDB();
   const { user } = useAuth();
   const isOutlet = user?.role === "outlet";
+  const isProduksi = user?.role === "produksi";
 
   const [periode, setPeriode] = useState<Periode>("harian");
   const [outletId, setOutletId] = useState<string>(isOutlet ? user!.outletId! : "all");
@@ -149,11 +150,11 @@ export default function Laporan() {
         </div>
       </div>
 
-      <Tabs defaultValue={isOutlet ? "sisa-produksi" : "riwayat"} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 gap-0">
+      <Tabs defaultValue={isOutlet || isProduksi ? "sisa-produksi" : "riwayat"} className="space-y-6">
+        <TabsList className={`grid w-full ${isProduksi ? "grid-cols-1" : "grid-cols-3"} gap-0`}>
           <TabsTrigger value="sisa-produksi" className="rounded-t-lg">Sisa (OH)</TabsTrigger>
-          <TabsTrigger value="riwayat" className="rounded-t-lg">Riwayat</TabsTrigger>
-          <TabsTrigger value="rekap" className="rounded-t-lg">Rekap</TabsTrigger>
+          {!isProduksi && <TabsTrigger value="riwayat" className="rounded-t-lg">Riwayat</TabsTrigger>}
+          {!isProduksi && <TabsTrigger value="rekap" className="rounded-t-lg">Rekap</TabsTrigger>}
         </TabsList>
 
         {/* ==================== TAB SISA PRODUKSI (OH) ==================== */}
@@ -177,7 +178,7 @@ export default function Laporan() {
           )}
         </TabsContent>
 
-        {/* ==================== TAB 1: RIWAYAT TRANSAKSI ==================== */}
+        {!isProduksi && (
         <TabsContent value="riwayat" className="space-y-6">
           <RiwayatTransaksiTab
             user={user!}
@@ -192,8 +193,9 @@ export default function Laporan() {
             setRange={setRange}
           />
         </TabsContent>
+        )}
 
-        {/* ==================== TAB 2: REKAP PENJUALAN ==================== */}
+        {!isProduksi && (
         <TabsContent value="rekap" className="space-y-6">
           <Card className="glass border-0 shadow-card">
             <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4 pb-2">
@@ -288,6 +290,7 @@ export default function Laporan() {
           </Card>
         </TabsContent>
 
+        )}
       </Tabs>
     </div>
   );
@@ -576,14 +579,16 @@ function SisaProduksiOH({
     return { totalDistribusi, totalSisa, totalTerjual, totalOmset };
   }, [rows]);
 
-  // Lock check: waktu (11:00) dan status siklus
+  // Lock check: waktu (dinamis dari master data) dan status siklus
   const isPastTimeDeadline = useMemo(() => {
     const today = todayISO();
     if (tanggal !== today) return false;
+    const settings = getBubaSettings();
+    const [h, m] = (settings.lockDeadlineTime || "11:00").split(":").map(Number);
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
-    return hour > 11 || (hour === 11 && minute > 0);
+    return hour > h || (hour === h && minute >= m);
   }, [tanggal]);
 
   const isCycleClosed = useMemo(() => {
@@ -592,7 +597,7 @@ function SisaProduksiOH({
     );
   }, [tanggal, jurnal]);
 
-  const isLocked = isPastTimeDeadline || isCycleClosed;
+  const isLocked = (isPastTimeDeadline && getBubaSettings().lockEnabled !== false) || isCycleClosed;
 
   const handleSubmit = useCallback(async () => {
     setSaving(true);
@@ -686,7 +691,7 @@ function SisaProduksiOH({
               <p>
                 {isCycleClosed
                   ? "Siklus produksi untuk tanggal ini sudah ditutup oleh admin. Data sisa produksi tidak dapat diubah lagi."
-                  : "Batas input sisa produksi harian adalah pukul 11:00. Saat ini sudah melewati batas waktu, data tidak dapat diubah."}
+                  : `Batas input sisa produksi harian adalah pukul ${getBubaSettings().lockDeadlineTime || "11:00"}. Saat ini sudah melewati batas waktu, data tidak dapat diubah.`}
               </p>
             </div>
           </div>

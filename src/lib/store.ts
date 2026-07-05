@@ -756,6 +756,9 @@ export interface BubaSettings {
   pudingCup: number;
   abonCup: number;
 
+  // Penguncian
+  lockDeadlineTime: string;
+  lockEnabled: boolean;
 }
 
 // =============================================================================
@@ -808,6 +811,9 @@ export const DEFAULT_SETTINGS: BubaSettings = {
   oatmealCup: 25.71,
   pudingCup: 13.00,
   abonCup: 10.00,
+
+  lockDeadlineTime: "11:00",
+  lockEnabled: true,
 };
 
 export function getBubaSettings(): BubaSettings {

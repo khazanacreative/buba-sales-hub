@@ -149,7 +149,7 @@ export default function MasterData() {
       lockDeadlineTime: sLockDeadline || "11:00",
       lockEnabled: sLockEnabled,
     });
-    toast.success("Pengaturan gramasi berhasil disimpan!");
+    toast.success("Pengaturan aplikasi berhasil disimpan!");
   };
 
 

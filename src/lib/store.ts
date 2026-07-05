@@ -100,7 +100,15 @@ export async function fetchFromSupabase() {
   state = {
     outlets: outletsRes.data || [],
     produk: produkRes.data || [],
-    penjualan: penjualanRes.data || [],
+    penjualan: (penjualanRes.data || []).map((p: any) => ({
+      id: p.id,
+      tanggal: p.tanggal,
+      outletId: p.outlet_id,
+      produkId: p.produk_id,
+      qty: p.qty,
+      harga: p.harga,
+      total: Number(p.total)
+    })),
     produksi: (produksiRes.data || []).map((p: any) => ({
       id: p.id,
       tanggal: p.tanggal,

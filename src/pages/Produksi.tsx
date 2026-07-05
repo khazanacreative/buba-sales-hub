@@ -1009,7 +1009,6 @@ export default function Produksi() {
               kategori: "Pendapatan"
             }
           ]);
-        }
       }
 
       // 5. Delete existing retur stok movements for this tanggal, then re-create

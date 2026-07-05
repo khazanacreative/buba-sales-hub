@@ -750,13 +750,17 @@ export default function Produksi() {
 
       if (r.produkId === "p-bubur") {
         sentQty = (outletAlloc.bubur_d || 0) + (outletAlloc.bubur_i || 0);
-        // Extract existing variant names before re-serializing
+        // Extract existing variant names before re-serializing; fallback to current production
         const existingVariants = parseVariants(r.catatan || "");
-        notes = serializeSplit(outletAlloc.bubur_d || 0, outletAlloc.bubur_i || 0, r.catatan, existingVariants.v1, existingVariants.v2);
+        const buburV1 = existingVariants.v1 || bubur1Name;
+        const buburV2 = existingVariants.v2 || bubur2Name;
+        notes = serializeSplit(outletAlloc.bubur_d || 0, outletAlloc.bubur_i || 0, r.catatan, buburV1, buburV2);
       } else if (r.produkId === "p-nasitim") {
         sentQty = (outletAlloc.tim_d || 0) + (outletAlloc.tim_i || 0);
         const existingVariants = parseVariants(r.catatan || "");
-        notes = serializeSplit(outletAlloc.tim_d || 0, outletAlloc.tim_i || 0, r.catatan, existingVariants.v1, existingVariants.v2);
+        const timV1 = existingVariants.v1 || tim1Name;
+        const timV2 = existingVariants.v2 || tim2Name;
+        notes = serializeSplit(outletAlloc.tim_d || 0, outletAlloc.tim_i || 0, r.catatan, timV1, timV2);
       } else if (r.produkId === "p-oatmeal") {
         sentQty = outletAlloc.oatmeal || 0;
       } else if (r.produkId === "p-puding") {

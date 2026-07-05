@@ -68,10 +68,12 @@ const parseVariants = (catatan: string) => {
   return { v1: "", v2: "" };
 };
 
-// Get dynamic variant labels from permohonanStok records
-const getVariantLabels = (permohonanStok: any[]) => {
-  let bubur1 = "Daging", bubur2 = "Ikan", tim1 = "Daging", tim2 = "Ikan";
+// Get dynamic variant labels from permohonanStok records for a specific date
+const getVariantLabels = (permohonanStok: any[], tanggal?: string) => {
+  let bubur1 = "Ayam", bubur2 = "Salmon", tim1 = "Ayam", tim2 = "Salmon";
   (permohonanStok || []).forEach((r: any) => {
+    // Filter by tanggalKirim if a specific date is provided
+    if (tanggal && r.tanggalKirim !== tanggal) return;
     const v = parseVariants(r.catatan || "");
     if (v.v1 && v.v2) {
       if (r.produkId === "p-bubur") { bubur1 = v.v1; bubur2 = v.v2; }
@@ -310,8 +312,8 @@ function SisaProduksiOH({
   // Prevents auto-recalculation from overwriting user input.
   const [userModifiedSisa, setUserModifiedSisa] = useState(false);
 
-  // Dynamic variant labels from production
-  const variantLabels = useMemo(() => getVariantLabels(permohonanStok), [permohonanStok]);
+  // Dynamic variant labels from production (filtered by selected date)
+  const variantLabels = useMemo(() => getVariantLabels(permohonanStok, tanggal), [permohonanStok, tanggal]);
 
   // 7 Menu items for daily input — labels sinkron dengan pilihan produksi
   const MENU_ITEMS = useMemo(() => [
@@ -771,8 +773,8 @@ function SisaProduksiAdminView({
   // Prevents auto-recalculation from overwriting admin input.
   const [userModifiedSisa, setUserModifiedSisa] = useState(false);
 
-  // Dynamic variant labels from production
-  const variantLabels = useMemo(() => getVariantLabels(permohonanStok), [permohonanStok]);
+  // Dynamic variant labels from production (filtered by selected date)
+  const variantLabels = useMemo(() => getVariantLabels(permohonanStok, tanggal), [permohonanStok, tanggal]);
 
   // 7 Menu items — labels sinkron dengan pilihan produksi
   const MENU_ITEMS = useMemo(() => [

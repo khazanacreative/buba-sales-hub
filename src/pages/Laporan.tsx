@@ -150,11 +150,10 @@ export default function Laporan() {
       </div>
 
       <Tabs defaultValue={isOutlet ? "sisa-produksi" : "riwayat"} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 gap-0">
+        <TabsList className="grid w-full grid-cols-3 gap-0">
           <TabsTrigger value="sisa-produksi" className="rounded-t-lg">Sisa (OH)</TabsTrigger>
           <TabsTrigger value="riwayat" className="rounded-t-lg">Riwayat</TabsTrigger>
           <TabsTrigger value="rekap" className="rounded-t-lg">Rekap</TabsTrigger>
-          {!isOutlet && <TabsTrigger value="oh-persen" className="rounded-t-lg">OH %</TabsTrigger>}
         </TabsList>
 
         {/* ==================== TAB SISA PRODUKSI (OH) ==================== */}
@@ -289,134 +288,76 @@ export default function Laporan() {
           </Card>
         </TabsContent>
 
-        {/* ==================== TAB 4: OH % ==================== */}
-        <TabsContent value="oh-persen" className="space-y-6">
-          <OHPersentaseTab
-            penjualan={penjualan}
-            permohonanStok={permohonanStok}
-            produk={produk}
-            outlets={outlets}
-          />
-        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
 // ====================================================================
-// OH % TAB — Admin view: persentase sisa produksi per hari & bulanan
+// SHARED OH% DATA HOOK — digunakan oleh outlet & admin view
 // ====================================================================
-function OHPersentaseTab({
-  penjualan,
-  permohonanStok,
-  produk,
-  outlets,
-}: {
-  penjualan: any[];
-  permohonanStok: any[];
-  produk: any[];
-  outlets: any[];
-}) {
-  const [range, setRange] = useState<DateRange>({});
-
-  // Production products (menu items)
+function useOHData(
+  penjualan: any[],
+  permohonanStok: any[],
+  outlets: any[],
+  range: DateRange,
+  outletFilter?: string
+) {
   const PROD_IDS = ["p-bubur", "p-nasitim", "p-oatmeal", "p-puding", "p-abon"];
 
-  // Get all dates with distribution in range
   const dailyOHData = useMemo(() => {
-    // Filter distributions (approved, production products, in range)
     const dists = (permohonanStok || []).filter((r: any) =>
       r.status === "Disetujui" &&
       PROD_IDS.includes(r.produkId) &&
-      inRange(r.tanggalKirim, range)
+      inRange(r.tanggalKirim, range) &&
+      (outletFilter ? r.outletId === outletFilter : true)
     );
 
-    // Group by date and outlet
     const dateOutletMap = new Map<string, Map<string, { distributed: number; sold: number }>>();
-
     dists.forEach((r: any) => {
       const date = r.tanggalKirim;
-      if (!dateOutletMap.has(date)) {
-        dateOutletMap.set(date, new Map());
-      }
+      if (!dateOutletMap.has(date)) dateOutletMap.set(date, new Map());
       const outletMap = dateOutletMap.get(date)!;
       const outletData = outletMap.get(r.outletId) || { distributed: 0, sold: 0 };
       outletData.distributed += r.qty;
       outletMap.set(r.outletId, outletData);
     });
 
-    // Calculate sold from penjualan
     const sales = (penjualan || []).filter((p: any) =>
       PROD_IDS.includes(p.produkId) &&
-      inRange(p.tanggal, range)
+      inRange(p.tanggal, range) &&
+      (outletFilter ? p.outletId === outletFilter : true)
     );
-
     sales.forEach((p: any) => {
       const date = p.tanggal;
       if (dateOutletMap.has(date)) {
         const outletMap = dateOutletMap.get(date)!;
         if (outletMap.has(p.outletId)) {
-          const outletData = outletMap.get(p.outletId)!;
-          outletData.sold += p.qty;
+          outletMap.get(p.outletId)!.sold += p.qty;
         }
       }
     });
 
-    // Calculate daily OH% per outlet and overall
-    const result: {
-      date: string;
-      outletId: string;
-      outletName: string;
-      distributed: number;
-      sold: number;
-      oh: number;
-      ohPercent: number;
-    }[] = [];
-
+    const result: { date: string; outletId: string; outletName: string; distributed: number; sold: number; oh: number; ohPercent: number }[] = [];
     const outletNames = new Map(outlets.map((o: any) => [o.id, o.nama]));
 
     dateOutletMap.forEach((outletMap, date) => {
-      // Per outlet rows
       outletMap.forEach((data, outletId) => {
         const oh = Math.max(0, data.distributed - data.sold);
         const ohPercent = data.distributed > 0 ? (oh / data.distributed) * 100 : 0;
-        result.push({
-          date,
-          outletId,
-          outletName: outletNames.get(outletId) || "-",
-          distributed: data.distributed,
-          sold: data.sold,
-          oh,
-          ohPercent: Math.round(ohPercent * 100) / 100,
-        });
+        result.push({ date, outletId, outletName: outletNames.get(outletId) || "-", distributed: data.distributed, sold: data.sold, oh, ohPercent: Math.round(ohPercent * 100) / 100 });
       });
-
-      // Overall row for this date
       let totalDist = 0, totalSold = 0;
-      outletMap.forEach((data) => {
-        totalDist += data.distributed;
-        totalSold += data.sold;
-      });
+      outletMap.forEach((data) => { totalDist += data.distributed; totalSold += data.sold; });
       const totalOh = Math.max(0, totalDist - totalSold);
       const totalOhPercent = totalDist > 0 ? (totalOh / totalDist) * 100 : 0;
-      result.push({
-        date,
-        outletId: "__total__",
-        outletName: "📊 TOTAL",
-        distributed: totalDist,
-        sold: totalSold,
-        oh: totalOh,
-        ohPercent: Math.round(totalOhPercent * 100) / 100,
-      });
+      result.push({ date, outletId: "__total__", outletName: outletFilter ? "Outlet Saya" : "📊 TOTAL", distributed: totalDist, sold: totalSold, oh: totalOh, ohPercent: Math.round(totalOhPercent * 100) / 100 });
     });
 
-    // Sort by date descending
     return result.sort((a, b) => b.date.localeCompare(a.date));
-  }, [permohonanStok, penjualan, outlets, range]);
+  }, [permohonanStok, penjualan, outlets, range, outletFilter]);
 
-  // Monthly average OH%
   const monthlyAvg = useMemo(() => {
-    // Group by month and outlet
     const monthMap = new Map<string, Map<string, { totalOhPercent: number; days: number }>>();
     const overallMonthMap = new Map<string, { totalOhPercent: number; days: number }>();
 
@@ -424,254 +365,37 @@ function OHPersentaseTab({
       if (row.outletId === "__total__") {
         const month = row.date.slice(0, 7);
         const cur = overallMonthMap.get(month) || { totalOhPercent: 0, days: 0 };
-        cur.totalOhPercent += row.ohPercent;
-        cur.days++;
+        cur.totalOhPercent += row.ohPercent; cur.days++;
         overallMonthMap.set(month, cur);
       } else {
         const month = row.date.slice(0, 7);
         if (!monthMap.has(month)) monthMap.set(month, new Map());
         const outletMonthMap = monthMap.get(month)!;
         const cur = outletMonthMap.get(row.outletId) || { totalOhPercent: 0, days: 0 };
-        cur.totalOhPercent += row.ohPercent;
-        cur.days++;
+        cur.totalOhPercent += row.ohPercent; cur.days++;
         outletMonthMap.set(row.outletId, cur);
       }
     });
 
-    const result: {
-      month: string;
-      outletId: string;
-      outletName: string;
-      avgOhPercent: number;
-      days: number;
-      pass: boolean;
-    }[] = [];
-
+    const result: { month: string; outletId: string; outletName: string; avgOhPercent: number; days: number; pass: boolean }[] = [];
     const outletNames = new Map(outlets.map((o: any) => [o.id, o.nama]));
 
     monthMap.forEach((outletMonthMap, month) => {
       outletMonthMap.forEach((data, outletId) => {
         const avg = data.days > 0 ? data.totalOhPercent / data.days : 0;
-        result.push({
-          month,
-          outletId,
-          outletName: outletNames.get(outletId) || "-",
-          avgOhPercent: Math.round(avg * 100) / 100,
-          days: data.days,
-          pass: avg <= 2,
-        });
+        result.push({ month, outletId, outletName: outletNames.get(outletId) || "-", avgOhPercent: Math.round(avg * 100) / 100, days: data.days, pass: avg <= 2 });
       });
-
-      // Overall
       const overallData = overallMonthMap.get(month);
       if (overallData) {
         const avg = overallData.days > 0 ? overallData.totalOhPercent / overallData.days : 0;
-        result.push({
-          month,
-          outletId: "__total__",
-          outletName: "📊 TOTAL",
-          avgOhPercent: Math.round(avg * 100) / 100,
-          days: overallData.days,
-          pass: avg <= 2,
-        });
+        result.push({ month, outletId: "__total__", outletName: outletFilter ? "Rata-rata Saya" : "📊 TOTAL", avgOhPercent: Math.round(avg * 100) / 100, days: overallData.days, pass: avg <= 2 });
       }
     });
 
     return result.sort((a, b) => b.month.localeCompare(a.month));
-  }, [dailyOHData, outlets]);
+  }, [dailyOHData, outlets, outletFilter]);
 
-  const pg = usePagination(dailyOHData, 20);
-
-  return (
-    <div className="space-y-4">
-      {/* Info Banner */}
-      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800/30 rounded-2xl p-4">
-        <div className="flex items-start gap-3">
-          <Percent className="h-6 w-6 text-emerald-600 mt-0.5 shrink-0" />
-          <div className="text-xs text-muted-foreground">
-            <p className="font-bold text-emerald-700 dark:text-emerald-300 text-sm mb-1">📊 Persentase OH (Overhead) Harian & Bulanan</p>
-            <p>OH% = (Sisa cup / Total distribusi) × 100%. Maksimal rata-rata OH adalah <strong>2% per hari</strong>. Bulanan rata-rata ≤ 2% = <strong>Lolos</strong> ✅. Data digunakan sebagai acuan penentuan <strong>Bonus OH</strong> di penggajian.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly Summary Cards */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {monthlyAvg.slice(0, 6).map((m) => (
-          <Card key={`${m.month}-${m.outletId}`} className={`border ${m.pass ? "border-emerald-300 bg-emerald-50/30 dark:bg-emerald-950/20" : "border-red-300 bg-red-50/30 dark:bg-red-950/20"}`}>
-            <CardContent className="p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className={`text-xs font-bold ${m.outletId === "__total__" ? "text-primary" : ""}`}>{m.outletName}</span>
-                <span className="text-[10px] text-muted-foreground">{m.month}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-bold">{m.avgOhPercent}%</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-muted-foreground">{m.days} hari</span>
-                  {m.pass ? (
-                    <Badge className="bg-success text-success-foreground text-[10px]">
-                      <CheckCircle2 className="h-3 w-3 mr-0.5" /> ≤ 2%
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive" className="text-[10px]">
-                      <AlertTriangle className="h-3 w-3 mr-0.5" /> &gt; 2%
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Date Range Filter */}
-      <div className="flex items-center gap-2">
-        <DateRangeFilter value={range} onChange={setRange} />
-      </div>
-
-      {/* Accordion: Detail Tables */}
-      <Accordion type="multiple" className="space-y-3">
-        <AccordionItem value="daily" className="border rounded-2xl overflow-hidden">
-          <AccordionTrigger className="px-4 py-3 bg-muted/20 hover:bg-muted/30 hover:no-underline text-sm font-bold">
-            <span>📋 Detail OH% Harian</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-0 pb-0">
-            <div className="rounded-xl border overflow-hidden mx-0 border-0 rounded-none">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/40">
-                      <TableHead>Tanggal</TableHead>
-                      <TableHead>Outlet</TableHead>
-                      <TableHead className="text-right">Distribusi (Cup)</TableHead>
-                      <TableHead className="text-right">Terjual (Cup)</TableHead>
-                      <TableHead className="text-right">Sisa (Cup)</TableHead>
-                      <TableHead className="text-right">OH %</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dailyOHData.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                          Belum ada data distribusi & penjualan untuk periode ini
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {pg.paged.map((row, idx) => {
-                      const isTotal = row.outletId === "__total__";
-                      const isOver = row.ohPercent > 2;
-                      return (
-                        <TableRow key={`${row.date}-${row.outletId}-${idx}`} className={isTotal ? "bg-muted/30 font-bold" : ""}>
-                          <TableCell className="whitespace-nowrap">{row.date}</TableCell>
-                          <TableCell className={`whitespace-nowrap ${isTotal ? "text-primary" : ""}`}>{row.outletName}</TableCell>
-                          <TableCell className="text-right">{row.distributed}</TableCell>
-                          <TableCell className="text-right">{row.sold}</TableCell>
-                          <TableCell className="text-right text-warning">{row.oh}</TableCell>
-                          <TableCell className={`text-right font-bold ${isOver ? "text-destructive" : "text-success"}`}>
-                            {row.ohPercent}%
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {row.distributed > 0 ? (
-                              isOver ? (
-                                <Badge variant="destructive" className="text-[10px]">
-                                  <AlertTriangle className="h-3 w-3 mr-0.5" /> &gt; 2%
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-success text-success-foreground text-[10px]">
-                                  <CheckCircle2 className="h-3 w-3 mr-0.5" /> ≤ 2%
-                                </Badge>
-                              )
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-            <div className="p-2">
-              <TablePagination
-                page={pg.page}
-                totalPages={pg.totalPages}
-                total={pg.total}
-                pageSize={pg.pageSize}
-                onChange={pg.setPage}
-              />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="monthly" className="border rounded-2xl overflow-hidden">
-          <AccordionTrigger className="px-4 py-3 bg-muted/20 hover:bg-muted/30 hover:no-underline text-sm font-bold">
-            <span>📊 Rata-rata OH% Bulanan</span>
-          </AccordionTrigger>
-          <AccordionContent className="px-0 pb-0">
-            <p className="text-xs text-muted-foreground px-4 pb-2">Rata-rata OH% per bulan per outlet. Jika ≤ 2% maka memenuhi syarat Bonus OH.</p>
-            <div className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/40">
-                      <TableHead>Bulan</TableHead>
-                      <TableHead>Outlet</TableHead>
-                      <TableHead className="text-right">Hari Aktif</TableHead>
-                      <TableHead className="text-right">Rata-rata OH %</TableHead>
-                      <TableHead className="text-center">Syarat ≤ 2%</TableHead>
-                      <TableHead className="text-center">Bonus OH</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {monthlyAvg.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          Belum ada data bulanan
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {monthlyAvg.map((m, idx) => {
-                      const isTotal = m.outletId === "__total__";
-                      return (
-                        <TableRow key={`${m.month}-${m.outletId}-${idx}`} className={isTotal ? "bg-muted/30 font-bold" : ""}>
-                          <TableCell className="whitespace-nowrap">{m.month}</TableCell>
-                          <TableCell className={`whitespace-nowrap ${isTotal ? "text-primary" : ""}`}>{m.outletName}</TableCell>
-                          <TableCell className="text-right">{m.days}</TableCell>
-                          <TableCell className={`text-right font-bold ${m.pass ? "text-success" : "text-destructive"}`}>
-                            {m.avgOhPercent}%
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {m.pass ? (
-                              <Badge className="bg-success text-success-foreground">
-                                <CheckCircle2 className="h-3 w-3 mr-0.5" /> Lolos
-                              </Badge>
-                            ) : (
-                              <Badge variant="destructive">
-                                <AlertTriangle className="h-3 w-3 mr-0.5" /> Tidak
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {m.pass ? (
-                              <span className="text-xs text-success font-semibold">✅ Dapat Bonus</span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-    </div>
-  );
+  return { dailyOHData, monthlyAvg };
 }
 
 // ====================================================================
@@ -1026,6 +750,7 @@ function SisaProduksiOH({
                     <TableHead className="text-right w-[120px]">Distribusi (Unit)</TableHead>
                     <TableHead className="text-right w-[160px]">Sisa (Unit)</TableHead>
                     <TableHead className="text-right">Sisa (Cup/Pcs)</TableHead>
+                    <TableHead className="text-right">OH %</TableHead>
                     <TableHead className="text-right">Terjual</TableHead>
                     <TableHead className="text-right">Harga</TableHead>
                     <TableHead className="text-right">Omset</TableHead>
@@ -1072,6 +797,13 @@ function SisaProduksiOH({
                           row.subId === "abon"
                             ? `${sisaCups} pcs`
                             : `${sisaCups} cup`
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-bold">
+                        {row.distribusi > 0 ? (
+                          <span className={row.distribusi > 0 && (sisaCups / row.distribusi) * 100 > 2 ? "text-destructive" : "text-success"}>
+                            {((sisaCups / row.distribusi) * 100).toFixed(1)}%
+                          </span>
                         ) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right font-bold text-success">
@@ -1173,6 +905,16 @@ function SisaProduksiOH({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ===== OH% ACCORDION — OUTLET VIEW ===== */}
+      <OHPercentSection
+        penjualan={penjualan}
+        permohonanStok={permohonanStok}
+        outlets={[]}
+        outletFilter={user.outletId}
+        title="📊 Analisis OH% Saya"
+        description="Persentase overhead (sisa produksi) harian dan rata-rata bulanan untuk outlet Anda."
+      />
     </div>
   );
 }
@@ -1513,6 +1255,7 @@ function SisaProduksiAdminView({
                           <TableHead className="text-right">Distribusi</TableHead>
                           <TableHead className="text-right w-[140px]">Sisa (Unit)</TableHead>
                           <TableHead className="text-right">Sisa (Cup/Pcs)</TableHead>
+                          <TableHead className="text-right">OH %</TableHead>
                           <TableHead className="text-right">Terjual</TableHead>
                           <TableHead className="text-right">Harga</TableHead>
                           <TableHead className="text-right">Omset</TableHead>
@@ -1551,6 +1294,13 @@ function SisaProduksiAdminView({
                               <TableCell className="text-right font-medium text-xs">
                                 {row.sisaCups} {row.subId === "abon" ? "pcs" : "cup"}
                               </TableCell>
+                              <TableCell className="text-right font-bold">
+                                {row.distQty > 0 ? (
+                                  <span className={(row.sisaCups / row.distQty) * 100 > 2 ? "text-destructive" : "text-success"}>
+                                    {((row.sisaCups / row.distQty) * 100).toFixed(1)}%
+                                  </span>
+                                ) : <span className="text-muted-foreground">0%</span>}
+                              </TableCell>
                               <TableCell className="text-right font-bold text-success">{row.terjual}</TableCell>
                               <TableCell className="text-right text-xs text-muted-foreground">{rupiah(row.harga)}</TableCell>
                               <TableCell className="text-right font-bold text-primary">{rupiah(row.omset)}</TableCell>
@@ -1566,6 +1316,235 @@ function SisaProduksiAdminView({
           )}
         </CardContent>
       </Card>
+
+      {/* ===== OH% ACCORDION — ADMIN VIEW ===== */}
+      <OHPercentSection
+        penjualan={penjualan}
+        permohonanStok={permohonanStok}
+        outlets={outlets}
+        outletFilter={undefined}
+        title="📊 Analisis OH% Semua Outlet"
+        description="Persentase overhead (sisa produksi) harian dan rata-rata bulanan per outlet. Lihat ringkasan bulanan untuk menilai kelolosan bonus OH."
+      />
+    </div>
+  );
+}
+
+// ====================================================================
+// OH% ACCORDION SECTION — SHARED BY OUTLET & ADMIN VIEW
+// ====================================================================
+function OHPercentSection({
+  penjualan,
+  permohonanStok,
+  outlets,
+  outletFilter,
+  title,
+  description,
+}: {
+  penjualan: any[];
+  permohonanStok: any[];
+  outlets: any[];
+  outletFilter?: string;
+  title: string;
+  description: string;
+}) {
+  const [ohRange, setOhRange] = useState<DateRange>({});
+  const { dailyOHData, monthlyAvg } = useOHData(
+    penjualan,
+    permohonanStok,
+    outlets,
+    ohRange,
+    outletFilter
+  );
+
+  // Monthly summary — unique months with avg per outlet
+  const monthlySummary = useMemo(() => {
+    // Group monthlyAvg by month and get overall status
+    const monthGroups = new Map<string, { avgOhPercent: number; days: number; pass: boolean }>();
+    monthlyAvg.forEach((row) => {
+      if (row.outletId === "__total__") {
+        monthGroups.set(row.month, { avgOhPercent: row.avgOhPercent, days: row.days, pass: row.pass });
+      }
+    });
+    return Array.from(monthGroups.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [monthlyAvg]);
+
+  const ohPagination = usePagination(dailyOHData, 10);
+
+  if (dailyOHData.length === 0 && monthlyAvg.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-800/30 rounded-2xl p-4">
+        <div className="flex items-start gap-3">
+          <Percent className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+          <div className="text-xs text-muted-foreground">
+            <p className="font-bold text-green-700 dark:text-green-300 text-sm mb-1">{title}</p>
+            <p>{description}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Summary Cards */}
+      {monthlySummary.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {monthlySummary.map(([month, data]) => (
+            <div
+              key={month}
+              className={`rounded-2xl border p-4 ${
+                data.pass
+                  ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800/20"
+                  : "bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 border-red-200 dark:border-red-800/20"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-muted-foreground uppercase">{month}</span>
+                {data.pass ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                )}
+              </div>
+              <div className="text-2xl font-bold mt-1">{data.avgOhPercent.toFixed(2)}%</div>
+              <div className="text-[10px] text-muted-foreground mt-1">
+                {data.days} hari — {data.pass ? "✅ Lolos ≤ 2%" : "✗ Tidak Lolos"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Date filter + accordion tables */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted-foreground font-medium">Filter Tanggal:</span>
+        <DateRangeFilter value={ohRange} onChange={setOhRange} />
+      </div>
+
+      <Accordion type="multiple" className="space-y-3">
+        {/* Detail OH% Harian */}
+        <AccordionItem value="daily-oh" className="border rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3 bg-muted/20 hover:bg-muted/40 hover:no-underline">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">Detail OH% Harian</span>
+              <span className="text-[10px] text-muted-foreground font-normal">
+                ({dailyOHData.length} baris)
+              </span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Tanggal</TableHead>
+                    {!outletFilter && <TableHead>Outlet</TableHead>}
+                    <TableHead className="text-right">Distribusi</TableHead>
+                    <TableHead className="text-right">Terjual</TableHead>
+                    <TableHead className="text-right">Sisa (OH)</TableHead>
+                    <TableHead className="text-right">OH %</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ohPagination.paged.map((row: any, i: number) => (
+                    <TableRow key={`${row.date}-${row.outletId}-${i}`}>
+                      <TableCell className="whitespace-nowrap">{row.date}</TableCell>
+                      {!outletFilter && <TableCell>{row.outletName}</TableCell>}
+                      <TableCell className="text-right">{row.distributed}</TableCell>
+                      <TableCell className="text-right text-success font-medium">{row.sold}</TableCell>
+                      <TableCell className="text-right text-warning font-medium">{row.oh}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums">
+                        <span className={row.ohPercent > 2 ? "text-destructive" : "text-success"}>
+                          {row.ohPercent.toFixed(2)}%
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.outletId === "__total__" ? (
+                          <Badge variant="outline" className="text-[10px]">TOTAL</Badge>
+                        ) : row.ohPercent <= 2 ? (
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-[10px]">
+                            ✅ ≤ 2%
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px]">
+                            ✗ &gt; 2%
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <TablePagination
+              page={ohPagination.page}
+              totalPages={ohPagination.totalPages}
+              total={ohPagination.total}
+              pageSize={ohPagination.pageSize}
+              onChange={ohPagination.setPage}
+            />
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Rata-rata OH% Bulanan */}
+        <AccordionItem value="monthly-oh" className="border rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3 bg-muted/20 hover:bg-muted/40 hover:no-underline">
+            <div className="flex items-center gap-2">
+              <Percent className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">Rata-rata OH% Bulanan</span>
+              <span className="text-[10px] text-muted-foreground font-normal">
+                ({monthlyAvg.length} baris)
+              </span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="p-0">
+            <div className="p-3 text-xs text-muted-foreground">
+              Rata-rata OH% per bulan per outlet. <strong>✅ Lolos</strong> jika ≤ 2% (berhak bonus OH).
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Bulan</TableHead>
+                    {!outletFilter && <TableHead>Outlet</TableHead>}
+                    <TableHead className="text-right">Hari</TableHead>
+                    <TableHead className="text-right">Rata-rata OH%</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {monthlyAvg.map((row: any, i: number) => (
+                    <TableRow key={`${row.month}-${row.outletId}-${i}`}>
+                      <TableCell className="whitespace-nowrap font-medium">{row.month}</TableCell>
+                      {!outletFilter && <TableCell>{row.outletName}</TableCell>}
+                      <TableCell className="text-right">{row.days}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums">
+                        <span className={row.avgOhPercent > 2 ? "text-destructive" : "text-success"}>
+                          {row.avgOhPercent.toFixed(2)}%
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.pass ? (
+                          <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-[10px]">
+                            ✅ Lolos
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px]">
+                            ✗ Tidak
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

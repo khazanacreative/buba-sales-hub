@@ -41,6 +41,7 @@ export function BottomNav() {
         { title: "Home", url: "/", icon: LayoutDashboard },
         { title: "Stok", url: "/stok", icon: Warehouse },
         { title: "Produksi", url: "/produksi", icon: ChefHat, highlighted: true },
+        { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Absen", url: "/absensi", icon: UserCheck },
         { title: "Profile", url: "/profile", icon: User },
       ];

@@ -30,6 +30,7 @@ export function AppSidebar() {
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Stok Gudang", url: "/stok", icon: Warehouse },
         { title: "Produksi", url: "/produksi", icon: ChefHat },
+        { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Profile", url: "/profile", icon: User },
       ];

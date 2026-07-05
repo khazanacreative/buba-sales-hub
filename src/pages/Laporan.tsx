@@ -1227,92 +1227,97 @@ function SisaProduksiAdminView({
               Belum ada distribusi untuk tanggal ini.
             </p>
           ) : (
-            /* Per-outlet editable cards */
-            outletRows.map(({ outlet, items }) => {
-              const outSum = items.reduce((s: any, i: any) => ({
-                dist: s.dist + i.distQty,
-                sisa: s.sisa + Math.min(i.sisaCups, i.distQty),
-                terjual: s.terjual + i.terjual,
-                omset: s.omset + i.omset
-              }), { dist: 0, sisa: 0, terjual: 0, omset: 0 });
+            <Accordion type="multiple" className="space-y-3">
+              {outletRows.map(({ outlet, items }) => {
+                const outSum = items.reduce((s: any, i: any) => ({
+                  dist: s.dist + i.distQty,
+                  sisa: s.sisa + Math.min(i.sisaCups, i.distQty),
+                  terjual: s.terjual + i.terjual,
+                  omset: s.omset + i.omset
+                }), { dist: 0, sisa: 0, terjual: 0, omset: 0 });
 
-              return (
-                <div key={outlet.id} className="rounded-xl border overflow-hidden">
-                  <div className="bg-muted/40 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
-                    <div className="font-bold text-sm">{outlet.nama}</div>
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                      <span>Dist: <strong>{outSum.dist}</strong></span>
-                      <span className="text-warning">Sisa: <strong>{outSum.sisa}</strong></span>
-                      <span className="text-success">Terjual: <strong>{outSum.terjual}</strong></span>
-                      <span className="text-primary">Omset: <strong>{rupiah(outSum.omset)}</strong></span>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/20">
-                          <TableHead>Menu</TableHead>
-                          <TableHead className="text-right">Distribusi</TableHead>
-                          <TableHead className="text-right w-[140px]">Sisa (Unit)</TableHead>
-                          <TableHead className="text-right">Sisa (Cup/Pcs)</TableHead>
-                          <TableHead className="text-right">OH %</TableHead>
-                          <TableHead className="text-right">Terjual</TableHead>
-                          <TableHead className="text-right">Harga</TableHead>
-                          <TableHead className="text-right">Omset</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {items.map((row: any) => {
-                          const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
-                          const displayUnit = row.subId === "abon" ? "pcs" : (isCupItem ? "cup" : "g");
-                          const displayVal = isCupItem ? Math.floor((row.sisaGram || 0) / row.gramPerCup) : (row.sisaGram || 0);
-                          const maxDisplayVal = isCupItem ? row.distQty : row.distQty * row.gramPerCup;
-
-                          return (
-                            <TableRow key={row.key}>
-                              <TableCell className="font-semibold whitespace-nowrap">{row.label}</TableCell>
-                              <TableCell className="text-right font-medium">{row.distQty}</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    max={maxDisplayVal}
-                                    value={displayVal || ""}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      const clamped = Math.min(Math.max(val, 0), maxDisplayVal);
-                                      const storeVal = isCupItem ? clamped * row.gramPerCup : clamped;
-                                      handleSisaChange(row.key, storeVal);
-                                    }}
-                                    className="w-20 h-8 text-xs text-center"
-                                    placeholder="0"
-                                  />
-                                  <span className="text-[11px] text-muted-foreground w-5 shrink-0">{displayUnit}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right font-medium text-xs">
-                                {row.sisaCups} {row.subId === "abon" ? "pcs" : "cup"}
-                              </TableCell>
-                              <TableCell className="text-right font-bold">
-                                {row.distQty > 0 ? (
-                                  <span className={(row.sisaCups / row.distQty) * 100 > 2 ? "text-destructive" : "text-success"}>
-                                    {((row.sisaCups / row.distQty) * 100).toFixed(1)}%
-                                  </span>
-                                ) : <span className="text-muted-foreground">0%</span>}
-                              </TableCell>
-                              <TableCell className="text-right font-bold text-success">{row.terjual}</TableCell>
-                              <TableCell className="text-right text-xs text-muted-foreground">{rupiah(row.harga)}</TableCell>
-                              <TableCell className="text-right font-bold text-primary">{rupiah(row.omset)}</TableCell>
+                return (
+                  <AccordionItem key={outlet.id} value={outlet.id} className="border rounded-xl overflow-hidden">
+                    <AccordionTrigger className="px-4 py-2.5 bg-muted/20 hover:bg-muted/40 hover:no-underline">
+                      <div className="flex items-center justify-between w-full gap-3">
+                        <div className="font-bold text-sm">{outlet.nama}</div>
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground shrink-0">
+                          <span>Dist: <strong>{outSum.dist}</strong></span>
+                          <span className="text-warning">Sisa: <strong>{outSum.sisa}</strong></span>
+                          <span className="text-success">Terjual: <strong>{outSum.terjual}</strong></span>
+                          <span className="text-primary">Omset: <strong>{rupiah(outSum.omset)}</strong></span>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/20">
+                              <TableHead>Menu</TableHead>
+                              <TableHead className="text-right">Distribusi</TableHead>
+                              <TableHead className="text-right w-[140px]">Sisa (Unit)</TableHead>
+                              <TableHead className="text-right">Sisa (Cup/Pcs)</TableHead>
+                              <TableHead className="text-right">OH %</TableHead>
+                              <TableHead className="text-right">Terjual</TableHead>
+                              <TableHead className="text-right">Harga</TableHead>
+                              <TableHead className="text-right">Omset</TableHead>
                             </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              );
-            })
+                          </TableHeader>
+                          <TableBody>
+                            {items.map((row: any) => {
+                              const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
+                              const displayUnit = row.subId === "abon" ? "pcs" : (isCupItem ? "cup" : "g");
+                              const displayVal = isCupItem ? Math.floor((row.sisaGram || 0) / row.gramPerCup) : (row.sisaGram || 0);
+                              const maxDisplayVal = isCupItem ? row.distQty : row.distQty * row.gramPerCup;
+
+                              return (
+                                <TableRow key={row.key}>
+                                  <TableCell className="font-semibold whitespace-nowrap">{row.label}</TableCell>
+                                  <TableCell className="text-right font-medium">{row.distQty}</TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={maxDisplayVal}
+                                        value={displayVal || ""}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          const clamped = Math.min(Math.max(val, 0), maxDisplayVal);
+                                          const storeVal = isCupItem ? clamped * row.gramPerCup : clamped;
+                                          handleSisaChange(row.key, storeVal);
+                                        }}
+                                        className="w-20 h-8 text-xs text-center"
+                                        placeholder="0"
+                                      />
+                                      <span className="text-[11px] text-muted-foreground w-5 shrink-0">{displayUnit}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium text-xs">
+                                    {row.sisaCups} {row.subId === "abon" ? "pcs" : "cup"}
+                                  </TableCell>
+                                  <TableCell className="text-right font-bold">
+                                    {row.distQty > 0 ? (
+                                      <span className={(row.sisaCups / row.distQty) * 100 > 2 ? "text-destructive" : "text-success"}>
+                                        {((row.sisaCups / row.distQty) * 100).toFixed(1)}%
+                                      </span>
+                                    ) : <span className="text-muted-foreground">0%</span>}
+                                  </TableCell>
+                                  <TableCell className="text-right font-bold text-success">{row.terjual}</TableCell>
+                                  <TableCell className="text-right text-xs text-muted-foreground">{rupiah(row.harga)}</TableCell>
+                                  <TableCell className="text-right font-bold text-primary">{rupiah(row.omset)}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
           )}
         </CardContent>
       </Card>

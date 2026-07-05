@@ -903,6 +903,61 @@ export default function Produksi() {
         .reduce((s: number, p: any) => s + p.qty, 0)
         .toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
 
+      // AUTO-CREATE penjualan jika belum ada data dari outlet
+      // Jika outlet belum menginput sisa, anggap semua terdistribusi = terjual
+      if (existingPenjualan.length === 0) {
+        const penjualanBatch: any[] = [];
+        outlets.forEach((o) => {
+          const sent = distGrid[o.id] || {};
+          if (!sent) return;
+
+          const r = freshReturGrid[o.id] || {};
+          const def: Record<string, number> = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+          const ret = { ...def, ...r };
+
+          // Merge D/I variants under same baseId for sold calculation
+          const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
+          const buburRet = (ret.bubur_d || 0) + (ret.bubur_i || 0);
+          if (buburSent > 0) {
+            const buburSold = Math.max(0, buburSent - Math.min(buburRet, buburSent));
+            if (buburSold > 0) {
+              const prod = produk.find((p: any) => p.id === "p-bubur");
+              penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-bubur", qty: buburSold, harga: prod?.harga || 0 });
+            }
+          }
+
+          const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
+          const timRet = (ret.tim_d || 0) + (ret.tim_i || 0);
+          if (timSent > 0) {
+            const timSold = Math.max(0, timSent - Math.min(timRet, timSent));
+            if (timSold > 0) {
+              const prod = produk.find((p: any) => p.id === "p-nasitim");
+              penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-nasitim", qty: timSold, harga: prod?.harga || 0 });
+            }
+          }
+
+          const addSold = (baseId: string, subSent: number, subRetur: number) => {
+            if (subSent <= 0) return;
+            const sold = Math.max(0, subSent - Math.min(subRetur, subSent));
+            if (sold <= 0) return;
+            const prod = produk.find((p: any) => p.id === baseId);
+            penjualanBatch.push({ tanggal, outletId: o.id, produkId: baseId, qty: sold, harga: prod?.harga || 0 });
+          };
+
+          addSold("p-oatmeal", sent.oatmeal || 0, ret.oatmeal || 0);
+          addSold("p-puding", sent.puding || 0, ret.puding || 0);
+          addSold("p-abon", sent.abon || 0, ret.abon || 0);
+        });
+
+        for (const p of penjualanBatch) {
+          await db.addPenjualan(p);
+        }
+        if (penjualanBatch.length > 0) {
+          // Recalculate revenue after auto-create so journal posts correctly
+          totalSalesRevenue = penjualanBatch.reduce((sum, p) => sum + p.qty * p.harga, 0);
+        }
+      }
+
       // 4. Hitung recovered ingredients dari recalculated returGrid
       const recoveredIngredients = {
         beras: 0,

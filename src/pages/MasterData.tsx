@@ -530,16 +530,16 @@ export default function MasterData() {
               </Card>
             </AccordionContent>
           </AccordionItem>
-          {/* GRAMASI */}
-          <AccordionItem value="gramasi" className="rounded-xl border bg-card overflow-hidden">
+          {/* SETTING */}
+          <AccordionItem value="setting" className="rounded-xl border bg-card overflow-hidden">
             <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
                   <Sliders className="h-4 w-4 text-primary-foreground" />
                 </div>
                 <div className="text-left">
-                  <div className="font-semibold text-sm">Gramasi</div>
-                  <div className="text-[11px] text-muted-foreground">Konversi berat per cup</div>
+                  <div className="font-semibold text-sm">Setting</div>
+                  <div className="text-[11px] text-muted-foreground">atur setelan aplikasi</div>
                 </div>
               </div>
             </AccordionTrigger>

@@ -813,7 +813,7 @@ export const DEFAULT_SETTINGS: BubaSettings = {
   abonCup: 10.00,
 
   lockDeadlineTime: "11:00",
-  lockEnabled: true,
+  lockEnabled: false,
 };
 
 export function getBubaSettings(): BubaSettings {

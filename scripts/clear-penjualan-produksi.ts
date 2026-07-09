@@ -77,14 +77,23 @@ async function clearData() {
   if (jurnalErr) console.error("   ❌ Gagal:", jurnalErr.message);
   else console.log("   ✅ jurnal berhasil dikosongkan.");
 
+  console.log("6. Reset stok_awal bahan_baku ke 0...");
+  const { error: resetBahanErr } = await supabase
+    .from("bahan_baku")
+    .update({ stok_awal: 0 })
+    .neq("id", "");
+  if (resetBahanErr) console.error("   ❌ Gagal:", resetBahanErr.message);
+  else console.log("   ✅ stok_awal semua bahan_baku berhasil direset ke 0.");
+
   console.log("\n✅ Selesai! Semua data transaksional telah dikosongkan:");
   console.log("   - stok_movement");
   console.log("   - permohonan_stok (distribusi)");
   console.log("   - produksi");
   console.log("   - penjualan");
   console.log("   - jurnal");
-  console.log("\n📌 Tabel master (outlets, produk, bahan_baku, coa, karyawan, users) tetap aman.");
-  console.log("📌 Refresh browser untuk melihat perubahan di aplikasi.\n");
+  console.log("   - stok_awal bahan_baku → 0 (saldo baku direset)");
+  console.log("\n📌 Tabel master (outlets, produk, coa, karyawan, users) tetap aman.");
+  console.log("📌 Refresh browser untuk melihat saldo baku = 0.\n");
   process.exit(0);
 }
 

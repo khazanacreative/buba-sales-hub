@@ -1,0 +1,46 @@
+name: Keep Database Alive
+
+on:
+  schedule:
+    # Jalankan setiap 4 jam — cukup sering untuk mencegah database free tier tidur
+    - cron: "0 */4 * * *"
+  # Bisa juga di-trigger manual dari GitHub UI
+  workflow_dispatch:
+
+jobs:
+  ping-db:
+    name: Ping Supabase Database
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🏓 Ping database (read-only query)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          echo "⏰ Ping at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          echo "---"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X GET \
+            "${SUPABASE_URL}/rest/v1/outlets?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+
+          HTTP_CODE=$(echo "${RESPONSE}" | tail -n1)
+          BODY=$(echo "${RESPONSE}" | sed '$d')
+
+          echo "HTTP Status: ${HTTP_CODE}"
+          echo "Response: ${BODY}"
+
+          if [ "${HTTP_CODE}" = "200" ]; then
+            echo "✅ Database aktif dan responsif."
+          else
+            echo "⚠️  Gagal — response code: ${HTTP_CODE}"
+            exit 1
+          fi
+
+      - name: ✅ Notify success
+        if: success()
+        run: |
+          echo "✅ Database keep-alive berhasil pada $(date -u '+%Y-%m-%dT%H:%M:%SZ')"

@@ -580,11 +580,21 @@ function SisaProduksiOH({
   }, [rows]);
 
   // Reactive settings version — forces re-render when settings change in localStorage
+  // Uses both custom event (same tab) and storage event (cross-tab)
   const [settingsVersion, setSettingsVersion] = useState(0);
   useEffect(() => {
     const handler = () => setSettingsVersion((v) => v + 1);
+    const storageHandler = (e: StorageEvent) => {
+      if (e.key === "buba_settings") {
+        setSettingsVersion((v) => v + 1);
+      }
+    };
     window.addEventListener("buba_settings_changed", handler);
-    return () => window.removeEventListener("buba_settings_changed", handler);
+    window.addEventListener("storage", storageHandler);
+    return () => {
+      window.removeEventListener("buba_settings_changed", handler);
+      window.removeEventListener("storage", storageHandler);
+    };
   }, []);
 
   // Lock check: waktu (dinamis dari master data) dan status siklus

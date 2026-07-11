@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, ChefHat, FileBarChart, BookOpen, Settings, ChevronsLeft, ChevronsRight, Warehouse, UserCheck, FileText, User } from "lucide-react";
+import { LayoutDashboard, ChefHat, FileBarChart, BookOpen, Settings, ChevronsLeft, ChevronsRight, Warehouse, UserCheck, FileText, User } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import logo from "@/assets/logo.jpg";
 import {
@@ -19,7 +19,6 @@ export function AppSidebar() {
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Produksi", url: "/produksi", icon: ChefHat },
-        { title: "Distribusi", url: "/distribusi", icon: ShoppingCart },
         { title: "Stok Gudang", url: "/stok", icon: Warehouse },
         { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Keuangan", url: "/keuangan", icon: BookOpen },
@@ -31,7 +30,6 @@ export function AppSidebar() {
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Stok Gudang", url: "/stok", icon: Warehouse },
         { title: "Produksi", url: "/produksi", icon: ChefHat },
-        { title: "Distribusi", url: "/distribusi", icon: ShoppingCart },
         { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Absensi", url: "/absensi", icon: UserCheck },
         { title: "Profile", url: "/profile", icon: User },

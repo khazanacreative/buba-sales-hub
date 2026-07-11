@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { LayoutDashboard, ShoppingCart, FileBarChart, Warehouse, UserCheck, ChevronUp, ChefHat, User, Settings } from "lucide-react";
+import { LayoutDashboard, FileBarChart, Warehouse, UserCheck, ChevronUp, ChefHat, User, Settings } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 
@@ -22,7 +22,6 @@ export function BottomNav() {
           highlighted: true,
           subItems: [
             { title: "Produksi", url: "/produksi" },
-            { title: "Distribusi", url: "/distribusi" },
             { title: "Stok Gudang", url: "/stok" },
           ]
         },
@@ -42,7 +41,6 @@ export function BottomNav() {
         { title: "Home", url: "/", icon: LayoutDashboard },
         { title: "Stok", url: "/stok", icon: Warehouse },
         { title: "Produksi", url: "/produksi", icon: ChefHat, highlighted: true },
-        { title: "Distribusi", url: "/distribusi", icon: ShoppingCart },
         { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Absen", url: "/absensi", icon: UserCheck },
         { title: "Profile", url: "/profile", icon: User },

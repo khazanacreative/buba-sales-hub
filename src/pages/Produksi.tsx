@@ -180,17 +180,28 @@ export default function Produksi() {
   };
 
   // Serialize split + variant names into catatan
-  // Format: [D:X,I:Y] [V:v1Name,v2Name] rest
+  // Format: [D:X,I:Y] [V:v1Name,v2Name] [I:v1Id,v2Id] rest
   // v1Name/v2Name = nama varian untuk bubur/tim 1 dan 2
-  const serializeSplit = (d: number, i: number, originalCatatan = "", variant1 = "", variant2 = "") => {
-    const cleanCat = originalCatatan.replace(/\[D:\d+,I:\d+\]\s*/, "").replace(/\[V:[^\]]*\]\s*/, "");
+  // v1Id/v2Id = ID bahan untuk varian (disimpan agar bisa di-restore saat load)
+  const serializeSplit = (d: number, i: number, originalCatatan = "", variant1 = "", variant2 = "", variantId1 = "", variantId2 = "") => {
+    const cleanCat = originalCatatan.replace(/\[D:\d+,I:\d+\]\s*/, "").replace(/\[V:[^\]]*\]\s*/, "").replace(/\[I:[^\]]*\]\s*/, "");
     const variantPart = (variant1 || variant2) ? `[V:${variant1},${variant2}] ` : "";
-    return `[D:${d},I:${i}] ${variantPart}${cleanCat}`.trim();
+    const idPart = (variantId1 || variantId2) ? `[I:${variantId1},${variantId2}] ` : "";
+    return `[D:${d},I:${i}] ${variantPart}${idPart}${cleanCat}`.trim();
   };
 
   // Parse variant names from catatan
   const parseVariants = (catatan: string) => {
     const match = catatan?.match(/\[V:([^,\]]+),([^,\]]+)\]/);
+    if (match) {
+      return { v1: match[1], v2: match[2] };
+    }
+    return { v1: "", v2: "" };
+  };
+
+  // Parse variant IDs from catatan
+  const parseVariantIds = (catatan: string) => {
+    const match = catatan?.match(/\[I:([^,\]]+),([^,\]]+)\]/);
     if (match) {
       return { v1: match[1], v2: match[2] };
     }
@@ -238,6 +249,48 @@ export default function Produksi() {
     if (hasUserModifiedGrids.current) return;
     if (tanggal && outlets.length > 0) {
       loadPlanForDate(tanggal);
+
+      // Load variant selections from database
+      const dayReqsForVariant = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+      const buburReq = dayReqsForVariant.find((r: any) => r.produkId === "p-bubur");
+      if (buburReq) {
+        // First try to get variant IDs from [I:...] section
+        const ids = parseVariantIds(buburReq.catatan || "");
+        if (ids.v1 && bahan.some((b: any) => b.id === ids.v1)) setBubur1Variant(ids.v1);
+        if (ids.v2 && bahan.some((b: any) => b.id === ids.v2)) setBubur2Variant(ids.v2);
+        
+        // Fallback: parse names from [V:...] and look up by name (for backward compatibility)
+        if (!ids.v1 || !bahan.some((b: any) => b.id === ids.v1)) {
+          const names = parseVariants(buburReq.catatan || "");
+          if (names.v1) {
+            const found = bahan.find((b: any) => b.nama.toLowerCase() === names.v1.toLowerCase());
+            if (found) setBubur1Variant(found.id);
+          }
+          if (names.v2) {
+            const found = bahan.find((b: any) => b.nama.toLowerCase() === names.v2.toLowerCase());
+            if (found) setBubur2Variant(found.id);
+          }
+        }
+      }
+
+      const timReq = dayReqsForVariant.find((r: any) => r.produkId === "p-nasitim");
+      if (timReq) {
+        const ids = parseVariantIds(timReq.catatan || "");
+        if (ids.v1 && bahan.some((b: any) => b.id === ids.v1)) setTim1Variant(ids.v1);
+        if (ids.v2 && bahan.some((b: any) => b.id === ids.v2)) setTim2Variant(ids.v2);
+        
+        if (!ids.v1 || !bahan.some((b: any) => b.id === ids.v1)) {
+          const names = parseVariants(timReq.catatan || "");
+          if (names.v1) {
+            const found = bahan.find((b: any) => b.nama.toLowerCase() === names.v1.toLowerCase());
+            if (found) setTim1Variant(found.id);
+          }
+          if (names.v2) {
+            const found = bahan.find((b: any) => b.nama.toLowerCase() === names.v2.toLowerCase());
+            if (found) setTim2Variant(found.id);
+          }
+        }
+      }
 
       // Load Step 3
       const dayProds = produksi.filter((p: any) => p.tanggal === tanggal);
@@ -428,7 +481,7 @@ export default function Produksi() {
           outletId,
           produkId: "p-bubur",
           qty: totalBubur,
-          catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0, "", bubur1Name, bubur2Name)
+          catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0, "", bubur1Name, bubur2Name, bubur1Variant, bubur2Variant)
         });
       }
 
@@ -440,7 +493,7 @@ export default function Produksi() {
           outletId,
           produkId: "p-nasitim",
           qty: totalTim,
-          catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0, "", tim1Name, tim2Name)
+          catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0, "", tim1Name, tim2Name, tim1Variant, tim2Variant)
         });
       }
 
@@ -661,7 +714,13 @@ export default function Produksi() {
   }, [stokMov, tanggal]);
 
   const requestWarehouse = async () => {
-    if (isWarehouseRequested) return toast.error("Bahan baku untuk tanggal ini sudah dipotong dari gudang!");
+    // Hapus pemotongan stok lama untuk tanggal ini, lalu buat ulang dengan data terbaru
+    const existingMov = (stokMov || []).filter(
+      (m: any) => m.tanggal === tanggal && m.tipe === "OUT" && m.keterangan?.includes("Pemakaian Produksi")
+    );
+    for (const m of existingMov) {
+      await db.deleteStokMov(m.id);
+    }
 
     await Promise.all(materialReqs.map(r => {
       return db.addStokMov({
@@ -754,13 +813,13 @@ export default function Produksi() {
         const existingVariants = parseVariants(r.catatan || "");
         const buburV1 = existingVariants.v1 || bubur1Name;
         const buburV2 = existingVariants.v2 || bubur2Name;
-        notes = serializeSplit(outletAlloc.bubur_d || 0, outletAlloc.bubur_i || 0, r.catatan, buburV1, buburV2);
+        notes = serializeSplit(outletAlloc.bubur_d || 0, outletAlloc.bubur_i || 0, r.catatan, buburV1, buburV2, bubur1Variant, bubur2Variant);
       } else if (r.produkId === "p-nasitim") {
         sentQty = (outletAlloc.tim_d || 0) + (outletAlloc.tim_i || 0);
         const existingVariants = parseVariants(r.catatan || "");
         const timV1 = existingVariants.v1 || tim1Name;
         const timV2 = existingVariants.v2 || tim2Name;
-        notes = serializeSplit(outletAlloc.tim_d || 0, outletAlloc.tim_i || 0, r.catatan, timV1, timV2);
+        notes = serializeSplit(outletAlloc.tim_d || 0, outletAlloc.tim_i || 0, r.catatan, timV1, timV2, tim1Variant, tim2Variant);
       } else if (r.produkId === "p-oatmeal") {
         sentQty = outletAlloc.oatmeal || 0;
       } else if (r.produkId === "p-puding") {

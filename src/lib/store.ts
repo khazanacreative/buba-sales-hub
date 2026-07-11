@@ -16,6 +16,7 @@ interface DB {
   absensi: Absensi[];
   permohonanStok: PermohonanStok[];
   users: UserAccount[];
+  settings: BubaSettings;
 }
 
 const initial = (): DB => ({
@@ -31,6 +32,7 @@ const initial = (): DB => ({
   absensi: [],
   permohonanStok: [],
   users: SEED_USERS,
+  settings: getBubaSettings(),
 });
 
 let state: DB = initial();
@@ -197,7 +199,8 @@ export async function fetchFromSupabase() {
       role: u.username === "produksi" ? "produksi" : u.role,
       outletId: u.outlet_id,
       karyawanId: u.karyawan_id
-    }))
+    })),
+    settings: getBubaSettings()
   };
   notify();
 }
@@ -829,4 +832,14 @@ export function getBubaSettings(): BubaSettings {
 export function saveBubaSettings(s: BubaSettings) {
   localStorage.setItem("buba_settings", JSON.stringify(s));
   window.dispatchEvent(new Event("buba_settings_changed"));
+}
+
+// Simpan settings + update state global agar komponen reaktif via useDB()
+export function saveAppSettings(s: BubaSettings) {
+  // Simpan ke localStorage (backward compat)
+  localStorage.setItem("buba_settings", JSON.stringify(s));
+  window.dispatchEvent(new Event("buba_settings_changed"));
+  // Update state global agar reaktif via useDB() — langsung notifikasi semua komponen
+  state.settings = s;
+  notify();
 }

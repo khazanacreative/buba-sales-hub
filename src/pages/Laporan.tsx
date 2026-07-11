@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { db, useDB, getBubaSettings } from "@/lib/store";
+import { db, useDB } from "@/lib/store";
 import { rupiah, monthKey, DateRange, inRange, todayISO } from "@/lib/format";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useAuth } from "@/lib/auth";
@@ -579,39 +579,20 @@ function SisaProduksiOH({
     return { totalDistribusi, totalSisa, totalTerjual, totalOmset };
   }, [rows]);
 
-  // Reactive settings version — forces re-render when settings change in localStorage
-  // Uses both custom event (same tab) and storage event (cross-tab)
-  const [settingsVersion, setSettingsVersion] = useState(0);
-  useEffect(() => {
-    const handler = () => setSettingsVersion((v) => v + 1);
-    const storageHandler = (e: StorageEvent) => {
-      if (e.key === "buba_settings") {
-        setSettingsVersion((v) => v + 1);
-      }
-    };
-    window.addEventListener("buba_settings_changed", handler);
-    window.addEventListener("storage", storageHandler);
-    return () => {
-      window.removeEventListener("buba_settings_changed", handler);
-      window.removeEventListener("storage", storageHandler);
-    };
-  }, []);
-
-  // Lock check: waktu (dinamis dari master data) dan status siklus
-  // BACA SETTING LANGSUNG dari localStorage pada setiap render untuk menghindari stale closure
-  const currentSettings = getBubaSettings();
-  const isLockEnabled = currentSettings.lockEnabled === true;
+  // Lock check: waktu (dinamis dari master data via useDB) dan status siklus
+  // Settings reaktif otomatis karena useDB() update saat fetchFromSupabase atau saveAppSettings
+  const appSettings = useDB().settings;
+  const isLockEnabled = appSettings.lockEnabled === true;
 
   const isPastTimeDeadline = useMemo(() => {
     const today = todayISO();
     if (tanggal !== today) return false;
-    const [h, m] = (currentSettings.lockDeadlineTime || "11:00").split(":").map(Number);
+    const [h, m] = (appSettings.lockDeadlineTime || "11:00").split(":").map(Number);
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
     return hour > h || (hour === h && minute >= m);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tanggal, settingsVersion, currentSettings.lockDeadlineTime]);
+  }, [tanggal, appSettings.lockDeadlineTime]);
 
   const isCycleClosed = useMemo(() => {
     return (jurnal || []).some(
@@ -619,7 +600,6 @@ function SisaProduksiOH({
     );
   }, [tanggal, jurnal]);
 
-  // Perbaiki: baca lockEnabled langsung dari render body, bukan dari dalam useMemo
   const isLocked = (isPastTimeDeadline && isLockEnabled) || isCycleClosed;
 
   const handleSubmit = useCallback(async () => {
@@ -714,7 +694,7 @@ function SisaProduksiOH({
               <p>
                 {isCycleClosed
                   ? "Siklus produksi untuk tanggal ini sudah ditutup oleh admin. Data sisa produksi tidak dapat diubah lagi."
-                  : `Batas input sisa produksi harian adalah pukul ${getBubaSettings().lockDeadlineTime || "11:00"}. Saat ini sudah melewati batas waktu, data tidak dapat diubah.`}
+                  : `Batas input sisa produksi harian adalah pukul ${appSettings.lockDeadlineTime || "11:00"}. Saat ini sudah melewati batas waktu, data tidak dapat diubah.`}
               </p>
             </div>
           </div>

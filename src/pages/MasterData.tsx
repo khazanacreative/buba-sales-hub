@@ -19,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 
-import { db, useDB, getBubaSettings, saveBubaSettings } from "@/lib/store";
+import { db, useDB, getBubaSettings, saveAppSettings } from "@/lib/store";
 import { rupiah } from "@/lib/format";
 
 import { Plus, Trash2, RotateCcw, Pencil, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users } from "lucide-react";
@@ -127,7 +127,7 @@ export default function MasterData() {
   const handleSaveGramasi = (e: React.FormEvent) => {
     e.preventDefault();
     const current = getBubaSettings();
-    saveBubaSettings({
+    saveAppSettings({
       ...current,
       berasBubur: Number(sBerasBubur),
       dagingBubur: Number(sDagingBubur),

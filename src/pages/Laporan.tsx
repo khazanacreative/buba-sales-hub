@@ -579,6 +579,14 @@ function SisaProduksiOH({
     return { totalDistribusi, totalSisa, totalTerjual, totalOmset };
   }, [rows]);
 
+  // Reactive settings version — forces re-render when settings change in localStorage
+  const [settingsVersion, setSettingsVersion] = useState(0);
+  useEffect(() => {
+    const handler = () => setSettingsVersion((v) => v + 1);
+    window.addEventListener("buba_settings_changed", handler);
+    return () => window.removeEventListener("buba_settings_changed", handler);
+  }, []);
+
   // Lock check: waktu (dinamis dari master data) dan status siklus
   const isPastTimeDeadline = useMemo(() => {
     const today = todayISO();
@@ -589,7 +597,8 @@ function SisaProduksiOH({
     const hour = now.getHours();
     const minute = now.getMinutes();
     return hour > h || (hour === h && minute >= m);
-  }, [tanggal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tanggal, settingsVersion]);
 
   const isCycleClosed = useMemo(() => {
     return (jurnal || []).some(
@@ -597,7 +606,10 @@ function SisaProduksiOH({
     );
   }, [tanggal, jurnal]);
 
-  const isLocked = (isPastTimeDeadline && getBubaSettings().lockEnabled !== false) || isCycleClosed;
+  const isLocked = useMemo(() => {
+    const settings = getBubaSettings();
+    return (isPastTimeDeadline && settings.lockEnabled !== false) || isCycleClosed;
+  }, [isPastTimeDeadline, isCycleClosed, settingsVersion]);
 
   const handleSubmit = useCallback(async () => {
     setSaving(true);
@@ -730,7 +742,7 @@ function SisaProduksiOH({
                 disabled={isLocked}
               >
                 <Edit3 className="h-4 w-4 mr-1.5" />
-                Input Sisa
+                Input OH
               </Button>
               <Button
                 onClick={handleSubmit}

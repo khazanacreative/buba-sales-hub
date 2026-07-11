@@ -598,17 +598,20 @@ function SisaProduksiOH({
   }, []);
 
   // Lock check: waktu (dinamis dari master data) dan status siklus
+  // BACA SETTING LANGSUNG dari localStorage pada setiap render untuk menghindari stale closure
+  const currentSettings = getBubaSettings();
+  const isLockEnabled = currentSettings.lockEnabled === true;
+
   const isPastTimeDeadline = useMemo(() => {
     const today = todayISO();
     if (tanggal !== today) return false;
-    const settings = getBubaSettings();
-    const [h, m] = (settings.lockDeadlineTime || "11:00").split(":").map(Number);
+    const [h, m] = (currentSettings.lockDeadlineTime || "11:00").split(":").map(Number);
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
     return hour > h || (hour === h && minute >= m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tanggal, settingsVersion]);
+  }, [tanggal, settingsVersion, currentSettings.lockDeadlineTime]);
 
   const isCycleClosed = useMemo(() => {
     return (jurnal || []).some(
@@ -616,10 +619,8 @@ function SisaProduksiOH({
     );
   }, [tanggal, jurnal]);
 
-  const isLocked = useMemo(() => {
-    const settings = getBubaSettings();
-    return (isPastTimeDeadline && settings.lockEnabled !== false) || isCycleClosed;
-  }, [isPastTimeDeadline, isCycleClosed, settingsVersion]);
+  // Perbaiki: baca lockEnabled langsung dari render body, bukan dari dalam useMemo
+  const isLocked = (isPastTimeDeadline && isLockEnabled) || isCycleClosed;
 
   const handleSubmit = useCallback(async () => {
     setSaving(true);
@@ -744,6 +745,11 @@ function SisaProduksiOH({
               )}
             </div>
             <div className="flex items-center gap-2">
+              {!isLocked && !isCycleClosed && (
+                <span className="text-[10px] text-success font-medium border border-success/30 bg-success/5 px-2 py-1 rounded-lg">
+                  ✓ Lock nonaktif
+                </span>
+              )}
               <Button
                 onClick={openDialog}
                 size="sm"

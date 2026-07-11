@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Produksi from "./pages/Produksi";
+import Distribusi from "./pages/Distribusi";
 import Laporan from "./pages/Laporan";
 import Keuangan from "./pages/Keuangan";
 import MasterData from "./pages/MasterData";
@@ -36,6 +37,7 @@ const App = () => (
                 {/* Pages accessible to Admin and Kepala Produksi */}
                 <Route element={<ProtectedRoute allowedRoles={["admin", "produksi"]} />}>
                   <Route path="/produksi" element={<Produksi />} />
+                  <Route path="/distribusi" element={<Distribusi />} />
                 </Route>
 
                 {/* Pages accessible to Admin, Outlet, and Produksi */}

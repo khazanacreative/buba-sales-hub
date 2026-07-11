@@ -71,7 +71,7 @@ const parseVariants = (catatan: string) => {
 
 // Get dynamic variant labels from permohonanStok records for a specific date
 const getVariantLabels = (permohonanStok: any[], tanggal?: string) => {
-  let bubur1 = "Ayam", bubur2 = "Salmon", tim1 = "Ayam", tim2 = "Salmon";
+  let bubur1 = "Daging", bubur2 = "Ikan", tim1 = "Daging", tim2 = "Ikan";
   (permohonanStok || []).forEach((r: any) => {
     // Filter by tanggalKirim if a specific date is provided
     if (tanggal && r.tanggalKirim !== tanggal) return;

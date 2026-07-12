@@ -699,19 +699,30 @@ export default function StokGudang() {
     return null;
   };
 
+  // StokMov tanpa PENDING rusak — pending tidak boleh pengaruhi saldo & riwayat
+  const effectiveStokMov = useMemo(
+    () => (stokMov || []).filter((m: any) => !m.keterangan?.startsWith("RUSAK:PENDING:")),
+    [stokMov]
+  );
+
+  const filteredDbState = useMemo(
+    () => ({ ...dbState, stokMov: effectiveStokMov }),
+    [dbState, effectiveStokMov]
+  );
+
   const saldoMap = useMemo(() => {
     const m: Record<string, number> = {};
-    bahan.forEach((b) => (m[b.id] = saldoBahan(b.id, dbState)));
+    bahan.forEach((b) => (m[b.id] = saldoBahan(b.id, filteredDbState)));
     return m;
-  }, [bahan, stokMov, dbState]);
+  }, [bahan, effectiveStokMov, filteredDbState]);
 
   const totalNilai = bahan.reduce((s, b) => s + (saldoMap[b.id] || 0) * b.hargaBeli, 0);
   const lowStock = bahan.filter((b) => (saldoMap[b.id] || 0) <= b.stokMin);
   const bahanPg = usePagination(bahan, 10);
 
   const filteredMov = useMemo(
-    () => [...stokMov].filter((m) => inRange(m.tanggal, range)).sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
-    [stokMov, range]
+    () => [...effectiveStokMov].filter((m) => inRange(m.tanggal, range)).sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
+    [effectiveStokMov, range]
   );
 
   const pendingRusak = useMemo(

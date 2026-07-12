@@ -1,6 +1,7 @@
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ShoppingCart, Factory, FileBarChart, BookOpen, LogIn, ArrowRight,
   Sparkles, ShieldCheck, Smartphone,
@@ -22,7 +23,9 @@ const stats = [
 
 export default function Landing() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   if (user) return <Navigate to="/" replace />;
+  if (isMobile) return <Navigate to="/login" replace />;
 
   return (
     <div className="min-h-screen ambient-bg">

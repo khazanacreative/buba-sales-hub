@@ -39,9 +39,15 @@ export function BottomNav() {
     } else if (user?.role === "produksi") {
       return [
         { title: "Home", url: "/", icon: LayoutDashboard },
-        { title: "Stok", url: "/stok", icon: Warehouse },
+        {
+          title: "Stok",
+          icon: Warehouse,
+          subItems: [
+            { title: "Stok Gudang", url: "/stok" },
+            { title: "Laporan OH", url: "/laporan" },
+          ]
+        },
         { title: "Produksi", url: "/produksi", icon: ChefHat, highlighted: true },
-        { title: "Laporan", url: "/laporan", icon: FileBarChart },
         { title: "Absen", url: "/absensi", icon: UserCheck },
         { title: "Profile", url: "/profile", icon: User },
       ];

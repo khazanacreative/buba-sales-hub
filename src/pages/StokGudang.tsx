@@ -959,7 +959,7 @@ export default function StokGudang() {
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
                     <Clock className="h-5 w-5" />
-                    Request Barang Rusak dari Produksi
+                    Catat Barang Rusak dari Produksi
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">Setujui untuk kurangi stok & posting jurnal, atau tolak untuk hapus</p>
                 </CardHeader>

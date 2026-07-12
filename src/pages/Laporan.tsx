@@ -686,22 +686,22 @@ function SisaProduksiOH({
             let sisaGramVal: number | undefined;
             if (isGramItem) {
               sisaGramVal = Math.min(row.sisa, row.distribusi * row.gramPerCup);
-            } else if (isCupItem && row.sisaCups > 0) {
+            } else if (isCupItem) {
               // For cup/pcs-based items (oatmeal, puding, abon), store sisa cups/pcs
               sisaGramVal = row.sisaCups;
             }
-            if (terjual > 0) {
-              await db.addPenjualan({
-                tanggal,
-                outletId: user.outletId,
-                produkId: row.baseId,
-                qty: terjual,
-                harga: row.harga,
-                sisaGram: sisaGramVal,
-                variant: row.subId,
-              });
-              savedCount++;
-            }
+            // Selalu simpan record kalo ada distribusi, biar sisaGram (OH) tersimpan di DB
+            // Biarpun terjual = 0 (semua tidak laku), sisa OH-nya tetap tercatat
+            await db.addPenjualan({
+              tanggal,
+              outletId: user.outletId,
+              produkId: row.baseId,
+              qty: terjual,
+              harga: row.harga,
+              sisaGram: sisaGramVal,
+              variant: row.subId,
+            });
+            savedCount++;
           }
       }
 
@@ -1241,22 +1241,22 @@ function SisaProduksiAdminView({
             let sisaGramVal: number | undefined;
             if (isGramItem) {
               sisaGramVal = Math.min(row.sisaGram, row.distQty * row.gramPerCup);
-            } else if (isCupItem && row.sisaCups > 0) {
+            } else if (isCupItem) {
               // For cup/pcs-based items (oatmeal, puding, abon), store sisa cups/pcs
               sisaGramVal = row.sisaCups;
             }
-            if (terjual > 0) {
-              await db.addPenjualan({
-                tanggal,
-                outletId: outlet.id,
-                produkId: row.baseId,
-                qty: terjual,
-                harga: row.harga,
-                sisaGram: sisaGramVal,
-                variant: row.subId,
-              });
-              savedCount++;
-            }
+            // Selalu simpan record kalo ada distribusi, biar sisaGram (OH) tersimpan di DB
+            // Biarpun terjual = 0 (semua tidak laku), sisa OH-nya tetap tercatat
+            await db.addPenjualan({
+              tanggal,
+              outletId: outlet.id,
+              produkId: row.baseId,
+              qty: terjual,
+              harga: row.harga,
+              sisaGram: sisaGramVal,
+              variant: row.subId,
+            });
+            savedCount++;
           }
         }
       }

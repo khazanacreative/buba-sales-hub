@@ -794,17 +794,12 @@ function SisaProduksiOH({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              {!isLocked && !isCycleClosed && (
-                <span className="text-[10px] text-success font-medium border border-success/30 bg-success/5 px-2 py-1 rounded-lg">
-                  ✓ Lock nonaktif
-                </span>
-              )}
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 onClick={openDialog}
                 size="sm"
                 variant="outline"
-                className="h-9 shrink-0"
+                className="h-9"
                 disabled={isLocked}
               >
                 <Edit3 className="h-4 w-4 mr-1.5" />
@@ -814,7 +809,7 @@ function SisaProduksiOH({
                 onClick={handleSubmit}
                 disabled={saving || rows.every(r => r.sisaCups === 0) || isLocked}
                 size="sm"
-                className="gradient-primary text-primary-foreground h-9 shrink-0"
+                className="gradient-primary text-primary-foreground h-9"
               >
                 <Save className="h-4 w-4 mr-1.5" />
                 {saving ? "Menyimpan..." : "Simpan Penjualan"}

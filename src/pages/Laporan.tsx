@@ -1743,6 +1743,20 @@ function RiwayatTransaksiTab({
     return map;
   }, [penjualan, user.outletId, range, isOutlet]);
 
+  // Read sisaGram per variant from penjualan (for accurate gram display)
+  const sisaGramMap = useMemo(() => {
+    const map = new Map<string, number>();
+    (penjualan || []).forEach((p: any) => {
+      if (p.sisaGram === undefined || p.sisaGram === null) return;
+      const matchOutlet = isOutlet ? p.outletId === user.outletId : true;
+      if (!matchOutlet) return;
+      if (!inRange(p.tanggal, range)) return;
+      const key = `${p.tanggal}-${p.outletId}-${p.produkId}-${p.variant || ""}`;
+      map.set(key, p.sisaGram);
+    });
+    return map;
+  }, [penjualan, user.outletId, range, isOutlet]);
+
   // Expand distributions into individual variant rows (Bubur Daging, Bubur Ikan, etc.)
   const transaksiRows = useMemo(() => {
     const rows: {
@@ -1852,13 +1866,39 @@ function RiwayatTransaksiTab({
       const totalStok = baseStokTotals.get(baseKey) || row.stokAwalPcs;
       const gramPerCup = GRAM_PER_CUP[row.baseId] || 100;
 
-      // Distribute totalSold proportionally across variants
+      // Try to read variant-specific sisaGram from DB for accurate gram display
+      // Note: PRODUK_SUB subId format is "p-bubur-d" but variant column stores "bubur_d"
+      const SUBID_TO_VARIANT: Record<string, string> = {
+        "p-bubur-d": "bubur_d",
+        "p-bubur-i": "bubur_i",
+        "p-nasitim-d": "tim_d",
+        "p-nasitim-i": "tim_i",
+      };
+      const variantSubId = SUBID_TO_VARIANT[row.subId] || row.subId;
+      const variantKey = `${row.tanggal}-${row.outletId}-${row.baseId}-${variantSubId}`;
+      const dbSisaGram = sisaGramMap.get(variantKey);
+      
+      if (dbSisaGram !== undefined) {
+        // Found exact per-variant sisaGram — use it directly!
+        const dbSisaCups = gramPerCup > 0 ? Math.floor(dbSisaGram / gramPerCup) : 0;
+        const dbSold = Math.max(0, row.stokAwalPcs - Math.min(dbSisaCups, row.stokAwalPcs));
+        return {
+          ...row,
+          actualSold: dbSold,
+          actualReturPcs: dbSisaCups,
+          actualReturGram: dbSisaGram,
+          displayReturGr: dbSisaGram,
+          displayReturPcs: dbSisaCups,
+          displayTerjual: dbSold,
+        };
+      }
+
+      // Fallback: distribute totalSold proportionally across variants
       const proportion = totalStok > 0 ? row.stokAwalPcs / totalStok : 0;
       const actualSold = Math.round(totalSold * proportion);
       const actualReturPcs = Math.max(0, row.stokAwalPcs - actualSold);
       const actualReturGram = actualReturPcs * gramPerCup;
 
-      // For outlet: use locally entered retur grams if available
       return {
         ...row,
         actualSold,

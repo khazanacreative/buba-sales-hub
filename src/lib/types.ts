@@ -19,6 +19,7 @@ export interface Penjualan {
   qty: number;
   harga: number;
   total: number;
+  sisaGram?: number; // sisa OH dalam gram untuk bubur/tim
 }
 
 export interface Produksi {

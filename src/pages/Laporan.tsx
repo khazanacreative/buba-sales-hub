@@ -477,9 +477,10 @@ function SisaProduksiOH({
     setUserModifiedSisa(false);
   }, [tanggal]);
 
-  // Pre-fill sisa from existing penjualan (all stored in grams)
+  // Pre-fill sisa from existing penjualan
   // Reset sisaGrid when distribution data changes so outlet sees updated distribusi
   // Only runs when user has NOT manually modified sisa (prevents overwrite user input)
+  // Bubur/Tim → stored in GRAMS (bahan setengah jadi). Oatmeal/Puding/Abon → stored in CUP/PCS.
   useEffect(() => {
     if (userModifiedSisa) return;
 
@@ -489,11 +490,9 @@ function SisaProduksiOH({
         const key = `${tanggal}-${item.subId}`;
         const distQty = distMap.get(item.subId) || 0;
 
-        // Only update items that have distribution or had a previous value
         if (distQty <= 0 && !(key in prev)) return;
 
         if (distQty <= 0) {
-          // Distribution removed — clear stored sisa
           next[key] = 0;
           return;
         }
@@ -503,7 +502,30 @@ function SisaProduksiOH({
         );
         const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
         const sisaCups = Math.max(0, distQty - totalSold);
-        next[key] = sisaCups * item.gramPerCup;
+
+        const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
+        
+        if (isCupUnit) {
+          next[key] = sisaCups; // store cups/pcs directly
+        } else {
+          // For bubur/tim: try to read sisaGram from existing penjualan record
+          // This preserves the original grams entered by user
+          if (existingSales.length > 0) {
+            const firstSale = existingSales[0];
+            if (firstSale.sisaGram !== undefined && firstSale.sisaGram !== null) {
+              // Distribute total sisaGram proportionally across D and I variants
+              // Find total distQty for the same baseId across all subIds
+              const allSubIds = MENU_ITEMS.filter(m => m.baseId === item.baseId).map(m => m.subId);
+              let siblingTotal = 0;
+              allSubIds.forEach(sid => { siblingTotal += distMap.get(sid) || 0; });
+              const proportion = siblingTotal > 0 ? distQty / siblingTotal : 1;
+              const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
+              next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;
+              return;
+            }
+          }
+          next[key] = sisaCups * item.gramPerCup; // fallback: calculate from cups
+        }
       });
       return next;
     });
@@ -513,6 +535,7 @@ function SisaProduksiOH({
 
   const openDialog = () => {
     // Initialize draft with current sisaGrid values
+    // Bubur/Tim stored in grams, Oatmeal/Puding/Abon stored in cups/pcs — load directly!
     const initial: Record<string, number> = {};
     MENU_ITEMS.forEach((item) => {
       const key = `${tanggal}-${item.subId}`;
@@ -528,23 +551,43 @@ function SisaProduksiOH({
   };
 
   const confirmDialog = () => {
-    setSisaGrid({ ...draftSisa });
+    // Store draft values directly — no conversion needed!
+    // Bubur/Tim values are already in grams, Oatmeal/Puding/Abon in cups/pcs
+    const out: Record<string, number> = {};
+    MENU_ITEMS.forEach((item) => {
+      const key = `${tanggal}-${item.subId}`;
+      const draftVal = draftSisa[key] ?? 0;
+      const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
+      const maxVal = isCupUnit
+        ? (distMap.get(item.subId) || Infinity)
+        : ((distMap.get(item.subId) || 0) * item.gramPerCup);
+      out[key] = Math.min(draftVal, maxVal);
+    });
+    setSisaGrid(out);
     setDialogOpen(false);
   };
 
-  // Convert sisa grams to cups for a menu item
-  const sisaGramToCup = (sisaGr: number, gramPerCup: number): number => {
-    if (gramPerCup <= 0) return 0;
-    return Math.floor(sisaGr / gramPerCup);
-  };
-
   // Build all 7 rows — always visible
+  // sisaGrid: Bubur/Tim → grams, Oatmeal/Puding → cups, Abon → pcs
   const rows = useMemo(() => {
     return MENU_ITEMS.map((item) => {
       const distQty = distMap.get(item.subId) || 0;
       const key = `${tanggal}-${item.subId}`;
-      const sisaGram = sisaGrid[key] ?? 0;
-      const sisaCups = sisaGramToCup(sisaGram, item.gramPerCup);
+      const storedVal = sisaGrid[key] ?? 0;
+
+      const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
+
+      let sisaCups: number;
+      let sisaGram: number;
+
+      if (isCupUnit) {
+        sisaCups = storedVal; // already in cups/pcs
+        sisaGram = sisaCups * item.gramPerCup;
+      } else {
+        sisaGram = storedVal; // stored in grams for bubur/tim
+        sisaCups = item.gramPerCup > 0 ? Math.floor(sisaGram / item.gramPerCup) : 0;
+      }
+
       const terjual = distQty > 0 ? Math.max(0, distQty - Math.min(sisaCups, distQty)) : 0;
       const prod = produk.find((p: any) => p.id === item.baseId);
       const harga = prod?.harga || 0;
@@ -558,8 +601,8 @@ function SisaProduksiOH({
         label: item.label,
         gramPerCup: item.gramPerCup,
         distribusi: distQty,
-        sisa: sisaGram, // in grams
-        sisaCups,
+        sisa: sisaGram, // in grams (for gram display)
+        sisaCups, // in cups/pcs (for calculation)
         terjual,
         harga,
         omset,
@@ -606,18 +649,24 @@ function SisaProduksiOH({
     setSaving(true);
     try {
       // Aggregate by base produkId (merge D and I for same base)
-      const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; harga: number }>();
+      // Track sisaGram for bubur/tim (to preserve original grams in DB)
+      const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; sisaGram: number; harga: number }>();
 
       rows.forEach((row) => {
-        if (row.distribusi <= 0) return; // skip items with no distribution
+        if (row.distribusi <= 0) return;
         const existing = groups.get(row.baseId) || {
           baseId: row.baseId,
           distribusi: 0,
           sisa: 0,
+          sisaGram: 0,
           harga: row.harga,
         };
         existing.distribusi += row.distribusi;
-        existing.sisa += Math.min(row.sisaCups, row.distribusi); // sisaCups already converted from grams
+        existing.sisa += Math.min(row.sisaCups, row.distribusi);
+        // Track sisaGram for bubur/tim (capped by distribusi * gramPerCup)
+        if (row.baseId === "p-bubur" || row.baseId === "p-nasitim") {
+          existing.sisaGram += Math.min(row.sisa, row.distribusi * row.gramPerCup);
+        }
         groups.set(row.baseId, existing);
       });
 
@@ -641,9 +690,23 @@ function SisaProduksiOH({
             produkId: baseId,
             qty: terjual,
             harga: group.harga,
+            sisaGram: (baseId === "p-bubur" || baseId === "p-nasitim") ? group.sisaGram : undefined,
           });
           savedCount++;
         }
+      }
+
+      // === OH Abon → Stok Gudang ===
+      // OH abon (sisa penjualan) bisa dijual lagi besok, jadi harus masuk stok gudang
+      const abonRow = rows.find(r => r.subId === "abon");
+      if (abonRow && abonRow.sisaCups > 0) {
+        await db.addStokMov({
+          tanggal,
+          bahanId: "b-ab01",
+          tipe: "IN",
+          qty: abonRow.sisaCups,
+          keterangan: `OH abon dari ${user.outletId} tanggal ${tanggal}`,
+        });
       }
 
       // === JANGAN reset userModifiedSisa di sini! ===
@@ -742,7 +805,7 @@ function SisaProduksiOH({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={saving || rows.every(r => r.sisa === 0) || isLocked}
+                disabled={saving || rows.every(r => r.sisaCups === 0) || isLocked}
                 size="sm"
                 className="gradient-primary text-primary-foreground h-9 shrink-0"
               >
@@ -773,7 +836,8 @@ function SisaProduksiOH({
                   {rows.map((row) => {
                     const gramPerCup = row.gramPerCup || 118;
                     const distGram = row.distribusi * gramPerCup;
-                    const sisaCups = Math.floor((row.sisa || 0) / gramPerCup);
+                    const sisaCups = row.sisaCups; // already in cups/pcs directly
+                    const sisaGram = row.sisa; // in grams = sisaCups * gramPerCup
                     const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
                     const distUnit = row.subId === "abon" ? "pcs" : (isCupItem ? "cup" : "g");
                     return (
@@ -799,7 +863,7 @@ function SisaProduksiOH({
                           isCupItem ? (
                             <span className="font-medium tabular-nums">{sisaCups} {distUnit}</span>
                           ) : (
-                            <span className="font-medium tabular-nums">{row.sisa.toLocaleString()} g</span>
+                            <span className="font-medium tabular-nums">{sisaGram.toLocaleString()} g</span>
                           )
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -843,9 +907,7 @@ function SisaProduksiOH({
             </p>
           )}
         </CardContent>
-      </Card>
-
-      {/* Dialog Input Sisa Produksi — 7 Menu Items */}
+      </Card>              {/* Dialog Input Sisa Produksi — 7 Menu Items */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -866,8 +928,9 @@ function SisaProduksiOH({
               const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
               const displayUnit = item.subId === "abon" ? "pcs" : (isCupUnit ? "cup" : "g");
               const displayMax = isCupUnit ? distQty : maxGram;
-              // For cup/pcs items, convert stored grams back to cups/pcs for display
-              const displayVal = isCupUnit ? Math.floor((draftSisa[key] ?? 0) / item.gramPerCup) : (draftSisa[key] ?? 0);
+              // Convert stored cups/pcs back to display unit
+              const sisaCups = draftSisa[key] ?? 0; // stored in cups/pcs
+              const displayVal = isCupUnit ? sisaCups : (sisaCups * item.gramPerCup);
               return (
                 <div
                   key={key}
@@ -892,9 +955,8 @@ function SisaProduksiOH({
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
                         const clamped = distQty > 0 ? Math.min(Math.max(val, 0), displayMax) : val;
-                        // Convert cup/pcs input to grams for storage
-                        const storeVal = isCupUnit ? clamped * item.gramPerCup : clamped;
-                        handleDraftChange(key, storeVal);
+                        // Store directly in natural unit (grams for bubur/tim, cups/pcs for others)
+                        handleDraftChange(key, clamped);
                       }}
                       disabled={distQty <= 0 || isLocked}
                       className="w-24 h-9 text-xs text-center"
@@ -1013,6 +1075,7 @@ function SisaProduksiAdminView({
 
   // Pre-fill sisaGrid from penjualan data (dist - sold)
   // Only runs when admin has NOT manually modified sisa (prevents overwrite input)
+  // Bubur/Tim → grams. Oatmeal/Puding → cups. Abon → pcs.
   useEffect(() => {
     if (userModifiedSisa) return;
 
@@ -1028,8 +1091,26 @@ function SisaProduksiAdminView({
           );
           const totalSold = existingSales.reduce((s: number, p: any) => s + p.qty, 0);
           const sisaCups = Math.max(0, info.distQty - totalSold);
-          // Store sisa in grams internally
-          const storeVal = sisaCups * info.gramPerCup;
+
+          const isCupUnit = subId === "oatmeal" || subId === "puding" || subId === "abon";
+          
+          // For bubur/tim: try to read sisaGram from existing penjualan record
+          // This preserves the original grams entered by outlet
+          if (!isCupUnit && existingSales.length > 0) {
+            const firstSale = existingSales[0];
+            if (firstSale.sisaGram !== undefined && firstSale.sisaGram !== null) {
+              // Distribute total sisaGram proportionally across D and I variants
+              const totalDist = info.distQty; // total cups for this subId
+              const allSubIds = Array.from(itemMap.keys());
+              const siblingTotal = allSubIds.reduce((sum, sid) => sum + (itemMap.get(sid)?.distQty || 0), 0);
+              const proportion = siblingTotal > 0 ? totalDist / siblingTotal : 1;
+              const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
+              next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;
+              return;
+            }
+          }
+
+          const storeVal = isCupUnit ? sisaCups : (sisaCups * info.gramPerCup);
           next[key] = prev[key] !== undefined ? prev[key] : storeVal;
         });
       });
@@ -1042,10 +1123,8 @@ function SisaProduksiAdminView({
     setSisaGrid((prev) => ({ ...prev, [key]: isNaN(val) ? 0 : Math.max(0, val) }));
   };
 
-  const sisaGramToCup = (sisaGr: number, gramPerCup: number): number => {
-    if (gramPerCup <= 0) return 0;
-    return Math.floor(sisaGr / gramPerCup);
-  };
+  // Helper to check if subId is a cup/pcs-based item (vs gram-based)
+  const isCupItem = (subId: string) => subId === "oatmeal" || subId === "puding" || subId === "abon";
 
   // Build editable rows per outlet (only outlets with distribution)
   const outletRows = useMemo(() => {
@@ -1055,12 +1134,21 @@ function SisaProduksiAdminView({
         if (!itemMap || itemMap.size === 0) return null;
 
         const items = MENU_ITEMS.map((item) => {
-          const info = itemMap.get(item.subId);
-          if (!info || info.distQty <= 0) return null;
+          const info = itemMap.get(item.subId);                  if (!info || info.distQty <= 0) return null;
 
           const key = `${outlet.id}-${tanggal}-${item.subId}`;
-          const sisaGram = sisaGrid[key] ?? 0;
-          const sisaCups = sisaGramToCup(sisaGram, item.gramPerCup);
+          const storedVal = sisaGrid[key] ?? 0;
+          const isCupItemCheck = isCupItem(item.subId);
+
+          let sisaGram: number;
+          let sisaCups: number;
+          if (isCupItemCheck) {
+            sisaCups = storedVal; // already in cups/pcs
+            sisaGram = sisaCups * item.gramPerCup;
+          } else {
+            sisaGram = storedVal; // stored in grams
+            sisaCups = item.gramPerCup > 0 ? Math.floor(sisaGram / item.gramPerCup) : 0;
+          }
           const terjual = Math.max(0, info.distQty - Math.min(sisaCups, info.distQty));
           const omset = terjual * info.harga;
 
@@ -1109,17 +1197,22 @@ function SisaProduksiAdminView({
       let savedCount = 0;
 
       for (const { outlet, items } of outletRows) {
-        // Group by baseId
-        const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; harga: number }>();
+        // Group by baseId, track sisaGram for bubur/tim
+        const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; sisaGram: number; harga: number }>();
         items.forEach((row: any) => {
           const existing = groups.get(row.baseId) || {
             baseId: row.baseId,
             distribusi: 0,
             sisa: 0,
+            sisaGram: 0,
             harga: row.harga,
           };
           existing.distribusi += row.distQty;
           existing.sisa += Math.min(row.sisaCups, row.distQty);
+          // Track sisaGram for bubur/tim
+          if (row.baseId === "p-bubur" || row.baseId === "p-nasitim") {
+            existing.sisaGram += Math.min(row.sisaGram, row.distQty * row.gramPerCup);
+          }
           groups.set(row.baseId, existing);
         });
 
@@ -1142,9 +1235,24 @@ function SisaProduksiAdminView({
               produkId: baseId,
               qty: terjual,
               harga: group.harga,
+              sisaGram: (baseId === "p-bubur" || baseId === "p-nasitim") ? group.sisaGram : undefined,
             });
             savedCount++;
           }
+        }
+      }
+
+      // === OH Abon → Stok Gudang ===
+      for (const { outlet, items } of outletRows) {
+        const abonRow = items.find((i: any) => i.subId === "abon");
+        if (abonRow && abonRow.sisaCups > 0) {
+          await db.addStokMov({
+            tanggal,
+            bahanId: "b-ab01",
+            tipe: "IN",
+            qty: abonRow.sisaCups,
+            keterangan: `OH abon dari ${outlet.id} tanggal ${tanggal}`,
+          });
         }
       }
 
@@ -1279,10 +1387,11 @@ function SisaProduksiAdminView({
                           </TableHeader>
                           <TableBody>
                             {items.map((row: any) => {
-                              const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
-                              const displayUnit = row.subId === "abon" ? "pcs" : (isCupItem ? "cup" : "g");
-                              const displayVal = isCupItem ? Math.floor((row.sisaGram || 0) / row.gramPerCup) : (row.sisaGram || 0);
-                              const maxDisplayVal = isCupItem ? row.distQty : row.distQty * row.gramPerCup;
+                              const isCupItemCheck = isCupItem(row.subId);
+                              const displayUnit = row.subId === "abon" ? "pcs" : (isCupItemCheck ? "cup" : "g");
+                              // sisaGrid stores in natural unit: grams for bubur/tim, cups/pcs for others
+                              const displayVal = isCupItemCheck ? row.sisaCups : (row.sisaGram || 0);
+                              const maxDisplayVal = isCupItemCheck ? row.distQty : row.distQty * row.gramPerCup;
 
                               return (
                                 <TableRow key={row.key}>
@@ -1298,8 +1407,8 @@ function SisaProduksiAdminView({
                                         onChange={(e) => {
                                           const val = parseInt(e.target.value) || 0;
                                           const clamped = Math.min(Math.max(val, 0), maxDisplayVal);
-                                          const storeVal = isCupItem ? clamped * row.gramPerCup : clamped;
-                                          handleSisaChange(row.key, storeVal);
+                                          // Store directly in natural unit: grams for bubur/tim, cups/pcs for others
+                                          handleSisaChange(row.key, clamped);
                                         }}
                                         className="w-20 h-8 text-xs text-center"
                                         placeholder="0"

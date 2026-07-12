@@ -223,7 +223,8 @@ export async function fetchFromSupabase() {
       produkId: p.produk_id,
       qty: p.qty,
       harga: p.harga,
-      total: Number(p.total)
+      total: Number(p.total),
+      sisaGram: p.sisa_gram ?? undefined
     })),
     produksi: (produksiRes.data || []).map((p: any) => ({
       id: p.id,
@@ -366,7 +367,7 @@ export const db = {
     fetchFromSupabase();
   },
 
-  async addPenjualan(p: Omit<Penjualan, "id" | "total">) {
+  async addPenjualan(p: Omit<Penjualan, "id" | "total"> & { sisaGram?: number }) {
     const total = p.qty * p.harga;
     const id = uid();
     const { error } = await supabase.from("penjualan").insert([{
@@ -376,12 +377,13 @@ export const db = {
       produk_id: p.produkId,
       qty: p.qty,
       harga: p.harga,
-      total
+      total,
+      sisa_gram: p.sisaGram ?? null
     }]);
     if (error) throw error;
     await fetchFromSupabase();
   },
-  async addPenjualanBulk(items: Omit<Penjualan, "id" | "total">[]) {
+  async addPenjualanBulk(items: (Omit<Penjualan, "id" | "total"> & { sisaGram?: number })[]) {
     const records = items.map((p) => ({
       id: uid(),
       tanggal: p.tanggal,
@@ -389,7 +391,8 @@ export const db = {
       produk_id: p.produkId,
       qty: p.qty,
       harga: p.harga,
-      total: p.qty * p.harga
+      total: p.qty * p.harga,
+      sisa_gram: p.sisaGram ?? null
     }));
     const { error } = await supabase.from("penjualan").insert(records);
     if (error) throw error;

@@ -978,13 +978,26 @@ export default function StokGudang() {
                       <TableBody>
                         {pendingRusak.slice(0, 20).map((m: any) => {
                           const b = bahan.find((x: any) => x.id === m.bahanId);
-                          const detail = m.keterangan?.replace("RUSAK:PENDING:", "") || "";
+                          const parsed = m.keterangan?.startsWith("RUSAK:PENDING:") ? parseRusakKet(m.keterangan) : null;
                           return (
                             <TableRow key={m.id}>
                               <TableCell className="whitespace-nowrap">{m.tanggal}</TableCell>
                               <TableCell className="font-medium">{b?.nama ?? "-"}</TableCell>
                               <TableCell className="text-right font-semibold text-destructive">{m.qty} {b?.satuan}</TableCell>
-                              <TableCell className="text-xs max-w-[200px] truncate">{detail}</TableCell>
+                              <TableCell className="text-xs max-w-[200px]">
+                                {parsed ? (
+                                  <>
+                                    <span>{parsed.label}</span>
+                                    {parsed.extra && (
+                                      <span className="text-muted-foreground block leading-tight mt-0.5">
+                                        {parsed.extra}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span>{m.keterangan?.replace("RUSAK:PENDING:", "") || "-"}</span>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex gap-1 justify-end">
                                   <Button size="sm" className="h-8 w-8 p-0" variant="outline"

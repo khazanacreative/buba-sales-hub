@@ -115,12 +115,25 @@ export default function Distribusi() {
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-            const totalSent = dSent + iSent;
-            const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-            const totalRetur = Math.max(0, totalSent - sold);
-            if (totalSent > 0) {
-              rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-              rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+            const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+            const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+            if (dRec) {
+              rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
+            }
+            if (iRec) {
+              rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
+            }
+            if (!dRec && !iRec) {
+              const totalSent = dSent + iSent;
+              const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                rGrid[o.id][dField] = dReturCups * gramPerCup;
+                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              }
             }
           };
 
@@ -257,12 +270,25 @@ export default function Distribusi() {
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-            const totalSent = dSent + iSent;
-            const sold = existingPenjualan.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-            const totalRetur = Math.max(0, totalSent - sold);
-            if (totalSent > 0) {
-              freshReturGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-              freshReturGrid[o.id][iField] = totalRetur - freshReturGrid[o.id][dField];
+            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+            const dRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+            const iRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+            if (dRec) {
+              freshReturGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
+            }
+            if (iRec) {
+              freshReturGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
+            }
+            if (!dRec && !iRec) {
+              const totalSent = dSent + iSent;
+              const sold = existingPenjualan.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                freshReturGrid[o.id][dField] = dReturCups * gramPerCup;
+                freshReturGrid[o.id][iField] = iReturCups * gramPerCup;
+              }
             }
           };
 
@@ -286,7 +312,7 @@ export default function Distribusi() {
           const ret = freshReturGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
 
           const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
-          const buburRet = (ret.bubur_d || 0) + (ret.bubur_i || 0);
+          const buburRet = Math.floor(((ret.bubur_d || 0) + (ret.bubur_i || 0)) / 118);
           if (buburSent > 0) {
             const buburSold = Math.max(0, buburSent - Math.min(buburRet, buburSent));
             if (buburSold > 0) {
@@ -296,7 +322,7 @@ export default function Distribusi() {
           }
 
           const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
-          const timRet = (ret.tim_d || 0) + (ret.tim_i || 0);
+          const timRet = Math.floor(((ret.tim_d || 0) + (ret.tim_i || 0)) / 108);
           if (timSent > 0) {
             const timSold = Math.max(0, timSent - Math.min(timRet, timSent));
             if (timSold > 0) {

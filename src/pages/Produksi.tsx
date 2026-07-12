@@ -377,10 +377,10 @@ export default function Produksi() {
             const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
             const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
             if (dRec) {
-              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+              rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
             }
             if (iRec) {
-              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+              rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
               const totalSent = dSent + iSent;
@@ -389,8 +389,10 @@ export default function Produksi() {
                 .reduce((s: number, p: any) => s + p.qty, 0);
               const totalRetur = Math.max(0, totalSent - sold);
               if (totalSent > 0) {
-                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                rGrid[o.id][dField] = dReturCups * gramPerCup;
+                rGrid[o.id][iField] = iReturCups * gramPerCup;
               }
             }
           };
@@ -867,10 +869,10 @@ export default function Produksi() {
             const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
             const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
             if (dRec) {
-              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+              rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
             }
             if (iRec) {
-              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+              rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
               const totalSent = dSent + iSent;
@@ -879,8 +881,10 @@ export default function Produksi() {
                 .reduce((s: number, p: any) => s + p.qty, 0);
               const totalRetur = Math.max(0, totalSent - sold);
               if (totalSent > 0) {
-                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                rGrid[o.id][dField] = dReturCups * gramPerCup;
+                rGrid[o.id][iField] = iReturCups * gramPerCup;
               }
             }
           };
@@ -954,10 +958,10 @@ export default function Produksi() {
             const dRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
             const iRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
             if (dRec) {
-              freshReturGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+              freshReturGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
             }
             if (iRec) {
-              freshReturGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+              freshReturGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
               const totalSent = dSent + iSent;
@@ -966,8 +970,10 @@ export default function Produksi() {
                 .reduce((s: number, p: any) => s + p.qty, 0);
               const totalRetur = Math.max(0, totalSent - sold);
               if (totalSent > 0) {
-                freshReturGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-                freshReturGrid[o.id][iField] = totalRetur - freshReturGrid[o.id][dField];
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                freshReturGrid[o.id][dField] = dReturCups * gramPerCup;
+                freshReturGrid[o.id][iField] = iReturCups * gramPerCup;
               }
             }
           };
@@ -1008,7 +1014,7 @@ export default function Produksi() {
 
           // Merge D/I variants under same baseId for sold calculation
           const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
-          const buburRet = (ret.bubur_d || 0) + (ret.bubur_i || 0);
+          const buburRet = Math.floor(((ret.bubur_d || 0) + (ret.bubur_i || 0)) / 118);
           if (buburSent > 0) {
             const buburSold = Math.max(0, buburSent - Math.min(buburRet, buburSent));
             if (buburSold > 0) {
@@ -1018,7 +1024,7 @@ export default function Produksi() {
           }
 
           const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
-          const timRet = (ret.tim_d || 0) + (ret.tim_i || 0);
+          const timRet = Math.floor(((ret.tim_d || 0) + (ret.tim_i || 0)) / 108);
           if (timSent > 0) {
             const timSold = Math.max(0, timSent - Math.min(timRet, timSent));
             if (timSold > 0) {
@@ -1067,41 +1073,41 @@ export default function Produksi() {
         // Always recalculate — previous retur stok will be deleted and re-created below
           // Bubur D & I: retur * beras per cup
           if (sent.bubur_d > 0) {
-            const actualRetur = Math.min(retur.bubur_d || 0, sent.bubur_d);
-            if (actualRetur > 0) {
-              recoveredIngredients.beras += buburCalc(actualRetur, BUBUR_BASE.beras);
-              recoveredIngredients.sayurHijau += buburCalc(actualRetur, BUBUR_BASE.sayurHijau);
-              recoveredIngredients.sayurBrokoli += buburCalc(actualRetur, BUBUR_BASE.sayurBrokoli);
-              recoveredIngredients.sayurPutih += buburCalc(actualRetur, BUBUR_BASE.sayurPutih);
+            const actualReturCups = Math.min(Math.floor((retur.bubur_d || 0) / 118), sent.bubur_d);
+            if (actualReturCups > 0) {
+              recoveredIngredients.beras += buburCalc(actualReturCups, BUBUR_BASE.beras);
+              recoveredIngredients.sayurHijau += buburCalc(actualReturCups, BUBUR_BASE.sayurHijau);
+              recoveredIngredients.sayurBrokoli += buburCalc(actualReturCups, BUBUR_BASE.sayurBrokoli);
+              recoveredIngredients.sayurPutih += buburCalc(actualReturCups, BUBUR_BASE.sayurPutih);
             }
           }
           if (sent.bubur_i > 0) {
-            const actualRetur = Math.min(retur.bubur_i || 0, sent.bubur_i);
-            if (actualRetur > 0) {
-              recoveredIngredients.beras += buburCalc(actualRetur, BUBUR_BASE.beras);
-              recoveredIngredients.sayurHijau += buburCalc(actualRetur, BUBUR_BASE.sayurHijau);
-              recoveredIngredients.sayurBrokoli += buburCalc(actualRetur, BUBUR_BASE.sayurBrokoli);
-              recoveredIngredients.sayurPutih += buburCalc(actualRetur, BUBUR_BASE.sayurPutih);
+            const actualReturCups = Math.min(Math.floor((retur.bubur_i || 0) / 118), sent.bubur_i);
+            if (actualReturCups > 0) {
+              recoveredIngredients.beras += buburCalc(actualReturCups, BUBUR_BASE.beras);
+              recoveredIngredients.sayurHijau += buburCalc(actualReturCups, BUBUR_BASE.sayurHijau);
+              recoveredIngredients.sayurBrokoli += buburCalc(actualReturCups, BUBUR_BASE.sayurBrokoli);
+              recoveredIngredients.sayurPutih += buburCalc(actualReturCups, BUBUR_BASE.sayurPutih);
             }
           }
 
           // Tim D & I
           if (sent.tim_d > 0) {
-            const actualRetur = Math.min(retur.tim_d || 0, sent.tim_d);
-            if (actualRetur > 0) {
-              recoveredIngredients.beras += actualRetur * settings.berasTim;
-              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauTim;
-              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliTim;
-              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihTim;
+            const actualReturCups = Math.min(Math.floor((retur.tim_d || 0) / 108), sent.tim_d);
+            if (actualReturCups > 0) {
+              recoveredIngredients.beras += actualReturCups * settings.berasTim;
+              recoveredIngredients.sayurHijau += actualReturCups * settings.sayurHijauTim;
+              recoveredIngredients.sayurBrokoli += actualReturCups * settings.sayurBrokoliTim;
+              recoveredIngredients.sayurPutih += actualReturCups * settings.sayurPutihTim;
             }
           }
           if (sent.tim_i > 0) {
-            const actualRetur = Math.min(retur.tim_i || 0, sent.tim_i);
-            if (actualRetur > 0) {
-              recoveredIngredients.beras += actualRetur * settings.berasTim;
-              recoveredIngredients.sayurHijau += actualRetur * settings.sayurHijauTim;
-              recoveredIngredients.sayurBrokoli += actualRetur * settings.sayurBrokoliTim;
-              recoveredIngredients.sayurPutih += actualRetur * settings.sayurPutihTim;
+            const actualReturCups = Math.min(Math.floor((retur.tim_i || 0) / 108), sent.tim_i);
+            if (actualReturCups > 0) {
+              recoveredIngredients.beras += actualReturCups * settings.berasTim;
+              recoveredIngredients.sayurHijau += actualReturCups * settings.sayurHijauTim;
+              recoveredIngredients.sayurBrokoli += actualReturCups * settings.sayurBrokoliTim;
+              recoveredIngredients.sayurPutih += actualReturCups * settings.sayurPutihTim;
             }
           }
 
@@ -1254,10 +1260,10 @@ export default function Produksi() {
             const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
             const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
             if (dRec) {
-              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+              rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
             }
             if (iRec) {
-              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+              rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
               const totalSent = dSent + iSent;
@@ -1266,8 +1272,10 @@ export default function Produksi() {
                 .reduce((s: number, p: any) => s + p.qty, 0);
               const totalRetur = Math.max(0, totalSent - sold);
               if (totalSent > 0) {
-                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                rGrid[o.id][dField] = dReturCups * gramPerCup;
+                rGrid[o.id][iField] = iReturCups * gramPerCup;
               }
             }
           };
@@ -1335,10 +1343,10 @@ export default function Produksi() {
             const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
             const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
             if (dRec) {
-              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+              rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
             }
             if (iRec) {
-              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+              rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
               const totalSent = dSent + iSent;
@@ -1347,8 +1355,10 @@ export default function Produksi() {
                 .reduce((s: number, p: any) => s + p.qty, 0);
               const totalRetur = Math.max(0, totalSent - sold);
               if (totalSent > 0) {
-                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                rGrid[o.id][dField] = dReturCups * gramPerCup;
+                rGrid[o.id][iField] = iReturCups * gramPerCup;
               }
             }
           };
@@ -2470,17 +2480,16 @@ export default function Produksi() {
                       type="number"
                       min={0}
                       max={sent.bubur_d * 118}
-                      value={(row.bubur_d || 0) * 118 || ""}
+                      value={row.bubur_d || ""}
                       onChange={(e) => {
                         const grams = parseInt(e.target.value) || 0;
-                        const cups = Math.min(Math.floor(grams / 118), sent.bubur_d);
-                        handleReturChange(step5OutletId, "bubur_d", cups);
+                        handleReturChange(step5OutletId, "bubur_d", Math.min(grams, sent.bubur_d * 118));
                       }}
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_d || 0} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_d || 0) - (row.bubur_d || 0))} cup ({(Math.max(0, (sent.bubur_d || 0) - (row.bubur_d || 0)) * 118).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.floor((row.bubur_d || 0) / 118)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_d || 0) - Math.floor((row.bubur_d || 0) / 118))} cup ({(Math.max(0, (sent.bubur_d || 0) - Math.floor((row.bubur_d || 0) / 118)) * 118).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name} Retur`}>B. {bubur2Name}</Label>
@@ -2488,17 +2497,16 @@ export default function Produksi() {
                       type="number"
                       min={0}
                       max={sent.bubur_i * 118}
-                      value={(row.bubur_i || 0) * 118 || ""}
+                      value={row.bubur_i || ""}
                       onChange={(e) => {
                         const grams = parseInt(e.target.value) || 0;
-                        const cups = Math.min(Math.floor(grams / 118), sent.bubur_i);
-                        handleReturChange(step5OutletId, "bubur_i", cups);
+                        handleReturChange(step5OutletId, "bubur_i", Math.min(grams, sent.bubur_i * 118));
                       }}
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.bubur_i || 0} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_i || 0) - (row.bubur_i || 0))} cup ({(Math.max(0, (sent.bubur_i || 0) - (row.bubur_i || 0)) * 118).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.floor((row.bubur_i || 0) / 118)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_i || 0) - Math.floor((row.bubur_i || 0) / 118))} cup ({(Math.max(0, (sent.bubur_i || 0) - Math.floor((row.bubur_i || 0) / 118)) * 118).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name} Retur`}>T. {tim1Name}</Label>
@@ -2506,17 +2514,16 @@ export default function Produksi() {
                       type="number"
                       min={0}
                       max={sent.tim_d * 108}
-                      value={(row.tim_d || 0) * 108 || ""}
+                      value={row.tim_d || ""}
                       onChange={(e) => {
                         const grams = parseInt(e.target.value) || 0;
-                        const cups = Math.min(Math.floor(grams / 108), sent.tim_d);
-                        handleReturChange(step5OutletId, "tim_d", cups);
+                        handleReturChange(step5OutletId, "tim_d", Math.min(grams, sent.tim_d * 108));
                       }}
                       className="h-9 text-xs text-center border-amber-300 focus-visible:ring-amber-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_d || 0} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_d || 0) - (row.tim_d || 0))} cup ({(Math.max(0, (sent.tim_d || 0) - (row.tim_d || 0)) * 108).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.floor((row.tim_d || 0) / 108)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_d || 0) - Math.floor((row.tim_d || 0) / 108))} cup ({(Math.max(0, (sent.tim_d || 0) - Math.floor((row.tim_d || 0) / 108)) * 108).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name} Retur`}>T. {tim2Name}</Label>
@@ -2524,17 +2531,16 @@ export default function Produksi() {
                       type="number"
                       min={0}
                       max={sent.tim_i * 108}
-                      value={(row.tim_i || 0) * 108 || ""}
+                      value={row.tim_i || ""}
                       onChange={(e) => {
                         const grams = parseInt(e.target.value) || 0;
-                        const cups = Math.min(Math.floor(grams / 108), sent.tim_i);
-                        handleReturChange(step5OutletId, "tim_i", cups);
+                        handleReturChange(step5OutletId, "tim_i", Math.min(grams, sent.tim_i * 108));
                       }}
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {row.tim_i || 0} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_i || 0) - (row.tim_i || 0))} cup ({(Math.max(0, (sent.tim_i || 0) - (row.tim_i || 0)) * 108).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.floor((row.tim_i || 0) / 108)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_i || 0) - Math.floor((row.tim_i || 0) / 108))} cup ({(Math.max(0, (sent.tim_i || 0) - Math.floor((row.tim_i || 0) / 108)) * 108).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal Retur</Label>
@@ -2633,28 +2639,28 @@ export default function Produksi() {
                               <span className="text-destructive">{row.bubur_d || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_d || 0) - (row.bubur_d || 0))} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_d || 0) - Math.floor((row.bubur_d || 0) / 118))} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.bubur_i || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_i || 0) - (row.bubur_i || 0))} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_i || 0) - Math.floor((row.bubur_i || 0) / 118))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_d || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_d || 0) - (row.tim_d || 0))} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_d || 0) - Math.floor((row.tim_d || 0) / 108))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_i || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_i || 0) - (row.tim_i || 0))} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_i || 0) - Math.floor((row.tim_i || 0) / 108))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
                             <div className="font-medium text-xs">

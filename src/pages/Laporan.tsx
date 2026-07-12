@@ -545,12 +545,12 @@ function SisaProduksiOH({
 
 
   const openDialog = () => {
-    // Initialize draft with current sisaGrid values
-    // Bubur/Tim stored in grams, Oatmeal/Puding/Abon stored in cups/pcs — load directly!
+    // Initialize draft with 0 so user can type directly without clearing pre-filled values.
+    // Distribution info (max grams/cups) is still visible as a reference in the dialog.
     const initial: Record<string, number> = {};
     MENU_ITEMS.forEach((item) => {
       const key = `${tanggal}-${item.subId}`;
-      initial[key] = sisaGrid[key] ?? 0;
+      initial[key] = 0; // Start from zero — user types actual sisa amount
     });
     setDraftSisa(initial);
     setDialogOpen(true);

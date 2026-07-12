@@ -20,6 +20,7 @@ export interface Penjualan {
   harga: number;
   total: number;
   sisaGram?: number; // sisa OH dalam gram untuk bubur/tim
+  variant?: string; // 'bubur_d' | 'bubur_i' | 'tim_d' | 'tim_i' | null = single-variant
 }
 
 export interface Produksi {

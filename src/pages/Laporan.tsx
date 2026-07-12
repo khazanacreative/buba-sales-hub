@@ -503,7 +503,6 @@ function SisaProduksiOH({
         const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
 
         // Distribute totalSold proportionally across split variants (D+I)
-        // to avoid: sisaCups = max(0, distQty_satuVariant - totalSold_gabungan) → undershoot!
         const allSubIds = MENU_ITEMS.filter(m => m.baseId === item.baseId).map(m => m.subId);
         let siblingDistTotal = 0;
         allSubIds.forEach(sid => { siblingDistTotal += distMap.get(sid) || 0; });
@@ -515,13 +514,18 @@ function SisaProduksiOH({
         if (isCupUnit) {
           next[key] = sisaCups; // store cups/pcs directly
         } else {
-          // For bubur/tim: try to read sisaGram from existing penjualan record
-          // This preserves the original grams entered by user
+          // For bubur/tim: try to read sisaGram from variant-specific penjualan record
+          // This preserves the EXACT grams entered by user per variant
+          const variantSale = existingSales.find((p: any) => p.variant === item.subId);
+          if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
+            // Found exact per-variant sisaGram — use it directly!
+            next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
+            return;
+          }
+          // Fallback: legacy data (no variant column) — distribute proportionally
           if (existingSales.length > 0) {
             const firstSale = existingSales[0];
             if (firstSale.sisaGram !== undefined && firstSale.sisaGram !== null) {
-              // Distribute total sisaGram proportionally across D and I variants
-              // Find total distQty for the same baseId across all subIds
               const allSubIds = MENU_ITEMS.filter(m => m.baseId === item.baseId).map(m => m.subId);
               let siblingTotal = 0;
               allSubIds.forEach(sid => { siblingTotal += distMap.get(sid) || 0; });
@@ -655,33 +659,20 @@ function SisaProduksiOH({
   const handleSubmit = useCallback(async () => {
     setSaving(true);
     try {
-      // Aggregate by base produkId (merge D and I for same base)
-      // Track sisaGram for bubur/tim (to preserve original grams in DB)
-      const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; sisaGram: number; harga: number }>();
-
-      rows.forEach((row) => {
-        if (row.distribusi <= 0) return;
-        const existing = groups.get(row.baseId) || {
-          baseId: row.baseId,
-          distribusi: 0,
-          sisa: 0,
-          sisaGram: 0,
-          harga: row.harga,
-        };
-        existing.distribusi += row.distribusi;
-        existing.sisa += Math.min(row.sisaCups, row.distribusi);
-        // Track sisaGram for bubur/tim (capped by distribusi * gramPerCup)
-        if (row.baseId === "p-bubur" || row.baseId === "p-nasitim") {
-          existing.sisaGram += Math.min(row.sisa, row.distribusi * row.gramPerCup);
-        }
-        groups.set(row.baseId, existing);
-      });
-
+      // Create per-VARIANT penjualan records (no merging D+I)
+      // Each variant gets its own qty (terjual) and sisaGram preserved exactly as entered
       let savedCount = 0;
-      for (const [baseId, group] of groups) {
-        const terjual = Math.max(0, group.distribusi - group.sisa);
 
-        // Delete existing penjualan for this outlet+tanggal+base
+      // Group rows by baseId for batch delete (delete ALL old records per base first)
+      const baseGroups = new Map<string, typeof rows>();
+      for (const row of rows) {
+        if (row.distribusi <= 0) continue;
+        if (!baseGroups.has(row.baseId)) baseGroups.set(row.baseId, []);
+        baseGroups.get(row.baseId)!.push(row);
+      }
+
+      for (const [baseId, variantRows] of baseGroups) {
+        // Delete ALL existing penjualan for this outlet+tanggal+base (all variants)
         const existingPenjualan = (penjualan || []).filter(
           (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === baseId
         );
@@ -689,17 +680,22 @@ function SisaProduksiOH({
           await db.deletePenjualan(p.id);
         }
 
-        // Create new penjualan record if anything was sold
-        if (terjual > 0) {
-          await db.addPenjualan({
-            tanggal,
-            outletId: user.outletId,
-            produkId: baseId,
-            qty: terjual,
-            harga: group.harga,
-            sisaGram: (baseId === "p-bubur" || baseId === "p-nasitim") ? group.sisaGram : undefined,
-          });
-          savedCount++;
+        // Create per-variant records
+        for (const row of variantRows) {
+          const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
+          const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
+          if (terjual > 0) {
+            await db.addPenjualan({
+              tanggal,
+              outletId: user.outletId,
+              produkId: row.baseId,
+              qty: terjual,
+              harga: row.harga,
+              sisaGram: isGramItem ? Math.min(row.sisa, row.distribusi * row.gramPerCup) : undefined,
+              variant: row.subId,
+            });
+            savedCount++;
+          }
         }
       }
 
@@ -1105,24 +1101,30 @@ function SisaProduksiAdminView({
 
           const isCupUnit = subId === "oatmeal" || subId === "puding" || subId === "abon";
           
-          // For bubur/tim: try to read sisaGram from existing penjualan record
-          // This preserves the original grams entered by outlet
-          if (!isCupUnit && existingSales.length > 0) {
-            const firstSale = existingSales[0];
-            if (firstSale.sisaGram !== undefined && firstSale.sisaGram !== null) {
-              // Distribute total sisaGram proportionally across D and I variants
-              const totalDist = info.distQty; // total cups for this subId
-              // Only sum siblings with the same baseId
-              let siblingTotal = 0;
-              itemMap.forEach((siblingInfo) => {
-                if (siblingInfo.baseId === info.baseId) {
-                  siblingTotal += siblingInfo.distQty;
-                }
-              });
-              const proportion = siblingTotal > 0 ? totalDist / siblingTotal : 1;
-              const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
-              next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;
+          // For bubur/tim: try to read sisaGram from variant-specific penjualan record
+          // This preserves the EXACT grams entered by outlet per variant
+          if (!isCupUnit) {
+            const variantSale = existingSales.find((p: any) => p.variant === subId);
+            if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
+              // Found exact per-variant sisaGram — use it directly!
+              next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
               return;
+            }
+            // Fallback: legacy data (no variant column) — distribute proportionally
+            if (existingSales.length > 0) {
+              const firstSale = existingSales[0];
+              if (firstSale.sisaGram !== undefined && firstSale.sisaGram !== null) {
+                let siblingTotal = 0;
+                itemMap.forEach((siblingInfo) => {
+                  if (siblingInfo.baseId === info.baseId) {
+                    siblingTotal += siblingInfo.distQty;
+                  }
+                });
+                const proportion = siblingTotal > 0 ? info.distQty / siblingTotal : 1;
+                const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
+                next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;
+                return;
+              }
             }
           }
 
@@ -1213,29 +1215,15 @@ function SisaProduksiAdminView({
       let savedCount = 0;
 
       for (const { outlet, items } of outletRows) {
-        // Group by baseId, track sisaGram for bubur/tim
-        const groups = new Map<string, { baseId: string; distribusi: number; sisa: number; sisaGram: number; harga: number }>();
-        items.forEach((row: any) => {
-          const existing = groups.get(row.baseId) || {
-            baseId: row.baseId,
-            distribusi: 0,
-            sisa: 0,
-            sisaGram: 0,
-            harga: row.harga,
-          };
-          existing.distribusi += row.distQty;
-          existing.sisa += Math.min(row.sisaCups, row.distQty);
-          // Track sisaGram for bubur/tim
-          if (row.baseId === "p-bubur" || row.baseId === "p-nasitim") {
-            existing.sisaGram += Math.min(row.sisaGram, row.distQty * row.gramPerCup);
-          }
-          groups.set(row.baseId, existing);
-        });
+        // Group by baseId for batch delete (delete ALL old records per base first)
+        const baseGroups = new Map<string, typeof items>();
+        for (const row of items) {
+          if (!baseGroups.has(row.baseId)) baseGroups.set(row.baseId, []);
+          baseGroups.get(row.baseId)!.push(row);
+        }
 
-        for (const [baseId, group] of groups) {
-          const terjual = Math.max(0, group.distribusi - group.sisa);
-
-          // Delete existing penjualan for this outlet+tanggal+base
+        for (const [baseId, variantRows] of baseGroups) {
+          // Delete ALL existing penjualan for this outlet+tanggal+base (all variants)
           const existingPenjualan = (penjualan || []).filter(
             (p: any) => p.outletId === outlet.id && p.tanggal === tanggal && p.produkId === baseId
           );
@@ -1243,17 +1231,22 @@ function SisaProduksiAdminView({
             await db.deletePenjualan(p.id);
           }
 
-          // Create new penjualan record if anything was sold
-          if (terjual > 0) {
-            await db.addPenjualan({
-              tanggal,
-              outletId: outlet.id,
-              produkId: baseId,
-              qty: terjual,
-              harga: group.harga,
-              sisaGram: (baseId === "p-bubur" || baseId === "p-nasitim") ? group.sisaGram : undefined,
-            });
-            savedCount++;
+          // Create per-variant records
+          for (const row of variantRows) {
+            const terjual = Math.max(0, row.distQty - Math.min(row.sisaCups, row.distQty));
+            const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
+            if (terjual > 0) {
+              await db.addPenjualan({
+                tanggal,
+                outletId: outlet.id,
+                produkId: row.baseId,
+                qty: terjual,
+                harga: row.harga,
+                sisaGram: isGramItem ? Math.min(row.sisaGram, row.distQty * row.gramPerCup) : undefined,
+                variant: row.subId,
+              });
+              savedCount++;
+            }
           }
         }
       }

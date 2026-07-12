@@ -373,14 +373,25 @@ export default function Produksi() {
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-            const totalSent = dSent + iSent;
-            const sold = existingSales
-              .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-              .reduce((s: number, p: any) => s + p.qty, 0);
-            const totalRetur = Math.max(0, totalSent - sold);
-            if (totalSent > 0) {
-              rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-              rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+            const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+            const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+            if (dRec) {
+              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+            }
+            if (iRec) {
+              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+            }
+            if (!dRec && !iRec) {
+              const totalSent = dSent + iSent;
+              const sold = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+                .reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
+                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+              }
             }
           };
 
@@ -851,23 +862,33 @@ export default function Produksi() {
         const sent = distGrid[o.id] || {};
         if (!sent) return;
 
-        // Helper: distribute total retur proportionally across D and I variants
         const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-          const totalSent = dSent + iSent;
-          const sold = existingSales
-            .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-            .reduce((s: number, p: any) => s + p.qty, 0);
-          const totalRetur = Math.max(0, totalSent - sold);
-          if (totalSent > 0) {
-            rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-            rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
-          }
-        };
+            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+            const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+            const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+            if (dRec) {
+              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+            }
+            if (iRec) {
+              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+            }
+            if (!dRec && !iRec) {
+              const totalSent = dSent + iSent;
+              const sold = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+                .reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
+                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+              }
+            }
+          };
 
-        calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
-        calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
+          calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
+          calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
 
-        // Oatmeal
+          // Oatmeal
         const oatSold = existingSales
           .filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal")
           .reduce((s: number, p: any) => s + p.qty, 0);
@@ -929,14 +950,25 @@ export default function Produksi() {
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-            const totalSent = dSent + iSent;
-            const sold = existingPenjualan
-              .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-              .reduce((s: number, p: any) => s + p.qty, 0);
-            const totalRetur = Math.max(0, totalSent - sold);
-            if (totalSent > 0) {
-              freshReturGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-              freshReturGrid[o.id][iField] = totalRetur - freshReturGrid[o.id][dField];
+            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+            const dRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+            const iRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+            if (dRec) {
+              freshReturGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+            }
+            if (iRec) {
+              freshReturGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+            }
+            if (!dRec && !iRec) {
+              const totalSent = dSent + iSent;
+              const sold = existingPenjualan
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+                .reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                freshReturGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
+                freshReturGrid[o.id][iField] = totalRetur - freshReturGrid[o.id][dField];
+              }
             }
           };
 
@@ -1218,14 +1250,25 @@ export default function Produksi() {
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-            const totalSent = dSent + iSent;
-            const sold = existingSales
-              .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-              .reduce((s: number, p: any) => s + p.qty, 0);
-            const totalRetur = Math.max(0, totalSent - sold);
-            if (totalSent > 0) {
-              rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-              rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+            const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+            const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+            if (dRec) {
+              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+            }
+            if (iRec) {
+              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+            }
+            if (!dRec && !iRec) {
+              const totalSent = dSent + iSent;
+              const sold = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+                .reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
+                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+              }
             }
           };
 
@@ -1288,14 +1331,25 @@ export default function Produksi() {
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-            const totalSent = dSent + iSent;
-            const sold = existingSales
-              .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-              .reduce((s: number, p: any) => s + p.qty, 0);
-            const totalRetur = Math.max(0, totalSent - sold);
-            if (totalSent > 0) {
-              rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
-              rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+            const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+            const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+            if (dRec) {
+              rGrid[o.id][dField] = Math.min(Math.floor(dRec.sisaGram / gramPerCup), dSent);
+            }
+            if (iRec) {
+              rGrid[o.id][iField] = Math.min(Math.floor(iRec.sisaGram / gramPerCup), iSent);
+            }
+            if (!dRec && !iRec) {
+              const totalSent = dSent + iSent;
+              const sold = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+                .reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                rGrid[o.id][dField] = Math.round(totalRetur * (dSent / totalSent));
+                rGrid[o.id][iField] = totalRetur - rGrid[o.id][dField];
+              }
             }
           };
 
@@ -2325,15 +2379,30 @@ export default function Produksi() {
   function renderStep5() {
     return (
       <Card className="glass border-0 shadow-card">
-        <CardHeader>
-          <CardTitle>Langkah 5: Retur & Penjualan Akhir Hari</CardTitle>
-          {hasNewSalesData && !refreshing && step === 5 && (
-            <div className="mt-2 flex items-center gap-2 text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 text-destructive font-medium animate-pulse">
-              <span className="h-2 w-2 rounded-full bg-destructive shrink-0" />
-              Data penjualan baru dari outlet tersedia. Klik <strong>Refresh</strong> untuk memuat.
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah. Bubur &amp; Nasi Tim isi <strong>gram</strong> retur (otomatis konversi ke cup), Oatmeal &amp; Puding isi <strong>cup</strong>, Abon isi <strong>pcs</strong>. Penjualan dihitung otomatis.</p>
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle>Langkah 5: Retur & Penjualan Akhir Hari</CardTitle>
+            <p className="text-xs text-muted-foreground">Pilih outlet di bawah. Bubur &amp; Nasi Tim isi <strong>gram</strong> retur (otomatis konversi ke cup), Oatmeal &amp; Puding isi <strong>cup</strong>, Abon isi <strong>pcs</strong>. Penjualan dihitung otomatis.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {hasNewSalesData && !refreshing && step === 5 && (
+              <div className="flex items-center gap-1.5 text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-2.5 py-1.5 text-destructive font-medium whitespace-nowrap">
+                <span className="h-2 w-2 rounded-full bg-destructive shrink-0" />
+                Data baru
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshStep5}
+              disabled={refreshing}
+              className="h-8 gap-1.5"
+              title={hasNewSalesData ? "Ada data penjualan baru! Klik untuk memuat ulang" : "Muat ulang data penjualan dari outlet"}
+            >
+              <RotateCcw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="text-xs">{refreshing ? "Memuat..." : "Refresh"}</span>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
 
@@ -2622,21 +2691,7 @@ export default function Produksi() {
               <ArrowLeft className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Kembali</span>
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleRefreshStep5}
-              disabled={refreshing}
-              className="h-10 relative"
-              title={hasNewSalesData ? "Ada data penjualan baru! Klik untuk memuat ulang" : "Muat ulang data penjualan dari outlet"}
-            >
-              {hasNewSalesData && (
-                <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center shadow-sm border border-background">
-                  !
-                </span>
-              )}
-              <RotateCcw className={refreshing ? "h-4 w-4 md:mr-2 animate-spin" : "h-4 w-4 md:mr-2"} />
-              <span className="hidden md:inline">{refreshing ? "Memuat..." : "Refresh"}</span>
-            </Button>
+
             <Button onClick={saveStep5} className="gradient-success text-white hover-lift h-10 font-bold" disabled={closingCycle}>
               <ShoppingBag className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">{closingCycle ? "Menutup siklus..." : "Selesaikan & Tutup Siklus"}</span>

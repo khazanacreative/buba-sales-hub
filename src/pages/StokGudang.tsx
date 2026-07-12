@@ -460,6 +460,9 @@ export default function StokGudang() {
     return <OutletPermohonanStok user={user} dbState={dbState} />;
   }
 
+  // Produksi role: hanya lihat saldo & riwayat, tidak bisa input
+  const isProduksi = user?.role === "produksi";
+
   // Admin original states and computations
   const { bahan = [], stokMov = [], produksi = [], produk = [] } = dbState;
   const [tanggal, setTanggal] = useState(todayISO());
@@ -695,29 +698,35 @@ export default function StokGudang() {
         </Card>
       </div>
 
-            <Tabs defaultValue="pergerakan" className="w-full space-y-4">            <TabsList className="grid grid-cols-5 gap-0 rounded-lg">
-            <TabsTrigger value="pergerakan" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
-              <span className="group-data-[state=active]:hidden">Stok</span>
-              <span className="hidden group-data-[state=active]:inline">Pergerakan Stok</span>
-            </TabsTrigger>
-            <TabsTrigger value="supplier" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
-              <span className="group-data-[state=active]:hidden">Supplier</span>
-              <span className="hidden group-data-[state=active]:inline">Kiriman Supplier</span>
-            </TabsTrigger>
-            <TabsTrigger value="permohonan" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
-              <span className="group-data-[state=active]:hidden">Request</span>
-              <span className="hidden group-data-[state=active]:inline">Permohonan Outlet</span>
-            </TabsTrigger>
-            <TabsTrigger value="retur-perlengkapan" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
-              <span className="group-data-[state=active]:hidden">Retur</span>
-              <span className="hidden group-data-[state=active]:inline">Retur Perlengkapan</span>
-            </TabsTrigger>
-            <TabsTrigger value="rusak" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
-              <span className="group-data-[state=active]:hidden">Rusak</span>
-              <span className="hidden group-data-[state=active]:inline">Barang Rusak</span>
-            </TabsTrigger>
-          </TabsList>
+            <Tabs defaultValue={isProduksi ? "permohonan" : "pergerakan"} className="w-full space-y-4">
+            <TabsList className={`grid ${isProduksi ? "grid-cols-3" : "grid-cols-5"} gap-0 rounded-lg`}>
+              {!isProduksi && (
+                <TabsTrigger value="pergerakan" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
+                  <span className="group-data-[state=active]:hidden">Stok</span>
+                  <span className="hidden group-data-[state=active]:inline">Pergerakan Stok</span>
+                </TabsTrigger>
+              )}
+              {!isProduksi && (
+                <TabsTrigger value="supplier" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
+                  <span className="group-data-[state=active]:hidden">Supplier</span>
+                  <span className="hidden group-data-[state=active]:inline">Kiriman Supplier</span>
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="permohonan" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
+                <span className="group-data-[state=active]:hidden">Request</span>
+                <span className="hidden group-data-[state=active]:inline">Permohonan Outlet</span>
+              </TabsTrigger>
+              <TabsTrigger value="retur-perlengkapan" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
+                <span className="group-data-[state=active]:hidden">Retur</span>
+                <span className="hidden group-data-[state=active]:inline">Retur Perlengkapan</span>
+              </TabsTrigger>
+              <TabsTrigger value="rusak" className="group rounded-none px-1 text-[11px] leading-tight data-[state=active]:bg-background">
+                <span className="group-data-[state=active]:hidden">Rusak</span>
+                <span className="hidden group-data-[state=active]:inline">Barang Rusak</span>
+              </TabsTrigger>
+            </TabsList>
 
+          {!isProduksi && (
           <TabsContent value="pergerakan" className="m-0">
             <Card className="glass border-0 shadow-card">
               <div>
@@ -794,7 +803,9 @@ export default function StokGudang() {
               </div>
             </Card>
           </TabsContent>
+          )}
 
+          {!isProduksi && (
           <TabsContent value="supplier" className="m-0">
             <Card className="glass border-0 shadow-card">
               <div>
@@ -848,6 +859,7 @@ export default function StokGudang() {
               </div>
             </Card>
           </TabsContent>
+          )}
 
           <TabsContent value="permohonan" className="m-0">
             <AdminPermohonanOutletInner dbState={dbState} />

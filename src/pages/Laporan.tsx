@@ -505,6 +505,13 @@ function SisaProduksiOH({
         const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
         
         if (isCupUnit) {
+          // Try to read sisaGram from variant-specific penjualan record
+          // Oatmeal/Puding dalam cups, Abon dalam pcs
+          const variantSale = existingSales.find((p: any) => p.variant === item.subId);
+          if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
+            next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
+            return;
+          }
           next[key] = 0; // default: 0 — user hanya input OH jika ada sisa penjualan
         } else {
           // For bubur/tim: try to read sisaGram from variant-specific penjualan record
@@ -671,25 +678,31 @@ function SisaProduksiOH({
         );
         for (const p of existingPenjualan) {
           await db.deletePenjualan(p.id);
-        }
-
-        // Create per-variant records
-        for (const row of variantRows) {
-          const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
-          const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
-          if (terjual > 0) {
-            await db.addPenjualan({
-              tanggal,
-              outletId: user.outletId,
-              produkId: row.baseId,
-              qty: terjual,
-              harga: row.harga,
-              sisaGram: isGramItem ? Math.min(row.sisa, row.distribusi * row.gramPerCup) : undefined,
-              variant: row.subId,
-            });
-            savedCount++;
+        }          // Create per-variant records
+          for (const row of variantRows) {
+            const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
+            const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
+            const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
+            let sisaGramVal: number | undefined;
+            if (isGramItem) {
+              sisaGramVal = Math.min(row.sisa, row.distribusi * row.gramPerCup);
+            } else if (isCupItem && row.sisaCups > 0) {
+              // For cup/pcs-based items (oatmeal, puding, abon), store sisa cups/pcs
+              sisaGramVal = row.sisaCups;
+            }
+            if (terjual > 0) {
+              await db.addPenjualan({
+                tanggal,
+                outletId: user.outletId,
+                produkId: row.baseId,
+                qty: terjual,
+                harga: row.harga,
+                sisaGram: sisaGramVal,
+                variant: row.subId,
+              });
+              savedCount++;
+            }
           }
-        }
       }
 
       // === OH Abon → Stok Gudang ===
@@ -1109,9 +1122,15 @@ function SisaProduksiAdminView({
                 return;
               }
             }
+          } else {
+            // For cup/pcs-based items (oatmeal, puding, abon): try to read sisaGram
+            const variantSale = existingSales.find((p: any) => p.variant === subId);
+            if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
+              next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
+              return;
+            }
           }
 
-          const storeVal = isCupUnit ? sisaCups : (sisaCups * info.gramPerCup);
           next[key] = 0; // default: 0 — admin hanya input OH jika ada sisa penjualan
         });
       });
@@ -1218,6 +1237,14 @@ function SisaProduksiAdminView({
           for (const row of variantRows) {
             const terjual = Math.max(0, row.distQty - Math.min(row.sisaCups, row.distQty));
             const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
+            const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
+            let sisaGramVal: number | undefined;
+            if (isGramItem) {
+              sisaGramVal = Math.min(row.sisaGram, row.distQty * row.gramPerCup);
+            } else if (isCupItem && row.sisaCups > 0) {
+              // For cup/pcs-based items (oatmeal, puding, abon), store sisa cups/pcs
+              sisaGramVal = row.sisaCups;
+            }
             if (terjual > 0) {
               await db.addPenjualan({
                 tanggal,
@@ -1225,7 +1252,7 @@ function SisaProduksiAdminView({
                 produkId: row.baseId,
                 qty: terjual,
                 harga: row.harga,
-                sisaGram: isGramItem ? Math.min(row.sisaGram, row.distQty * row.gramPerCup) : undefined,
+                sisaGram: sisaGramVal,
                 variant: row.subId,
               });
               savedCount++;

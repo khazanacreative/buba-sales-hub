@@ -1126,8 +1126,6 @@ function SisaProduksiAdminView({
               });
               const proportion = siblingTotal > 0 ? totalDist / siblingTotal : 1;
               const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
-              const proportion = siblingTotal > 0 ? totalDist / siblingTotal : 1;
-              const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
               next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;
               return;
             }

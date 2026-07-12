@@ -511,7 +511,7 @@ export const db = {
 
   async addStokMov(m: Omit<StokMovement, "id">) {
     const id = uid();
-    await supabase.from("stok_movement").insert([{
+    const { error } = await supabase.from("stok_movement").insert([{
       id,
       tanggal: m.tanggal,
       bahan_id: m.bahanId,
@@ -520,7 +520,11 @@ export const db = {
       keterangan: m.keterangan,
       produksi_id: m.produksiId
     }]);
-    fetchFromSupabase();
+    if (error) {
+      console.error(`addStokMov error (bahan=${m.bahanId}, qty=${m.qty}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
   },
   async deleteStokMov(id: string) {
     await supabase.from("stok_movement").delete().eq("id", id);

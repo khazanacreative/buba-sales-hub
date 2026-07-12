@@ -732,8 +732,9 @@ function SisaProduksiOH({
       // Dispatch custom event so Produksi Step 5 can auto-refresh returGrid
       window.dispatchEvent(new CustomEvent("buba_penjualan_saved", { detail: { tanggal } }));
     } catch (err) {
-      toast.error("Gagal menyimpan data sisa produksi");
-      console.error(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("Outlet handleSubmit error:", err);
+      toast.error(`Gagal menyimpan data sisa produksi: ${errMsg}`);
     } finally {
       setSaving(false);
     }
@@ -1289,8 +1290,9 @@ function SisaProduksiAdminView({
       // Dispatch custom event so Produksi Step 5 can auto-refresh returGrid
       window.dispatchEvent(new CustomEvent("buba_penjualan_saved", { detail: { tanggal } }));
     } catch (err) {
-      toast.error("Gagal menyimpan data sisa produksi");
-      console.error(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("Admin handleSubmit error:", err);
+      toast.error(`Gagal menyimpan data sisa produksi: ${errMsg}`);
     } finally {
       setSaving(false);
     }

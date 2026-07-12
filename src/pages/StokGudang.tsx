@@ -1122,7 +1122,6 @@ export default function StokGudang() {
               </Card>
             )}
           </TabsContent>
-          </TabsContent>
         </Tabs>
 
       <Card className="glass border-0 shadow-card">

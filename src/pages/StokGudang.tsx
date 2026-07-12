@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { db, useDB, saldoBahan } from "@/lib/store";
+import { supabase } from "@/lib/supabaseClient";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
 import { Plus, Trash2, AlertTriangle, Package, ArrowUpCircle, ArrowDownCircle, Check, X, Clock, Send, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -577,50 +578,102 @@ export default function StokGudang() {
     const selectedBahan = bahan.find(b => b.id === rusakBahanId);
     if (!selectedBahan) return toast.error("Bahan baku tidak ditemukan");
 
-    const currentStock = saldoMap[rusakBahanId] || 0;
-    if (rusakQty > currentStock) {
+    if (!isProduksi) {
+      // === ADMIN: langsung kurangi stok + posting jurnal ===
+      const currentStock = saldoMap[rusakBahanId] || 0;
+      if (rusakQty > currentStock) {
+        return toast.error(`Stok tidak mencukupi! Stok saat ini: ${currentStock} ${selectedBahan.satuan}`);
+      }
+
+      const labelBahan = selectedBahan.nama;
+      const totalLoss = rusakQty * selectedBahan.hargaBeli;
+
+      await db.addStokMov({
+        tanggal: rusakTanggal,
+        bahanId: rusakBahanId,
+        tipe: "OUT",
+        qty: rusakQty,
+        keterangan: `RUSAK:APPROVED:${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`
+      });
+
+      await db.addJurnalBulk([
+        {
+          tanggal: rusakTanggal,
+          ref: "OUT-RUSAK",
+          keterangan: `Kerusakan Persediaan: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`,
+          kodeAkun: "510000", akun: "Operasional", tipe: "Debit",
+          jumlah: totalLoss, kategori: "Beban"
+        },
+        {
+          tanggal: rusakTanggal,
+          ref: "OUT-RUSAK",
+          keterangan: `Kerusakan Persediaan: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`,
+          kodeAkun: "140000", akun: "Persediaan", tipe: "Kredit",
+          jumlah: totalLoss, kategori: "Aset"
+        }
+      ]);
+
+      toast.success("Barang rusak dicatat & jurnal terposting!");
+    } else {
+      // === PRODUKSI: simpan sebagai PENDING, menunggu approval admin ===
+      await db.addStokMov({
+        tanggal: rusakTanggal,
+        bahanId: rusakBahanId,
+        tipe: "OUT",
+        qty: rusakQty,
+        keterangan: `RUSAK:PENDING:${selectedBahan.nama} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`
+      });
+      toast.success("Laporan barang rusak dikirim, menunggu persetujuan Admin.");
+    }
+
+    setRusakQty(1);
+    setRusakKeterangan("");
+  };
+
+  // === Helper: Approve pending rusak ===
+  const approveRusak = async (mov: any) => {
+    const selectedBahan = bahan.find(b => b.id === mov.bahanId);
+    if (!selectedBahan) return toast.error("Bahan tidak ditemukan");
+
+    const currentStock = saldoMap[mov.bahanId] || 0;
+    if (mov.qty > currentStock) {
       return toast.error(`Stok tidak mencukupi! Stok saat ini: ${currentStock} ${selectedBahan.satuan}`);
     }
 
-    const labelBahan = selectedBahan.nama;
-    const totalLoss = rusakQty * selectedBahan.hargaBeli;
+    const totalLoss = mov.qty * selectedBahan.hargaBeli;
+    const detail = mov.keterangan?.replace("RUSAK:PENDING:", "") || "";
 
-    // 1. Catat pergerakan stok keluar
-    await db.addStokMov({
-      tanggal: rusakTanggal,
-      bahanId: rusakBahanId,
-      tipe: "OUT",
-      qty: rusakQty,
-      keterangan: `Barang Rusak: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`
-    });
+    // Update keterangan jadi APPROVED
+    await supabase
+      .from("stok_movement")
+      .update({ keterangan: `RUSAK:APPROVED:${detail}` })
+      .eq("id", mov.id);
 
-    // 2. Posting ke Jurnal (Debit Beban Operasional / Kredit Persediaan)
+    // Posting jurnal
     await db.addJurnalBulk([
       {
-        tanggal: rusakTanggal,
+        tanggal: mov.tanggal,
         ref: "OUT-RUSAK",
-        keterangan: `Kerusakan Persediaan: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`,
-        kodeAkun: "510000",
-        akun: "Operasional",
-        tipe: "Debit",
-        jumlah: totalLoss,
-        kategori: "Beban"
+        keterangan: `Kerusakan Persediaan (Approved): ${detail}`,
+        kodeAkun: "510000", akun: "Operasional", tipe: "Debit",
+        jumlah: totalLoss, kategori: "Beban"
       },
       {
-        tanggal: rusakTanggal,
+        tanggal: mov.tanggal,
         ref: "OUT-RUSAK",
-        keterangan: `Kerusakan Persediaan: ${labelBahan} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`,
-        kodeAkun: "140000",
-        akun: "Persediaan",
-        tipe: "Kredit",
-        jumlah: totalLoss,
-        kategori: "Aset"
+        keterangan: `Kerusakan Persediaan (Approved): ${detail}`,
+        kodeAkun: "140000", akun: "Persediaan", tipe: "Kredit",
+        jumlah: totalLoss, kategori: "Aset"
       }
     ]);
 
-    toast.success("Laporan barang rusak berhasil dicatat dan jurnal otomatis terposting!");
-    setRusakQty(1);
-    setRusakKeterangan("");
+    toast.success(`Barang rusak disetujui! Stok -${mov.qty}, jurnal terposting.`);
+  };
+
+  // === Helper: Reject pending rusak ===
+  const rejectRusak = async (mov: any) => {
+    await db.deleteStokMov(mov.id);
+    toast.success("Laporan barang rusak ditolak & dihapus.");
   };
 
   const getGramasiInfo = (b: any) => {
@@ -659,6 +712,18 @@ export default function StokGudang() {
   const filteredMov = useMemo(
     () => [...stokMov].filter((m) => inRange(m.tanggal, range)).sort((a, b) => b.tanggal.localeCompare(a.tanggal)),
     [stokMov, range]
+  );
+
+  const pendingRusak = useMemo(
+    () => (stokMov || []).filter(m => m.keterangan?.startsWith("RUSAK:PENDING:")).reverse(),
+    [stokMov]
+  );
+
+  const rusakHistory = useMemo(
+    () => (stokMov || [])
+      .filter(m => m.keterangan?.startsWith("RUSAK:"))
+      .sort((a: any, b: any) => b.tanggal.localeCompare(a.tanggal)),
+    [stokMov]
   );
 
   return (
@@ -869,47 +934,194 @@ export default function StokGudang() {
             <AdminReturPerlengkapanInner dbState={dbState} />
           </TabsContent>
 
-          <TabsContent value="rusak" className="m-0">
-            <Card className="glass border-0 shadow-card">
-              <div>
-                <CardHeader>
-                  <CardTitle>Lapor Barang Rusak (Wastage)</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Mencatat penyusutan bahan baku yang rusak, pecah, atau kadaluarsa. Mengurangi stok gudang (OUT) dan otomatis membukukan biaya kerugian operasional di jurnal keuangan.
-                  </p>
+          <TabsContent value="rusak" className="m-0 space-y-4">
+            {/* === ADMIN: PENDING RUSAK REQUESTS FROM PRODUKSI === */}
+            {!isProduksi && pendingRusak.length > 0 && (
+              <Card className="glass border-0 shadow-card border-l-4 border-l-amber-500">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                    <Clock className="h-5 w-5" />
+                    Request Barang Rusak dari Produksi
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Setujui untuk kurangi stok & posting jurnal, atau tolak untuk hapus</p>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={submitRusak} className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Tanggal Lapor</Label>
-                        <Input type="date" value={rusakTanggal} onChange={(e) => setRusakTanggal(e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Bahan Baku</Label>
-                        <Select value={rusakBahanId} onValueChange={setRusakBahanId}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Qty Rusak</Label>
-                        <Input type="number" min={1} value={rusakQty} onChange={(e) => setRusakQty(Number(e.target.value))} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Keterangan / Alasan</Label>
-                        <Input value={rusakKeterangan} onChange={(e) => setRusakKeterangan(e.target.value)} placeholder="Contoh: Pecah, Kadaluarsa, dll." />
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift mt-2">
-                      <AlertTriangle className="mr-1 h-4 w-4" />Catat Kerusakan & Posting Jurnal
-                    </Button>
-                  </form>
+                  <div className="rounded-xl border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead>Tanggal</TableHead>
+                          <TableHead>Bahan</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead>Keterangan</TableHead>
+                          <TableHead className="w-[120px] text-right">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingRusak.slice(0, 20).map((m: any) => {
+                          const b = bahan.find((x: any) => x.id === m.bahanId);
+                          const detail = m.keterangan?.replace("RUSAK:PENDING:", "") || "";
+                          return (
+                            <TableRow key={m.id}>
+                              <TableCell className="whitespace-nowrap">{m.tanggal}</TableCell>
+                              <TableCell className="font-medium">{b?.nama ?? "-"}</TableCell>
+                              <TableCell className="text-right font-semibold text-destructive">{m.qty} {b?.satuan}</TableCell>
+                              <TableCell className="text-xs max-w-[200px] truncate">{detail}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex gap-1 justify-end">
+                                  <Button size="sm" className="h-8 w-8 p-0" variant="outline"
+                                    onClick={() => approveRusak(m)} title="Setujui">
+                                    <Check className="h-4 w-4 text-success" />
+                                  </Button>
+                                  <Button size="sm" className="h-8 w-8 p-0" variant="outline"
+                                    onClick={() => rejectRusak(m)} title="Tolak">
+                                    <X className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {pendingRusak.length > 20 && (
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      Menampilkan 20 request terbaru ({pendingRusak.length} total)
+                    </p>
+                  )}
                 </CardContent>
-              </div>
+              </Card>
+            )}
+
+            {/* === FORM BARANG RUSAK === */}
+            <Card className="glass border-0 shadow-card">
+              <CardHeader className={isProduksi ? "pb-2" : ""}>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  {isProduksi ? "Lapor Barang Rusak" : "Catat Barang Rusak Langsung"}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  {isProduksi
+                    ? "Kirim laporan barang rusak ke admin untuk divalidasi. Stok gudang akan dikurangi setelah disetujui."
+                    : "Langsung kurangi stok gudang (OUT) & posting jurnal beban operasional."}
+                </p>
+              </CardHeader>
+              <CardContent>
+                {/* Stock info card for selected bahan */}
+                {rusakBahanId && (() => {
+                  const b = bahan.find(x => x.id === rusakBahanId);
+                  if (!b) return null;
+                  const saldo = saldoMap[rusakBahanId] || 0;
+                  return (
+                    <div className="bg-muted/30 rounded-xl p-3 mb-4 flex items-center gap-4 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Stok saat ini:</span>{' '}
+                        <strong className={saldo <= b.stokMin ? "text-destructive" : "text-success"}>
+                          {saldo} {b.satuan}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Harga beli:</span>{' '}
+                        <strong>{rupiah(b.hargaBeli)}/{b.satuan}</strong>
+                      </div>
+                      {rusakQty > 0 && (
+                        <div>
+                          <span className="text-muted-foreground">Estimasi kerugian:</span>{' '}
+                          <strong className="text-destructive">{rupiah(rusakQty * b.hargaBeli)}</strong>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <form onSubmit={submitRusak} className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Tanggal</Label>
+                      <Input type="date" value={rusakTanggal} onChange={(e) => setRusakTanggal(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bahan Baku</Label>
+                      <Select value={rusakBahanId} onValueChange={setRusakBahanId}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {bahan.map((b) => <SelectItem key={b.id} value={b.id}>{b.kode} — {b.nama}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Jumlah Rusak</Label>
+                      <Input type="number" min={1} value={rusakQty} onChange={(e) => setRusakQty(Number(e.target.value))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Keterangan / Alasan</Label>
+                      <Input value={rusakKeterangan} onChange={(e) => setRusakKeterangan(e.target.value)} placeholder="Contoh: Pecah, Kadaluarsa, dll." />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full h-10 gradient-primary text-primary-foreground hover-lift">
+                    <AlertTriangle className="mr-1.5 h-4 w-4" />
+                    {isProduksi ? "Kirim Laporan (Pending)" : "Catat Kerusakan & Posting Jurnal"}
+                  </Button>
+                </form>
+              </CardContent>
             </Card>
+
+            {/* === PRODUKSI: RIWAYAT REQUEST === */}
+            {isProduksi && rusakHistory.length > 0 && (
+              <Card className="glass border-0 shadow-card">
+                <CardHeader className="pb-2">
+                  <CardTitle>Riwayat Laporan Barang Rusak</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-xl border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead>Tanggal</TableHead>
+                          <TableHead>Bahan</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead>Keterangan</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rusakHistory.slice(0, 20).map((m: any) => {
+                          const b = bahan.find((x: any) => x.id === m.bahanId);
+                          const isPending = m.keterangan?.startsWith("RUSAK:PENDING:");
+                          const detail = (m.keterangan || "").replace(/^RUSAK:(PENDING:|APPROVED:)/, "");
+                          return (
+                            <TableRow key={m.id}>
+                              <TableCell className="whitespace-nowrap">{m.tanggal}</TableCell>
+                              <TableCell className="font-medium">{b?.nama ?? "-"}</TableCell>
+                              <TableCell className="text-right font-semibold">{m.qty} {b?.satuan}</TableCell>
+                              <TableCell className="text-xs max-w-[200px] truncate">{detail}</TableCell>
+                              <TableCell>
+                                {isPending ? (
+                                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+                                    <Clock className="h-3 w-3" /> Pending
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-success text-success-foreground gap-1">
+                                    <Check className="h-3 w-3" /> Disetujui
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {rusakHistory.length > 20 && (
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      Menampilkan 20 laporan terbaru ({rusakHistory.length} total)
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
           </TabsContent>
         </Tabs>
 

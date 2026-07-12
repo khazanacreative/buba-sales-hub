@@ -501,7 +501,14 @@ function SisaProduksiOH({
           (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === item.baseId
         );
         const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
-        const sisaCups = Math.max(0, distQty - totalSold);
+
+        // Distribute totalSold proportionally across split variants (D+I)
+        // to avoid: sisaCups = max(0, distQty_satuVariant - totalSold_gabungan) → undershoot!
+        const allSubIds = MENU_ITEMS.filter(m => m.baseId === item.baseId).map(m => m.subId);
+        let siblingDistTotal = 0;
+        allSubIds.forEach(sid => { siblingDistTotal += distMap.get(sid) || 0; });
+        const totalSisaCups = Math.max(0, siblingDistTotal - totalSold);
+        const sisaCups = siblingDistTotal > 0 ? Math.floor(totalSisaCups * (distQty / siblingDistTotal)) : 0;
 
         const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
         
@@ -928,9 +935,9 @@ function SisaProduksiOH({
               const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
               const displayUnit = item.subId === "abon" ? "pcs" : (isCupUnit ? "cup" : "g");
               const displayMax = isCupUnit ? distQty : maxGram;
-              // Convert stored cups/pcs back to display unit
-              const sisaCups = draftSisa[key] ?? 0; // stored in cups/pcs
-              const displayVal = isCupUnit ? sisaCups : (sisaCups * item.gramPerCup);
+              // storedVal: grams for bubur/tim, cups/pcs for oatmeal/puding/abon
+              const storedVal = draftSisa[key] ?? 0;
+              const displayVal = storedVal; // display in natural unit already
               return (
                 <div
                   key={key}
@@ -1090,7 +1097,16 @@ function SisaProduksiAdminView({
             (p: any) => p.outletId === outlet.id && p.tanggal === tanggal && p.produkId === info.baseId
           );
           const totalSold = existingSales.reduce((s: number, p: any) => s + p.qty, 0);
-          const sisaCups = Math.max(0, info.distQty - totalSold);
+
+          // Distribute totalSold proportionally across split variants (D+I)
+          let siblingDistTotal = 0;
+          itemMap.forEach((siblingInfo, sid) => {
+            if (siblingInfo.baseId === info.baseId) {
+              siblingDistTotal += siblingInfo.distQty;
+            }
+          });
+          const totalSisaCups = Math.max(0, siblingDistTotal - totalSold);
+          const sisaCups = siblingDistTotal > 0 ? Math.floor(totalSisaCups * (info.distQty / siblingDistTotal)) : 0;
 
           const isCupUnit = subId === "oatmeal" || subId === "puding" || subId === "abon";
           
@@ -1101,8 +1117,15 @@ function SisaProduksiAdminView({
             if (firstSale.sisaGram !== undefined && firstSale.sisaGram !== null) {
               // Distribute total sisaGram proportionally across D and I variants
               const totalDist = info.distQty; // total cups for this subId
-              const allSubIds = Array.from(itemMap.keys());
-              const siblingTotal = allSubIds.reduce((sum, sid) => sum + (itemMap.get(sid)?.distQty || 0), 0);
+              // Only sum siblings with the same baseId
+              let siblingTotal = 0;
+              itemMap.forEach((siblingInfo) => {
+                if (siblingInfo.baseId === info.baseId) {
+                  siblingTotal += siblingInfo.distQty;
+                }
+              });
+              const proportion = siblingTotal > 0 ? totalDist / siblingTotal : 1;
+              const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
               const proportion = siblingTotal > 0 ? totalDist / siblingTotal : 1;
               const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
               next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;

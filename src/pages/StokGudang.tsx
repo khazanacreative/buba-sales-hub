@@ -616,12 +616,13 @@ export default function StokGudang() {
       toast.success("Barang rusak dicatat & jurnal terposting!");
     } else {
       // === PRODUKSI: simpan sebagai PENDING, menunggu approval admin ===
+      const creatorName = user?.nama || user?.username || "Produksi";
       await db.addStokMov({
         tanggal: rusakTanggal,
         bahanId: rusakBahanId,
         tipe: "OUT",
         qty: rusakQty,
-        keterangan: `RUSAK:PENDING:${selectedBahan.nama} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}`
+        keterangan: `RUSAK:PENDING:${selectedBahan.nama} (${rusakQty} ${selectedBahan.satuan})${rusakKeterangan ? ` - ${rusakKeterangan}` : ""}|dibuat oleh ${creatorName}`
       });
       toast.success("Laporan barang rusak dikirim, menunggu persetujuan Admin.");
     }
@@ -641,12 +642,18 @@ export default function StokGudang() {
     }
 
     const totalLoss = mov.qty * selectedBahan.hargaBeli;
-    const detail = mov.keterangan?.replace("RUSAK:PENDING:", "") || "";
+    const rawDetail = mov.keterangan?.replace("RUSAK:PENDING:", "") || "";
+    // Parse existing format: "itemDetail|dibuat oleh nama" or fallback to legacy
+    const parts = rawDetail.split("|");
+    const itemDetail = parts[0]?.trim() || rawDetail;
+    const creatorInfo = parts[1]?.trim() || "";
+    const adminName = user?.nama || user?.username || "Admin";
+    const approvedKet = `RUSAK:APPROVED:${itemDetail}${creatorInfo ? ` | ${creatorInfo}` : ""} | disetujui oleh ${adminName}`;
 
-    // Update keterangan jadi APPROVED
+    // Update keterangan jadi APPROVED dengan info creator & approver
     await supabase
       .from("stok_movement")
-      .update({ keterangan: `RUSAK:APPROVED:${detail}` })
+      .update({ keterangan: approvedKet })
       .eq("id", mov.id);
 
     // Posting jurnal
@@ -654,14 +661,14 @@ export default function StokGudang() {
       {
         tanggal: mov.tanggal,
         ref: "OUT-RUSAK",
-        keterangan: `Kerusakan Persediaan (Approved): ${detail}`,
+        keterangan: `Kerusakan Persediaan (Approved): ${itemDetail}`,
         kodeAkun: "510000", akun: "Operasional", tipe: "Debit",
         jumlah: totalLoss, kategori: "Beban"
       },
       {
         tanggal: mov.tanggal,
         ref: "OUT-RUSAK",
-        keterangan: `Kerusakan Persediaan (Approved): ${detail}`,
+        keterangan: `Kerusakan Persediaan (Approved): ${itemDetail}`,
         kodeAkun: "140000", akun: "Persediaan", tipe: "Kredit",
         jumlah: totalLoss, kategori: "Aset"
       }
@@ -1100,13 +1107,24 @@ export default function StokGudang() {
                         {rusakHistory.slice(0, 20).map((m: any) => {
                           const b = bahan.find((x: any) => x.id === m.bahanId);
                           const isPending = m.keterangan?.startsWith("RUSAK:PENDING:");
-                          const detail = (m.keterangan || "").replace(/^RUSAK:(PENDING:|APPROVED:)/, "");
+                          const isApproved = m.keterangan?.startsWith("RUSAK:APPROVED:");
+                          const rawKet = (m.keterangan || "").replace(/^RUSAK:(PENDING:|APPROVED:)/, "");
+                          const parts = rawKet.split("|");
+                          const detail = parts[0]?.trim() || rawKet;
+                          const extraInfo = parts.slice(1).join(" | ").trim();
                           return (
                             <TableRow key={m.id}>
                               <TableCell className="whitespace-nowrap">{m.tanggal}</TableCell>
                               <TableCell className="font-medium">{b?.nama ?? "-"}</TableCell>
                               <TableCell className="text-right font-semibold">{m.qty} {b?.satuan}</TableCell>
-                              <TableCell className="text-xs max-w-[200px] truncate">{detail}</TableCell>
+                              <TableCell className="text-xs max-w-[240px]">
+                                <span>{detail}</span>
+                                {extraInfo && (
+                                  <span className="text-muted-foreground block leading-tight mt-0.5">
+                                    {extraInfo}
+                                  </span>
+                                )}
+                              </TableCell>
                               <TableCell>
                                 {isPending ? (
                                   <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
@@ -1477,6 +1495,22 @@ function AdminReturPerlengkapanInner({ dbState }: { dbState: any }) {
   );
 }
 
+// === HELPER: Parse RUSAK:PENDING:/APPROVED: keterangan for display ===
+function parseRusakKet(keterangan: string | null | undefined): { type: "pending" | "approved"; label: string; extra: string } | null {
+  if (!keterangan) return null;
+  if (keterangan.startsWith("RUSAK:PENDING:")) {
+    const raw = keterangan.replace("RUSAK:PENDING:", "");
+    const parts = raw.split("|");
+    return { type: "pending", label: parts[0]?.trim() || raw, extra: parts.slice(1).join(" | ").trim() };
+  }
+  if (keterangan.startsWith("RUSAK:APPROVED:")) {
+    const raw = keterangan.replace("RUSAK:APPROVED:", "");
+    const parts = raw.split("|");
+    return { type: "approved", label: parts[0]?.trim() || raw, extra: parts.slice(1).join(" | ").trim() };
+  }
+  return null;
+}
+
 // === HELPER COMPONENT FOR HISTORICAL MOVEMENTS ===
 function MovTable({ mov, bahan, produksi, produk }: any) {
   const { paged, page, setPage, totalPages, total, pageSize } = usePagination(mov, 10);
@@ -1513,7 +1547,26 @@ function MovTable({ mov, bahan, produksi, produk }: any) {
                   </TableCell>
                   <TableCell className="text-right font-medium">{m.qty}</TableCell>
                   <TableCell className="text-xs">
-                    {m.keterangan ?? "-"}
+                    {(() => {
+                      const rusak = parseRusakKet(m.keterangan);
+                      if (rusak) {
+                        return (
+                          <>
+                            <span>{rusak.label}</span>
+                            {rusak.extra && (
+                              <span className="text-muted-foreground ml-1">
+                                · {rusak.extra}
+                              </span>
+                            )}
+                            <Badge variant="outline" className="ml-1.5 text-[10px] h-4 px-1.5 gap-0.5">
+                              <AlertTriangle className="h-2.5 w-2.5" />
+                              {rusak.type === "pending" ? "Pending" : "Rusak"}
+                            </Badge>
+                          </>
+                        );
+                      }
+                      return <>{m.keterangan ?? "-"}</>;
+                    })()}
                     {linkProdNama && <span className="text-muted-foreground"> · Produksi {linkProdNama}</span>}
                   </TableCell>
                   <TableCell>

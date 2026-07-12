@@ -502,17 +502,10 @@ function SisaProduksiOH({
         );
         const totalSold = existingSales.reduce((sum: number, p: any) => sum + p.qty, 0);
 
-        // Distribute totalSold proportionally across split variants (D+I)
-        const allSubIds = MENU_ITEMS.filter(m => m.baseId === item.baseId).map(m => m.subId);
-        let siblingDistTotal = 0;
-        allSubIds.forEach(sid => { siblingDistTotal += distMap.get(sid) || 0; });
-        const totalSisaCups = Math.max(0, siblingDistTotal - totalSold);
-        const sisaCups = siblingDistTotal > 0 ? Math.floor(totalSisaCups * (distQty / siblingDistTotal)) : 0;
-
         const isCupUnit = item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon";
         
         if (isCupUnit) {
-          next[key] = sisaCups; // store cups/pcs directly
+          next[key] = 0; // default: 0 — user hanya input OH jika ada sisa penjualan
         } else {
           // For bubur/tim: try to read sisaGram from variant-specific penjualan record
           // This preserves the EXACT grams entered by user per variant
@@ -535,7 +528,7 @@ function SisaProduksiOH({
               return;
             }
           }
-          next[key] = sisaCups * item.gramPerCup; // fallback: calculate from cups
+          next[key] = 0; // default: 0 — user hanya input OH jika ada sisa penjualan
         }
       });
       return next;
@@ -1089,16 +1082,6 @@ function SisaProduksiAdminView({
           );
           const totalSold = existingSales.reduce((s: number, p: any) => s + p.qty, 0);
 
-          // Distribute totalSold proportionally across split variants (D+I)
-          let siblingDistTotal = 0;
-          itemMap.forEach((siblingInfo, sid) => {
-            if (siblingInfo.baseId === info.baseId) {
-              siblingDistTotal += siblingInfo.distQty;
-            }
-          });
-          const totalSisaCups = Math.max(0, siblingDistTotal - totalSold);
-          const sisaCups = siblingDistTotal > 0 ? Math.floor(totalSisaCups * (info.distQty / siblingDistTotal)) : 0;
-
           const isCupUnit = subId === "oatmeal" || subId === "puding" || subId === "abon";
           
           // For bubur/tim: try to read sisaGram from variant-specific penjualan record
@@ -1129,7 +1112,7 @@ function SisaProduksiAdminView({
           }
 
           const storeVal = isCupUnit ? sisaCups : (sisaCups * info.gramPerCup);
-          next[key] = prev[key] !== undefined ? prev[key] : storeVal;
+          next[key] = 0; // default: 0 — admin hanya input OH jika ada sisa penjualan
         });
       });
       return next;

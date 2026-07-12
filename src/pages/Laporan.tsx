@@ -803,7 +803,7 @@ function SisaProduksiOH({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={saving || rows.every(r => r.sisaCups === 0) || isLocked}
+                disabled={saving || rows.every(r => r.distribusi <= 0) || isLocked}
                 size="sm"
                 className="gradient-primary text-primary-foreground h-9"
               >

@@ -1885,6 +1885,9 @@ function RiwayatTransaksiTab({
         "p-bubur-i": "bubur_i",
         "p-nasitim-d": "tim_d",
         "p-nasitim-i": "tim_i",
+        "p-oatmeal": "oatmeal",
+        "p-puding": "puding",
+        "p-abon": "abon",
       };
       const variantSubId = SUBID_TO_VARIANT[row.subId] || row.subId;
       const variantKey = `${row.tanggal}-${row.outletId}-${row.baseId}-${variantSubId}`;
@@ -1892,14 +1895,27 @@ function RiwayatTransaksiTab({
       
       if (dbSisaGram !== undefined) {
         // Found exact per-variant sisaGram — use it directly!
-        const dbSisaCups = gramPerCup > 0 ? Math.floor(dbSisaGram / gramPerCup) : 0;
+        // Determine if this is a cup/pcs-based item (oatmeal, puding, abon) vs gram-based (bubur/tim)
+        // For cup/pcs items, sisaGram stores the cups/pcs count directly, NOT grams.
+        const isCupUnit = row.subId === "p-oatmeal" || row.subId === "p-puding" || row.subId === "p-abon";
+        let dbSisaCups: number;
+        let displayGr: number;
+        if (isCupUnit) {
+          // sisaGram stores cups/pcs directly for these items
+          dbSisaCups = dbSisaGram;
+          displayGr = dbSisaCups * gramPerCup;
+        } else {
+          // sisaGram stores grams for bubur/tim
+          dbSisaCups = gramPerCup > 0 ? Math.floor(dbSisaGram / gramPerCup) : 0;
+          displayGr = dbSisaGram;
+        }
         const dbSold = Math.max(0, row.stokAwalPcs - Math.min(dbSisaCups, row.stokAwalPcs));
         return {
           ...row,
           actualSold: dbSold,
           actualReturPcs: dbSisaCups,
-          actualReturGram: dbSisaGram,
-          displayReturGr: dbSisaGram,
+          actualReturGram: displayGr,
+          displayReturGr: displayGr,
           displayReturPcs: dbSisaCups,
           displayTerjual: dbSold,
         };
@@ -2016,6 +2032,7 @@ function RiwayatTransaksiTab({
                       ? Math.max(0, row.stokAwalPcs - returPcs)
                       : row.actualSold;
                     const omset = terjual * row.harga;
+                    const returPcsLabel = row.baseId === "p-abon" ? "pcs" : "cup";
 
                     return (
                       <TableRow key={`${row.tanggal}-${row.outletId}-${row.subId}`}>
@@ -2034,7 +2051,7 @@ function RiwayatTransaksiTab({
                         <TableCell className="text-right font-medium">
                           {returPcs > 0 ? (
                             <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-[10px]">
-                              {returPcs} cup
+                              {returPcs} {returPcsLabel}
                             </Badge>
                           ) : (
                             <span className="text-xs text-muted-foreground">0</span>

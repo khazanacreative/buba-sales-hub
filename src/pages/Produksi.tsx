@@ -689,9 +689,9 @@ export default function Produksi() {
         bahanId: "b-ab01",
         kode: "AB01",
         nama: "ABON",
-        qty: Math.ceil(abonGr / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 10)), // cup
+        qty: Math.ceil(abonGr / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 10)), // pcs
         rawQtyGrams: abonGr,
-        satuan: "cup"
+        satuan: "pcs"
       });
     }
 
@@ -811,7 +811,7 @@ export default function Produksi() {
       return toast.error(`Distribusi Puding melebihi hasil masak aktual! (Terdistribusi: ${distTotals.puding} cup, Masak: ${actualCups.puding} cup)`);
     }
     if (distTotals.abon > actualCups.abon) {
-      return toast.error(`Distribusi Abon melebihi hasil masak aktual! (Terdistribusi: ${distTotals.abon} cup, Masak: ${actualCups.abon} cup)`);
+      return toast.error(`Distribusi Abon melebihi hasil masak aktual! (Terdistribusi: ${distTotals.abon} pcs, Masak: ${actualCups.abon} pcs)`);
     }
 
     const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
@@ -1197,7 +1197,7 @@ export default function Produksi() {
         movPromises.push(db.addStokMov({
           tanggal, bahanId: "b-ab01", tipe: "IN",
           qty: Math.ceil(recoveredIngredients.abon / (bahan.find(x => x.id === "b-ab01")?.konversiGram ?? 10)),
-          keterangan: `Retur Bahan Baku (cup) [${tanggal}]`
+          keterangan: `Retur Bahan Baku (pcs) [${tanggal}]`
         }));
       }
 
@@ -1453,7 +1453,7 @@ export default function Produksi() {
               </div>
               <div className="space-y-1 bg-card p-3 rounded-xl border text-center">
                 <div className="text-[10px] font-bold text-muted-foreground truncate">Abon</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.abon} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <div className="text-lg font-bold text-foreground mt-1">{totals.abon} <span className="text-xs font-normal text-muted-foreground">pcs</span></div>
                 <span className="text-[10px] text-muted-foreground font-medium block">({(totals.abon * 10).toLocaleString()} g)</span>
               </div>
             </div>
@@ -1908,7 +1908,7 @@ export default function Produksi() {
                     <div className="text-xs text-muted-foreground space-y-1">
                       {totals.oatmeal > 0 && <div>• Oatmeal: <span className="font-semibold text-foreground">{Math.ceil(totals.oatmeal * settings.oatmealCup)} gr</span> ({totals.oatmeal} cup)</div>}
                       {totals.puding > 0 && <div>• Puding: <span className="font-semibold text-foreground">{Math.ceil(totals.puding * settings.pudingCup)} gr</span> ({totals.puding} cup)</div>}
-                      {totals.abon > 0 && <div>• Abon: <span className="font-semibold text-foreground">{Math.ceil(totals.abon * settings.abonCup)} gr</span> ({totals.abon} cup)</div>}
+                      {totals.abon > 0 && <div>• Abon: <span className="font-semibold text-foreground">{Math.ceil(totals.abon * settings.abonCup)} gr</span> ({totals.abon} pcs)</div>}
                     </div>
                   </div>
                 )}

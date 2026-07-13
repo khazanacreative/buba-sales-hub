@@ -182,7 +182,7 @@ export default function Distribusi() {
       return toast.error(`Distribusi Puding melebihi hasil masak aktual! (Terdistribusi: ${distTotals.puding} cup, Masak: ${actualCups.puding} cup)`);
     }
     if (distTotals.abon > actualCups.abon) {
-      return toast.error(`Distribusi Abon melebihi hasil masak aktual! (Terdistribusi: ${distTotals.abon} cup, Masak: ${actualCups.abon} cup)`);
+      return toast.error(`Distribusi Abon melebihi hasil masak aktual! (Terdistribusi: ${distTotals.abon} pcs, Masak: ${actualCups.abon} pcs)`);
     }
 
     const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
@@ -412,7 +412,7 @@ export default function Distribusi() {
       if (recoveredIngredients.beras > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-brs01", tipe: "IN", qty: Math.ceil(recoveredIngredients.beras / (bahan.find((x: any) => x.id === "b-brs01")?.konversiGram ?? 600)), keterangan: `Retur Bahan Baku (Pack) [${tanggal}]` }));
       if (recoveredIngredients.puding > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-pud01", tipe: "IN", qty: Math.ceil(recoveredIngredients.puding / (bahan.find((x: any) => x.id === "b-pud01")?.konversiGram ?? 130)), keterangan: `Retur Bahan Baku (sachet) [${tanggal}]` }));
       if (recoveredIngredients.oat > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-oat01", tipe: "IN", qty: Math.ceil(recoveredIngredients.oat / (bahan.find((x: any) => x.id === "b-oat01")?.konversiGram ?? 154)), keterangan: `Retur Bahan Baku (sachet) [${tanggal}]` }));
-      if (recoveredIngredients.abon > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.ceil(recoveredIngredients.abon / (bahan.find((x: any) => x.id === "b-ab01")?.konversiGram ?? 10)), keterangan: `Retur Bahan Baku (cup) [${tanggal}]` }));
+      if (recoveredIngredients.abon > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-ab01", tipe: "IN", qty: Math.ceil(recoveredIngredients.abon / (bahan.find((x: any) => x.id === "b-ab01")?.konversiGram ?? 10)), keterangan: `Retur Bahan Baku (pcs) [${tanggal}]` }));
       if (recoveredIngredients.sayurHijau > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-sh01", tipe: "IN", qty: Math.ceil(recoveredIngredients.sayurHijau), keterangan: `Retur Bahan Baku (gr) [${tanggal}]` }));
       if (recoveredIngredients.sayurBrokoli > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-sb01", tipe: "IN", qty: Math.ceil(recoveredIngredients.sayurBrokoli), keterangan: `Retur Bahan Baku (gr) [${tanggal}]` }));
       if (recoveredIngredients.sayurPutih > 1) movPromises.push(db.addStokMov({ tanggal, bahanId: "b-sp01", tipe: "IN", qty: Math.ceil(recoveredIngredients.sayurPutih), keterangan: `Retur Bahan Baku (gr) [${tanggal}]` }));
@@ -628,7 +628,7 @@ export default function Distribusi() {
                           <TableCell className="bg-blue-500/5 text-center py-2.5"><div className="font-semibold text-xs">{row.tim_i || 0} cup</div><div className="text-[9px] text-muted-foreground">{(row.tim_i || 0) * 108} g</div></TableCell>
                           <TableCell className="text-center py-2.5 font-medium"><div className="text-xs">{row.oatmeal || 0} cup</div><div className="text-[9px] text-muted-foreground">{(row.oatmeal || 0) * 100} g</div></TableCell>
                           <TableCell className="text-center py-2.5 font-medium"><div className="text-xs">{row.puding || 0} cup</div><div className="text-[9px] text-muted-foreground">{(row.puding || 0) * 80} g</div></TableCell>
-                          <TableCell className="text-center py-2.5 font-medium"><div className="text-xs">{row.abon || 0} cup</div><div className="text-[9px] text-muted-foreground">{(row.abon || 0) * 10} g</div></TableCell>
+                          <TableCell className="text-center py-2.5 font-medium"><div className="text-xs">{row.abon || 0} pcs</div><div className="text-[9px] text-muted-foreground">{(row.abon || 0) * 10} g</div></TableCell>
                         </TableRow>
                       );
                     })}
@@ -713,18 +713,19 @@ export default function Distribusi() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {returItems.map((item) => {
                     const returVal = (row as any)[item.field] || 0;
-                    const returCups = Math.floor(returVal / item.gramFactor);
+                    const returCups = item.field === "abon" ? Math.floor(returVal / 10) : Math.floor(returVal / item.gramFactor);
                     const sold = Math.max(0, item.sent - Math.min(returCups, item.sent));
                     const isBuburTim = ["bubur_d", "bubur_i", "tim_d", "tim_i"].includes(item.field);
+                    const unitLabel = item.field === "abon" ? "pcs" : "cup";
 
                     return (
                       <div key={item.field} className="p-4 rounded-2xl border bg-card/40 space-y-3">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-sm">{item.label}</span>
-                          <Badge variant="outline" className="text-[10px]">Dikirim: {item.sent} cup</Badge>
+                          <Badge variant="outline" className="text-[10px]">Dikirim: {item.sent} {unitLabel}</Badge>
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Retur ({isBuburTim ? "gram" : "cup/pcs"})</Label>
+                          <Label className="text-xs text-muted-foreground">Retur ({isBuburTim ? "gram" : unitLabel})</Label>
                           <Input
                             type="number"
                             min={0}
@@ -739,8 +740,8 @@ export default function Distribusi() {
                           )}
                         </div>
                         <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t">
-                          <span>Retur: <strong className="text-foreground">{returCups} cup</strong></span>
-                          <span>Terjual: <strong className="text-primary">{sold} cup</strong></span>
+                          <span>Retur: <strong className="text-foreground">{returCups} {unitLabel}</strong></span>
+                          <span>Terjual: <strong className="text-primary">{sold} {unitLabel}</strong></span>
                         </div>
                       </div>
                     );
@@ -778,7 +779,7 @@ export default function Distribusi() {
                       const oatSent = sent.oatmeal || 0;
                       const pudRet = Math.floor((row.puding || 0) / 80);
                       const pudSent = sent.puding || 0;
-                      const abonRet = Math.floor((row.abon || 0) / 10);
+                      const abonRet = row.abon || 0; // returGrid stores pcs directly for abon
                       const abonSent = sent.abon || 0;
 
                       return (
@@ -800,6 +801,7 @@ export default function Distribusi() {
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
                             <span className="text-destructive">{abonRet}</span> / <span className="text-primary font-semibold">{calcSold(abonSent, abonRet)}</span>
+                            <div className="text-[9px] text-muted-foreground">ret/terj</div>
                           </TableCell>
                         </TableRow>
                       );

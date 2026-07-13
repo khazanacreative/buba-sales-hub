@@ -405,7 +405,7 @@ export default function Distribusi() {
       }
 
       // Stok retur movements
-      const existingReturMov = (stokMov || []).filter((m: any) => m.tanggal === tanggal && m.tipe === "IN" && m.keterangan?.includes("Retur Bahan"));
+      const existingReturMov = (stokMov || []).filter((m: any) => m.tanggal === tanggal && m.tipe === "IN" && (m.keterangan?.includes("Retur Bahan") || m.keterangan?.includes("OH abon")));
       for (const m of existingReturMov) { await supabase.from("stok_movement").delete().eq("id", m.id); }
 
       const movPromises: Promise<any>[] = [];

@@ -1165,7 +1165,7 @@ export default function Produksi() {
 
       // 5. Delete existing retur stok movements for this tanggal, then re-create
       const existingReturMov = (dbState.stokMov || []).filter(
-        (m: any) => m.tanggal === tanggal && m.tipe === "IN" && m.keterangan?.includes("Retur Bahan")
+        (m: any) => m.tanggal === tanggal && m.tipe === "IN" && (m.keterangan?.includes("Retur Bahan") || m.keterangan?.includes("OH abon"))
       );
       for (const m of existingReturMov) {
         await supabase.from("stok_movement").delete().eq("id", m.id);

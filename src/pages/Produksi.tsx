@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { db, useDB, saldoBahan, getBubaSettings } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { ImportExcelButton } from "@/components/ImportExcelButton";
@@ -62,6 +62,8 @@ export default function Produksi() {
   const [step, setStep] = useState(1);
   const [activeTab, setActiveTab] = useState("siklus"); // siklus, riwayat
   const [range, setRange] = useState<DateRange>({});
+  const [requestingWarehouse, setRequestingWarehouse] = useState(false);
+  const [warehouseConfirmOpen, setWarehouseConfirmOpen] = useState(false);
 
   const [step1OutletId, setStep1OutletId] = useState("");
   const [expandedOutlets, setExpandedOutlets] = useState<Record<string, boolean>>({});
@@ -139,6 +141,10 @@ export default function Produksi() {
   // STEP 1 STATES
   const [planGrid, setPlanGrid] = useState<Record<string, Record<string, number>>>({});
   const [searchOutlet, setSearchOutlet] = useState("");
+  const [tanggal2, setTanggal2] = useState("");
+  const [isTwoDayPlan, setIsTwoDayPlan] = useState(false);
+  const [activePlanDate, setActivePlanDate] = useState<"date1" | "date2">("date1");
+  const [planGrid2, setPlanGrid2] = useState<Record<string, Record<string, number>>>({});
 
   // STEP 3 STATES
   const [actualGrams, setActualGrams] = useState({
@@ -208,8 +214,8 @@ export default function Produksi() {
     return { v1: "", v2: "" };
   };
 
-  // Load plan for date
-  const loadPlanForDate = (dateStr: string) => {
+  // Load plan for a given date into the specified grid setter
+  const loadPlanForDate = (dateStr: string, setter?: (grid: Record<string, Record<string, number>>) => void) => {
     const grid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => {
       grid[o.id] = {
@@ -236,7 +242,26 @@ export default function Produksi() {
         grid[r.outletId].abon = r.qty;
       }
     });
-    setPlanGrid(grid);
+    
+    if (setter) {
+      setter(grid);
+    } else {
+      setPlanGrid(grid);
+    }
+  };
+
+  // Load plan for tanggal2 into planGrid2
+  const loadPlanForDate2 = () => {
+    if (!tanggal2) {
+      // Reset planGrid2
+      const empty: Record<string, Record<string, number>> = {};
+      outlets.forEach(o => {
+        empty[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+      });
+      setPlanGrid2(empty);
+      return;
+    }
+    loadPlanForDate(tanggal2, (grid) => setPlanGrid2(grid));
   };
 
   // Load grids from DB on date change or initial outlet load.
@@ -427,7 +452,8 @@ export default function Produksi() {
 
   const handlePlanChange = (outletId: string, field: string, val: number) => {
     hasUserModifiedGrids.current = true;
-    setPlanGrid(prev => ({
+    const setter = activePlanDate === "date1" ? setPlanGrid : setPlanGrid2;
+    setter(prev => ({
       ...prev,
       [outletId]: {
         ...prev[outletId],
@@ -521,16 +547,62 @@ export default function Produksi() {
       }
     });
 
-    if (batch.length === 0) {
-      return toast.error("Masukkan minimal 1 porsi rencana produksi");
+    // If 2-day plan is active, build tanggal2 batch too
+    let batch2: any[] = [];
+    if (isTwoDayPlan && tanggal2) {
+      batch2 = [];
+      const existing2 = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal2);
+      if (existing2.length > 0) {
+        await Promise.all(existing2.map((r: any) => db.deletePermohonanStok(r.id)));
+      }
+
+      const batch2: any[] = [];
+      Object.entries(planGrid2).forEach(([outletId, vals]) => {
+        const totalBubur = (vals.bubur_d || 0) + (vals.bubur_i || 0);
+        if (totalBubur > 0) {
+          batch2.push({
+            tanggal: todayISO(),
+            tanggalKirim: tanggal2,
+            outletId,
+            produkId: "p-bubur",
+            qty: totalBubur,
+            catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0, "", bubur1Name, bubur2Name, bubur1Variant, bubur2Variant)
+          });
+        }
+
+        const totalTim = (vals.tim_d || 0) + (vals.tim_i || 0);
+        if (totalTim > 0) {
+          batch2.push({
+            tanggal: todayISO(),
+            tanggalKirim: tanggal2,
+            outletId,
+            produkId: "p-nasitim",
+            qty: totalTim,
+            catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0, "", tim1Name, tim2Name, tim1Variant, tim2Variant)
+          });
+        }
+
+        if (vals.oatmeal > 0) {
+          batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-oatmeal", qty: vals.oatmeal, catatan: "" });
+        }
+        if (vals.puding > 0) {
+          batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-puding", qty: vals.puding, catatan: "" });
+        }
+        if (vals.abon > 0) {
+          batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-abon", qty: vals.abon, catatan: "" });
+        }
+      });
+
+      if (batch2.length > 0) {
+        await db.addPermohonanStokBulk(batch2);
+      }
     }
 
-    await db.addPermohonanStokBulk(batch);
     toast.success("Rencana Pra-Produksi berhasil disimpan!");
     setStep(2);
   };
 
-  // STEP 2 CALCULATIONS & ACTION
+  // Single-date totals (only planGrid for tanggal) — used in Steps 3, 4, 5
   const totals = useMemo(() => {
     let buburD = 0, buburI = 0, timD = 0, timI = 0;
     let oatmeal = 0, puding = 0, abon = 0;
@@ -555,6 +627,38 @@ export default function Produksi() {
     };
   }, [planGrid]);
 
+  // Combined totals (planGrid + planGrid2) — used in Step 2 for material calculation
+  const combinedTotals = useMemo(() => {
+    let buburD = 0, buburI = 0, timD = 0, timI = 0;
+    let oatmeal = 0, puding = 0, abon = 0;
+
+    const sumGrid = (grid: Record<string, Record<string, number>>) => {
+      Object.values(grid).forEach(v => {
+        buburD += v.bubur_d || 0;
+        buburI += v.bubur_i || 0;
+        timD += v.tim_d || 0;
+        timI += v.tim_i || 0;
+        oatmeal += v.oatmeal || 0;
+        puding += v.puding || 0;
+        abon += v.abon || 0;
+      });
+    };
+
+    sumGrid(planGrid);
+    if (isTwoDayPlan) {
+      sumGrid(planGrid2);
+    }
+
+    const totalBubur = buburD + buburI;
+    const totalTim = timD + timI;
+
+    return {
+      buburD, buburI, totalBubur,
+      timD, timI, totalTim,
+      oatmeal, puding, abon
+    };
+  }, [planGrid, planGrid2, isTwoDayPlan]);
+
   const distTotals = useMemo(() => {
     let buburD = 0, buburI = 0, timD = 0, timI = 0;
     let oatmeal = 0, puding = 0, abon = 0;
@@ -576,10 +680,11 @@ export default function Produksi() {
   }, [distGrid]);
 
   const materialReqs = useMemo(() => {
+    const t = combinedTotals; // use combined totals for material calculation
     const reqs: { bahanId: string; kode: string; nama: string; qty: number; rawQtyGrams: number; satuan: string }[] = [];
 
     // 1. Beras
-    const berasGr = Math.ceil(buburCalc(totals.buburD + totals.buburI, BUBUR_BASE.beras) + (totals.timD * settings.berasTim) + (totals.timI * settings.berasTim));
+    const berasGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.beras) + (t.timD * settings.berasTim) + (t.timI * settings.berasTim));
     if (berasGr > 0) {
       reqs.push({
         bahanId: "b-brs01",
@@ -592,7 +697,7 @@ export default function Produksi() {
     }
 
     // 1b. Sayur
-    const shGr = Math.ceil(buburCalc(totals.buburD + totals.buburI, BUBUR_BASE.sayurHijau) + (totals.timD + totals.timI) * settings.sayurHijauTim);
+    const shGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurHijau) + (t.timD + t.timI) * settings.sayurHijauTim);
     if (shGr > 0) {
       reqs.push({
         bahanId: "b-sh01",
@@ -604,7 +709,7 @@ export default function Produksi() {
       });
     }
 
-    const sbGr = Math.ceil(buburCalc(totals.buburD + totals.buburI, BUBUR_BASE.sayurBrokoli) + (totals.timD + totals.timI) * settings.sayurBrokoliTim);
+    const sbGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurBrokoli) + (t.timD + t.timI) * settings.sayurBrokoliTim);
     if (sbGr > 0) {
       reqs.push({
         bahanId: "b-sb01",
@@ -616,7 +721,7 @@ export default function Produksi() {
       });
     }
 
-    const spGr = Math.ceil(buburCalc(totals.buburD + totals.buburI, BUBUR_BASE.sayurPutih) + (totals.timD + totals.timI) * settings.sayurPutihTim);
+    const spGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurPutih) + (t.timD + t.timI) * settings.sayurPutihTim);
     if (spGr > 0) {
       reqs.push({
         bahanId: "b-sp01",
@@ -651,13 +756,13 @@ export default function Produksi() {
     };
 
     // Meats
-    if (totals.buburD > 0 && bubur1Variant) addVariant(bubur1Variant, buburCalc(totals.buburD, BUBUR_BASE.daging));
-    if (totals.buburI > 0 && bubur2Variant) addVariant(bubur2Variant, buburCalc(totals.buburI, BUBUR_BASE.daging));
-    if (totals.timD > 0 && tim1Variant) addVariant(tim1Variant, totals.timD * settings.dagingTim);
-    if (totals.timI > 0 && tim2Variant) addVariant(tim2Variant, totals.timI * settings.dagingTim);
+    if (t.buburD > 0 && bubur1Variant) addVariant(bubur1Variant, buburCalc(t.buburD, BUBUR_BASE.daging));
+    if (t.buburI > 0 && bubur2Variant) addVariant(bubur2Variant, buburCalc(t.buburI, BUBUR_BASE.daging));
+    if (t.timD > 0 && tim1Variant) addVariant(tim1Variant, t.timD * settings.dagingTim);
+    if (t.timI > 0 && tim2Variant) addVariant(tim2Variant, t.timI * settings.dagingTim);
 
     // Puding
-    const pudingGr = Math.ceil(totals.puding * settings.pudingCup);
+    const pudingGr = Math.ceil(t.puding * settings.pudingCup);
     if (pudingGr > 0) {
       reqs.push({
         bahanId: "b-pud01",
@@ -670,7 +775,7 @@ export default function Produksi() {
     }
 
     // Oat
-    const oatGr = Math.ceil(totals.oatmeal * settings.oatmealCup);
+    const oatGr = Math.ceil(t.oatmeal * settings.oatmealCup);
     if (oatGr > 0) {
       reqs.push({
         bahanId: "b-oat01",
@@ -683,7 +788,7 @@ export default function Produksi() {
     }
 
     // Abon
-    const abonGr = Math.ceil(totals.abon * settings.abonCup);
+    const abonGr = Math.ceil(t.abon * settings.abonCup);
     if (abonGr > 0) {
       reqs.push({
         bahanId: "b-ab01",
@@ -696,57 +801,78 @@ export default function Produksi() {
     }
 
     // Cup Puding
-    if (totals.puding > 0) {
+    if (t.puding > 0) {
       reqs.push({
         bahanId: "b-cuppud01",
         kode: "CUPPUD01",
         nama: "CUP PUDING",
-        qty: totals.puding,
-        rawQtyGrams: totals.puding, // 1:1
+        qty: t.puding,
+        rawQtyGrams: t.puding, // 1:1
         satuan: "biji"
       });
     }
 
     // Cup Oat
-    if (totals.oatmeal > 0) {
+    if (t.oatmeal > 0) {
       reqs.push({
         bahanId: "b-cupoat1",
         kode: "CUPOAT1",
         nama: "CUP OAT",
-        qty: totals.oatmeal,
-        rawQtyGrams: totals.oatmeal, // 1:1
+        qty: t.oatmeal,
+        rawQtyGrams: t.oatmeal, // 1:1
         satuan: "biji"
       });
     }
 
     return reqs;
-  }, [totals, bubur1Variant, bubur2Variant, tim1Variant, tim2Variant, bahan, settings]);
+  }, [combinedTotals, bubur1Variant, bubur2Variant, tim1Variant, tim2Variant, bahan, settings]);
 
   const isWarehouseRequested = useMemo(() => {
-    return stokMov.some((m: any) => m.tanggal === tanggal && m.tipe === "OUT" && m.keterangan?.includes("Pemakaian Produksi"));
-  }, [stokMov, tanggal]);
+    // Check by keterangan label — this works regardless of the tanggal used
+    const label = isTwoDayPlan && tanggal2 ? `${tanggal} + ${tanggal2}` : tanggal;
+    return stokMov.some((m: any) => 
+      m.tipe === "OUT" && m.keterangan === `Pemakaian Produksi [${label}]`
+    );
+  }, [stokMov, tanggal, tanggal2, isTwoDayPlan]);
 
   const requestWarehouse = async () => {
-    // Hapus pemotongan stok lama untuk tanggal ini, lalu buat ulang dengan data terbaru
-    const existingMov = (stokMov || []).filter(
-      (m: any) => m.tanggal === tanggal && m.tipe === "OUT" && m.keterangan?.includes("Pemakaian Produksi")
-    );
-    for (const m of existingMov) {
-      await db.deleteStokMov(m.id);
+    // Cegah double-click: hanya cek requestingWarehouse (bukan isWarehouseRequested)
+    // agar user bisa melakukan validasi ulang jika perlu (dengan menghapus & membuat ulang)
+    if (requestingWarehouse) return;
+    setRequestingWarehouse(true);
+
+    try {
+      const stockDate = todayISO();
+      const datesLabel = isTwoDayPlan && tanggal2 ? `${tanggal} + ${tanggal2}` : tanggal;
+
+      // Hapus pemotongan stok LAMA yang menggunakan tanggal hari ini untuk label yang sama
+      const existingMov = (stokMov || []).filter(
+        (m: any) => m.tanggal === stockDate && m.tipe === "OUT" && m.keterangan === `Pemakaian Produksi [${datesLabel}]`
+      );
+      for (const m of existingMov) {
+        await db.deleteStokMov(m.id);
+      }
+
+      // Buat pemotongan stok baru — satu tombol, satu eksekusi
+      await Promise.all(materialReqs.map(r => {
+        return db.addStokMov({
+          tanggal: stockDate,
+          bahanId: r.bahanId,
+          tipe: "OUT",
+          qty: r.qty,
+          keterangan: `Pemakaian Produksi [${datesLabel}]`
+        });
+      }));
+
+      toast.success(`Bahan baku untuk ${datesLabel} berhasil dipotong dari stok gudang!`);
+      setWarehouseConfirmOpen(false);
+      setStep(3);
+    } catch (err) {
+      toast.error("Gagal memotong stok gudang!");
+      console.error(err);
+    } finally {
+      setRequestingWarehouse(false);
     }
-
-    await Promise.all(materialReqs.map(r => {
-      return db.addStokMov({
-        tanggal,
-        bahanId: r.bahanId,
-        tipe: "OUT",
-        qty: r.qty,
-        keterangan: `Pemakaian Produksi [${tanggal}]`
-      });
-    }));
-
-    toast.success("Bahan baku berhasil dipotong dari stok gudang!");
-    setStep(3);
   };
 
   // STEP 3 Action
@@ -1411,50 +1537,128 @@ export default function Produksi() {
   function renderStep1() {
     return (
       <Card className="glass border-0 shadow-card">
-        <CardHeader>
-          <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">Gunakan tabel/form di bawah untuk mengisi rencana target produksi tiap outlet secara langsung.</p>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Gunakan tabel/form di bawah untuk mengisi rencana target produksi tiap outlet secara langsung.</p>
+            </div>
+            {/* 2-Day Plan Toggle */}
+            <div className="flex items-center gap-3 shrink-0">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <span className="text-xs font-medium text-muted-foreground">Rencana 2 Hari</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isTwoDayPlan}
+                  onClick={() => {
+                    const newVal = !isTwoDayPlan;
+                    setIsTwoDayPlan(newVal);
+                    if (newVal && !tanggal2) {
+                      // Default tanggal2 to next day
+                      const d = new Date(tanggal);
+                      d.setDate(d.getDate() + 1);
+                      setTanggal2(d.toISOString().slice(0, 10));
+                    }
+                    if (!newVal) {
+                      setActivePlanDate("date1");
+                    }
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    isTwoDayPlan ? "bg-primary" : "bg-input"
+                  }`}
+                >
+                  <span className={`inline-block h-5 w-5 rounded-full bg-background shadow-sm ring-0 transition-transform ${
+                    isTwoDayPlan ? "translate-x-[22px]" : "translate-x-[2px]"
+                  }`} />
+                </button>
+              </label>
+            </div>
+          </div>
+
+          {/* Date Pickers Row — show 2 date pickers when 2-day mode is on */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-bold text-muted-foreground">Tanggal 1:</Label>
+              <Input
+                type="date"
+                value={tanggal}
+                onChange={(e) => {
+                  setTanggal(e.target.value);
+                  hasUserModifiedGrids.current = false;
+                }}
+                className="w-44 h-9 text-xs"
+              />
+            </div>
+            {isTwoDayPlan && (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-bold text-muted-foreground">Tanggal 2:</Label>
+                <Input
+                  type="date"
+                  value={tanggal2}
+                  onChange={(e) => {
+                    setTanggal2(e.target.value);
+                    if (e.target.value) {
+                      loadPlanForDate(e.target.value, (grid) => setPlanGrid2(grid));
+                    }
+                  }}
+                  className="w-44 h-9 text-xs"
+                />
+              </div>
+            )}
+            {isTwoDayPlan && tanggal2 && (
+              <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 rounded-full border border-green-200 dark:border-green-800">
+                ⚡ Pemotongan stok untuk {tanggal} + {tanggal2} (gabungan)
+              </span>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           
           {/* Read-only Total Summary Dashboard */}
           <div className="bg-muted/35 p-5 rounded-2xl border space-y-4 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Rencana Produksi Hari Ini (Seluruh Outlet)</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {isTwoDayPlan && tanggal2 ? (
+                <>Total Rencana {tanggal} + {tanggal2} (Gabungan Seluruh Outlet)</>
+              ) : (
+                <>Total Rencana Produksi {tanggal} (Seluruh Outlet)</>
+              )}
+            </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
               <div className="space-y-1 bg-amber-500/5 p-3 rounded-xl border border-amber-300/30 text-center">
                 <div className="text-[10px] font-bold text-amber-600 truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.buburD} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
-                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.buburD * 118).toLocaleString()} g)</span>
+                <div className="text-lg font-bold text-foreground mt-1">{isTwoDayPlan ? combinedTotals.buburD : totals.buburD} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({((isTwoDayPlan ? combinedTotals.buburD : totals.buburD) * 118).toLocaleString()} g)</span>
               </div>
               <div className="space-y-1 bg-blue-500/5 p-3 rounded-xl border border-blue-300/30 text-center">
                 <div className="text-[10px] font-bold text-blue-600 truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.buburI} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
-                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.buburI * 118).toLocaleString()} g)</span>
+                <div className="text-lg font-bold text-foreground mt-1">{isTwoDayPlan ? combinedTotals.buburI : totals.buburI} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({((isTwoDayPlan ? combinedTotals.buburI : totals.buburI) * 118).toLocaleString()} g)</span>
               </div>
               <div className="space-y-1 bg-amber-500/5 p-3 rounded-xl border border-amber-300/30 text-center">
                 <div className="text-[10px] font-bold text-amber-600 truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.timD} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
-                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.timD * 108).toLocaleString()} g)</span>
+                <div className="text-lg font-bold text-foreground mt-1">{isTwoDayPlan ? combinedTotals.timD : totals.timD} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({((isTwoDayPlan ? combinedTotals.timD : totals.timD) * 108).toLocaleString()} g)</span>
               </div>
               <div className="space-y-1 bg-blue-500/5 p-3 rounded-xl border border-blue-300/30 text-center">
                 <div className="text-[10px] font-bold text-blue-600 truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.timI} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
-                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.timI * 108).toLocaleString()} g)</span>
+                <div className="text-lg font-bold text-foreground mt-1">{isTwoDayPlan ? combinedTotals.timI : totals.timI} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({((isTwoDayPlan ? combinedTotals.timI : totals.timI) * 108).toLocaleString()} g)</span>
               </div>
               <div className="space-y-1 bg-card p-3 rounded-xl border text-center">
                 <div className="text-[10px] font-bold text-muted-foreground truncate">Oatmeal</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.oatmeal} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
-                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.oatmeal * 100).toLocaleString()} g)</span>
+                <div className="text-lg font-bold text-foreground mt-1">{isTwoDayPlan ? combinedTotals.oatmeal : totals.oatmeal} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({((isTwoDayPlan ? combinedTotals.oatmeal : totals.oatmeal) * 100).toLocaleString()} g)</span>
               </div>
               <div className="space-y-1 bg-card p-3 rounded-xl border text-center">
                 <div className="text-[10px] font-bold text-muted-foreground truncate">Puding</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.puding} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
+                <div className="text-lg font-bold text-foreground mt-1">{isTwoDayPlan ? combinedTotals.puding : totals.puding} <span className="text-xs font-normal text-muted-foreground">cup</span></div>
                 <span className="text-[10px] text-muted-foreground font-medium block">({(totals.puding * 80).toLocaleString()} g)</span>
               </div>
               <div className="space-y-1 bg-card p-3 rounded-xl border text-center">
                 <div className="text-[10px] font-bold text-muted-foreground truncate">Abon</div>
-                <div className="text-lg font-bold text-foreground mt-1">{totals.abon} <span className="text-xs font-normal text-muted-foreground">pcs</span></div>
-                <span className="text-[10px] text-muted-foreground font-medium block">({(totals.abon * 10).toLocaleString()} g)</span>
+                <div className="text-lg font-bold text-foreground mt-1">{isTwoDayPlan ? combinedTotals.abon : totals.abon} <span className="text-xs font-normal text-muted-foreground">pcs</span></div>
+                <span className="text-[10px] text-muted-foreground font-medium block">({((isTwoDayPlan ? combinedTotals.abon : totals.abon) * 10).toLocaleString()} g)</span>
               </div>
             </div>
           </div>
@@ -1489,12 +1693,63 @@ export default function Produksi() {
                   </Button>
                 </div>
               </div>
-              <Input
-                placeholder="Cari outlet..."
-                value={searchOutlet}
-                onChange={(e) => setSearchOutlet(e.target.value)}
-                className="w-full sm:w-[220px] h-9 text-xs"
-              />
+              <div className="flex items-center gap-2">
+                {/* Date Tabs for 2-day plan */}
+                {isTwoDayPlan && (
+                  <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5 border">
+                    <button
+                      type="button"
+                      onClick={() => setActivePlanDate("date1")}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                        activePlanDate === "date1" 
+                          ? "bg-primary text-primary-foreground shadow-sm" 
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Tgl 1: {tanggal}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActivePlanDate("date2")}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                        activePlanDate === "date2" 
+                          ? "bg-primary text-primary-foreground shadow-sm" 
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Tgl 2: {tanggal2}
+                    </button>
+                  </div>
+                )}
+                {/* Copy from Date 1 button */}
+                {isTwoDayPlan && activePlanDate === "date2" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Copy planGrid to planGrid2
+                      const copy: Record<string, Record<string, number>> = {};
+                      Object.entries(planGrid).forEach(([outletId, vals]) => {
+                        copy[outletId] = { ...vals };
+                      });
+                      setPlanGrid2(copy);
+                      toast.success("Rencana Tgl 1 disalin ke Tgl 2");
+                      hasUserModifiedGrids.current = true;
+                    }}
+                    className="h-7 text-[10px] gap-1"
+                  >
+                    <Copy className="h-3 w-3" />
+                    <span className="hidden sm:inline">Salin dari Tgl 1</span>
+                  </Button>
+                )}
+                <Input
+                  placeholder="Cari outlet..."
+                  value={searchOutlet}
+                  onChange={(e) => setSearchOutlet(e.target.value)}
+                  className="w-full sm:w-[160px] h-9 text-xs"
+                />
+              </div>
             </div>
 
             {/* DESKTOP VIEW: TABLE WITH INPUT CELLS */}
@@ -1515,7 +1770,8 @@ export default function Produksi() {
                   </TableHeader>
                   <TableBody>
                     {filteredOutlets.map((o) => {
-                      const row = planGrid[o.id] || {
+                      const activeGrid = activePlanDate === "date1" ? planGrid : planGrid2;
+                      const row = activeGrid[o.id] || {
                         bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
                         oatmeal: 0, puding: 0, abon: 0
                       };
@@ -1612,7 +1868,8 @@ export default function Produksi() {
             {/* MOBILE VIEW: RESPONSIVE CARDS CONTAINER */}
             <div className="block md:hidden space-y-4">
               {filteredOutlets.map((o) => {
-                const row = planGrid[o.id] || {
+                const activeGrid = activePlanDate === "date1" ? planGrid : planGrid2;
+                const row = activeGrid[o.id] || {
                   bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
                   oatmeal: 0, puding: 0, abon: 0
                 };
@@ -1975,27 +2232,76 @@ export default function Produksi() {
               <ArrowLeft className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Kembali ke Langkah 1</span>
             </Button>
-            {isWarehouseRequested ? (
-              <div className="flex items-center gap-2">
-                <Badge className="bg-success text-success-foreground h-10 px-4 text-xs font-semibold gap-1.5">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span className="hidden md:inline">Bahan Baku Sudah Dipotong Dari Gudang</span>
-                </Badge>
-                <Button onClick={() => setStep(3)} className="h-10 gradient-primary text-primary-foreground">
-                  <span className="hidden md:inline">Lanjutkan</span>
-                  <ArrowRight className="h-4 w-4 md:ml-2" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                onClick={requestWarehouse}
-                disabled={materialReqs.length === 0}
-                className="gradient-primary text-primary-foreground hover-lift h-10"
-              >
-                <span className="hidden md:inline">Potong Stok Gudang & Lanjutkan</span>
-                <Send className="h-4 w-4 md:ml-2" />
-              </Button>
-            )}
+            
+            {/* Single toggleable validation button — can be opened/closed anytime */}
+            <div className="flex items-center gap-2">
+              {warehouseConfirmOpen ? (
+                <div className="flex items-center gap-2 p-2 rounded-xl" style={{
+                  backgroundColor: isWarehouseRequested ? 'hsl(142 76% 36% / 0.08)' : 'hsl(0 84% 60% / 0.08)',
+                  borderColor: isWarehouseRequested ? 'hsl(142 76% 36% / 0.2)' : 'hsl(0 84% 60% / 0.2)',
+                  borderWidth: 1
+                }}>
+                  <span className={`text-xs font-semibold px-2 whitespace-nowrap ${
+                    isWarehouseRequested ? 'text-green-700 dark:text-green-400' : 'text-destructive'
+                  }`}>
+                    {isWarehouseRequested ? 'Validasi ulang stok?' : 'Yakin potong stok?'}
+                  </span>
+                  <Button
+                    onClick={requestWarehouse}
+                    disabled={materialReqs.length === 0 || requestingWarehouse}
+                    size="sm"
+                    className={`h-8 ${
+                      isWarehouseRequested 
+                        ? 'bg-amber-600 text-white hover:bg-amber-700' 
+                        : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                    }`}
+                  >
+                    {requestingWarehouse ? (
+                      <><Clock className="h-3.5 w-3.5 mr-1 animate-spin" />Memproses...</>
+                    ) : (
+                      <><Check className="h-3.5 w-3.5 mr-1" />{isWarehouseRequested ? 'Validasi Ulang' : 'Validasi Stok'}</>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => setWarehouseConfirmOpen(false)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-muted-foreground hover:text-foreground"
+                    disabled={requestingWarehouse}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {isWarehouseRequested && (
+                    <Badge className="bg-green-600/10 text-green-700 dark:text-green-400 border-green-600/20 h-10 px-4 text-xs font-semibold gap-1.5 shrink-0">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="hidden md:inline">Stok Sudah Divalidasi</span>
+                    </Badge>
+                  )}
+                  <Button
+                    onClick={() => setWarehouseConfirmOpen(true)}
+                    disabled={materialReqs.length === 0}
+                    variant={isWarehouseRequested ? "outline" : "outline"}
+                    className={`h-10 gap-1.5 ${
+                      isWarehouseRequested 
+                        ? 'border-green-600/30 text-green-700 dark:text-green-400 hover:bg-green-600/5' 
+                        : 'border-destructive/30 text-destructive hover:bg-destructive/5'
+                    }`}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span className="hidden md:inline">{isWarehouseRequested ? 'Buka Validasi' : 'Validasi Pemotongan Stok'}</span>
+                  </Button>
+                  {isWarehouseRequested && (
+                    <Button onClick={() => setStep(3)} className="h-10 gradient-primary text-primary-foreground shrink-0">
+                      <span className="hidden md:inline">Lanjutkan</span>
+                      <ArrowRight className="h-4 w-4 md:ml-2" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

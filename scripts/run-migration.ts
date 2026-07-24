@@ -34,30 +34,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function runMigration() {
-  const migrationPath = path.resolve(process.cwd(), "supabase/migrations/20260627000002_add_role_to_karyawan.sql");
-  const sql = fs.readFileSync(migrationPath, "utf-8");
-  
-  console.log("Running migration: 20260627000002_add_role_to_karyawan.sql");
-  console.log("SQL:");
-  console.log(sql);
-  console.log("---");
+const MIGRATIONS_DIR = path.resolve(process.cwd(), "supabase/migrations");
 
+async function execSql(sql: string): Promise<boolean> {
   // Try via RPC (requires pg_exec function to be installed)
   try {
     const { error } = await supabase.rpc("exec_sql", { sql_text: sql });
-    if (error) {
-      throw error;
-    }
-    console.log("Migration applied successfully via RPC!");
-    return;
+    if (!error) return true;
+    console.log("  RPC method failed:", error.message);
   } catch (rpcErr: any) {
-    console.log("RPC method not available:", rpcErr.message || rpcErr);
+    console.log("  RPC method not available:", rpcErr.message || rpcErr);
   }
 
   // Try via REST API using fetch to the Supabase management endpoint
   try {
-    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -66,23 +57,69 @@ async function runMigration() {
       },
       body: JSON.stringify({ sql_text: sql })
     });
-    if (response.ok) {
-      console.log("Migration applied successfully via REST!");
-      return;
-    }
-    console.log("REST method failed:", await response.text());
+    if (response.ok) return true;
+    console.log("  REST method failed:", await response.text());
   } catch (restErr: any) {
-    console.log("REST method not available:", restErr.message || restErr);
+    console.log("  REST method not available:", restErr.message || restErr);
   }
 
-  // If both methods fail, provide instructions to run via Supabase Dashboard
-  console.log("\n========================================");
-  console.log("Could not run migration automatically.");
-  console.log("Please run this SQL manually in the Supabase Dashboard SQL Editor:");
-  console.log("========================================");
-  console.log(sql);
-  console.log("========================================");
-  console.log(`\nDashboard URL: ${supabaseUrl.replace("https://", "https://app.supabase.com/project/").split(".supabase")[0]}`);
+  return false;
 }
 
-runMigration().catch(console.error);
+async function runMigrations() {
+  // Read all migration files sorted by name
+  const files = fs.readdirSync(MIGRATIONS_DIR)
+    .filter(f => f.endsWith(".sql"))
+    .sort();
+
+  if (files.length === 0) {
+    console.log("Tidak ada file migrasi ditemukan di", MIGRATIONS_DIR);
+    return;
+  }
+
+  console.log(`Ditemukan ${files.length} file migrasi:\n`);
+
+  let successCount = 0;
+  const failedFiles: string[] = [];
+
+  for (const file of files) {
+    const filePath = path.join(MIGRATIONS_DIR, file);
+    const sql = fs.readFileSync(filePath, "utf-8");
+
+    console.log(`▶ Menjalankan migrasi: ${file}`);
+    
+    const applied = await execSql(sql);
+    if (applied) {
+      console.log(`  ✅ ${file} berhasil!\n`);
+      successCount++;
+    } else {
+      console.log(`  ❌ ${file} gagal dijalankan secara otomatis.\n`);
+      failedFiles.push(file);
+    }
+  }
+
+  // Summary
+  console.log("========================================");
+  console.log(`Ringkasan: ${successCount}/${files.length} migrasi berhasil.\n`);
+
+  if (failedFiles.length > 0) {
+    // Generate combined SQL file for manual execution
+    const combinedPath = path.resolve(process.cwd(), "scripts/combined-migration.sql");
+    const combinedSql = files
+      .map(f => `-- === ${f} ===\n` + fs.readFileSync(path.join(MIGRATIONS_DIR, f), "utf-8"))
+      .join("\n\n");
+    fs.writeFileSync(combinedPath, combinedSql, "utf-8");
+
+    console.log("❌ Migrasi yang gagal:");
+    for (const f of failedFiles) {
+      console.log(`   - ${f}`);
+    }
+    console.log(`\n📄 File gabungan telah dibuat: scripts/combined-migration.sql`);
+    console.log("\nSilakan buka Supabase Dashboard → SQL Editor dan jalankan file tersebut.");
+    console.log(`\nDashboard URL: ${supabaseUrl.replace("https://", "https://app.supabase.com/project/").split(".supabase")[0]}`);
+  } else {
+    console.log("✅ Semua migrasi berhasil dijalankan!");
+  }
+}
+
+runMigrations().catch(console.error);

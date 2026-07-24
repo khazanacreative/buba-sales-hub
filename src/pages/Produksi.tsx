@@ -547,10 +547,13 @@ export default function Produksi() {
       }
     });
 
+    // Save main batch for tanggal
+    if (batch.length > 0) {
+      await db.addPermohonanStokBulk(batch);
+    }
+
     // If 2-day plan is active, build tanggal2 batch too
-    let batch2: any[] = [];
     if (isTwoDayPlan && tanggal2) {
-      batch2 = [];
       const existing2 = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal2);
       if (existing2.length > 0) {
         await Promise.all(existing2.map((r: any) => db.deletePermohonanStok(r.id)));

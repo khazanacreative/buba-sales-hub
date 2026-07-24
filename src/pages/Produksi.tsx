@@ -265,9 +265,10 @@ export default function Produksi() {
   };
 
   // Load grids from DB on date change or initial outlet load.
-  // ⚠️ Depends on [tanggal, outlets, penjualan] — penjualan included so
+  // ⚠️ Depends on [tanggal, outlets, penjualan, permohonanStok, produksi, bahan] — penjualan included so
   // that when outlet saves sisa penjualan via Laporan page, the returGrid
-  // in Step 5 auto-updates with the latest sales data.
+  // in Step 5 auto-updates with the latest sales data. permohonanStok, produksi, bahan
+  // included so that grids load correctly after Supabase fetch completes on page refresh.
   // hasUserModifiedGrids ref prevents re-init if user has manually edited
   // any grid input — safe against background-polling reset.
   useEffect(() => {
@@ -448,7 +449,7 @@ export default function Produksi() {
         .reduce((s: number, p: any) => s + p.qty, 0)
         .toString() + "-" + penjualan.length;
     }
-  }, [tanggal, outlets, penjualan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
+  }, [tanggal, outlets, penjualan, permohonanStok, produksi, bahan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
 
   const handlePlanChange = (outletId: string, field: string, val: number) => {
     hasUserModifiedGrids.current = true;
@@ -505,67 +506,19 @@ export default function Produksi() {
 
   // STEP 1 Action: Save pre-production target plans
   const saveStep1 = async () => {
-    const existing = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
-    if (existing.length > 0) {
-      await Promise.all(existing.map((r: any) => db.deletePermohonanStok(r.id)));
-    }
-
-    const batch: any[] = [];
-    Object.entries(planGrid).forEach(([outletId, vals]) => {
-      const totalBubur = (vals.bubur_d || 0) + (vals.bubur_i || 0);
-      if (totalBubur > 0) {
-        batch.push({
-          tanggal: todayISO(),
-          tanggalKirim: tanggal,
-          outletId,
-          produkId: "p-bubur",
-          qty: totalBubur,
-          catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0, "", bubur1Name, bubur2Name, bubur1Variant, bubur2Variant)
-        });
+    try {
+      const existing = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+      if (existing.length > 0) {
+        await Promise.all(existing.map((r: any) => db.deletePermohonanStok(r.id)));
       }
 
-      const totalTim = (vals.tim_d || 0) + (vals.tim_i || 0);
-      if (totalTim > 0) {
-        batch.push({
-          tanggal: todayISO(),
-          tanggalKirim: tanggal,
-          outletId,
-          produkId: "p-nasitim",
-          qty: totalTim,
-          catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0, "", tim1Name, tim2Name, tim1Variant, tim2Variant)
-        });
-      }
-
-      if (vals.oatmeal > 0) {
-        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-oatmeal", qty: vals.oatmeal, catatan: "" });
-      }
-      if (vals.puding > 0) {
-        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-puding", qty: vals.puding, catatan: "" });
-      }
-      if (vals.abon > 0) {
-        batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-abon", qty: vals.abon, catatan: "" });
-      }
-    });
-
-    // Save main batch for tanggal
-    if (batch.length > 0) {
-      await db.addPermohonanStokBulk(batch);
-    }
-
-    // If 2-day plan is active, build tanggal2 batch too
-    if (isTwoDayPlan && tanggal2) {
-      const existing2 = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal2);
-      if (existing2.length > 0) {
-        await Promise.all(existing2.map((r: any) => db.deletePermohonanStok(r.id)));
-      }
-
-      const batch2: any[] = [];
-      Object.entries(planGrid2).forEach(([outletId, vals]) => {
+      const batch: any[] = [];
+      Object.entries(planGrid).forEach(([outletId, vals]) => {
         const totalBubur = (vals.bubur_d || 0) + (vals.bubur_i || 0);
         if (totalBubur > 0) {
-          batch2.push({
+          batch.push({
             tanggal: todayISO(),
-            tanggalKirim: tanggal2,
+            tanggalKirim: tanggal,
             outletId,
             produkId: "p-bubur",
             qty: totalBubur,
@@ -575,9 +528,9 @@ export default function Produksi() {
 
         const totalTim = (vals.tim_d || 0) + (vals.tim_i || 0);
         if (totalTim > 0) {
-          batch2.push({
+          batch.push({
             tanggal: todayISO(),
-            tanggalKirim: tanggal2,
+            tanggalKirim: tanggal,
             outletId,
             produkId: "p-nasitim",
             qty: totalTim,
@@ -586,23 +539,76 @@ export default function Produksi() {
         }
 
         if (vals.oatmeal > 0) {
-          batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-oatmeal", qty: vals.oatmeal, catatan: "" });
+          batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-oatmeal", qty: vals.oatmeal, catatan: "" });
         }
         if (vals.puding > 0) {
-          batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-puding", qty: vals.puding, catatan: "" });
+          batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-puding", qty: vals.puding, catatan: "" });
         }
         if (vals.abon > 0) {
-          batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-abon", qty: vals.abon, catatan: "" });
+          batch.push({ tanggal: todayISO(), tanggalKirim: tanggal, outletId, produkId: "p-abon", qty: vals.abon, catatan: "" });
         }
       });
 
-      if (batch2.length > 0) {
-        await db.addPermohonanStokBulk(batch2);
+      // Save main batch for tanggal
+      if (batch.length > 0) {
+        await db.addPermohonanStokBulk(batch);
       }
-    }
 
-    toast.success("Rencana Pra-Produksi berhasil disimpan!");
-    setStep(2);
+      // If 2-day plan is active, build tanggal2 batch too
+      if (isTwoDayPlan && tanggal2) {
+        const existing2 = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal2);
+        if (existing2.length > 0) {
+          await Promise.all(existing2.map((r: any) => db.deletePermohonanStok(r.id)));
+        }
+
+        const batch2: any[] = [];
+        Object.entries(planGrid2).forEach(([outletId, vals]) => {
+          const totalBubur = (vals.bubur_d || 0) + (vals.bubur_i || 0);
+          if (totalBubur > 0) {
+            batch2.push({
+              tanggal: todayISO(),
+              tanggalKirim: tanggal2,
+              outletId,
+              produkId: "p-bubur",
+              qty: totalBubur,
+              catatan: serializeSplit(vals.bubur_d || 0, vals.bubur_i || 0, "", bubur1Name, bubur2Name, bubur1Variant, bubur2Variant)
+            });
+          }
+
+          const totalTim = (vals.tim_d || 0) + (vals.tim_i || 0);
+          if (totalTim > 0) {
+            batch2.push({
+              tanggal: todayISO(),
+              tanggalKirim: tanggal2,
+              outletId,
+              produkId: "p-nasitim",
+              qty: totalTim,
+              catatan: serializeSplit(vals.tim_d || 0, vals.tim_i || 0, "", tim1Name, tim2Name, tim1Variant, tim2Variant)
+            });
+          }
+
+          if (vals.oatmeal > 0) {
+            batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-oatmeal", qty: vals.oatmeal, catatan: "" });
+          }
+          if (vals.puding > 0) {
+            batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-puding", qty: vals.puding, catatan: "" });
+          }
+          if (vals.abon > 0) {
+            batch2.push({ tanggal: todayISO(), tanggalKirim: tanggal2, outletId, produkId: "p-abon", qty: vals.abon, catatan: "" });
+          }
+        });
+
+        if (batch2.length > 0) {
+          await db.addPermohonanStokBulk(batch2);
+        }
+      }
+
+      toast.success("Rencana Pra-Produksi berhasil disimpan!");
+      setStep(2);
+    } catch (err: any) {
+      console.error("saveStep1 error:", err);
+      toast.error(`Gagal menyimpan rencana: ${err?.message || err || "Unknown error"}`);
+    }
   };
 
   // Single-date totals (only planGrid for tanggal) — used in Steps 3, 4, 5
@@ -880,25 +886,30 @@ export default function Produksi() {
 
   // STEP 3 Action
   const saveStep3 = async () => {
-    const existing = produksi.filter((p: any) => p.tanggal === tanggal);
-    if (existing.length > 0) {
-      await Promise.all(existing.map((p: any) => db.deleteProduksi(p.id)));
+    try {
+      const existing = produksi.filter((p: any) => p.tanggal === tanggal);
+      if (existing.length > 0) {
+        await Promise.all(existing.map((p: any) => db.deleteProduksi(p.id)));
+      }
+
+      const batch = [
+        { tanggal, produkId: "p-bubur", qtyRencana: totals.buburD, qtyRealisasi: actualCups.bubur_1 },
+        { tanggal, produkId: "p-bubur", qtyRencana: totals.buburI, qtyRealisasi: actualCups.bubur_2 },
+        { tanggal, produkId: "p-nasitim", qtyRencana: totals.timD, qtyRealisasi: actualCups.tim_1 },
+        { tanggal, produkId: "p-nasitim", qtyRencana: totals.timI, qtyRealisasi: actualCups.tim_2 },
+        { tanggal, produkId: "p-oatmeal", qtyRencana: totals.oatmeal, qtyRealisasi: actualCups.oatmeal },
+        { tanggal, produkId: "p-puding", qtyRencana: totals.puding, qtyRealisasi: actualCups.puding },
+        { tanggal, produkId: "p-abon", qtyRencana: totals.abon, qtyRealisasi: actualCups.abon }
+      ];
+
+      await db.addProduksiBulk(batch);
+      toast.success("Hasil Produksi Aktual berhasil disimpan!");
+      initDistribution();
+      setStep(4);
+    } catch (err: any) {
+      console.error("saveStep3 error:", err);
+      toast.error(`Gagal menyimpan hasil produksi: ${err?.message || err || "Unknown error"}`);
     }
-
-    const batch = [
-      { tanggal, produkId: "p-bubur", qtyRencana: totals.buburD, qtyRealisasi: actualCups.bubur_1 },
-      { tanggal, produkId: "p-bubur", qtyRencana: totals.buburI, qtyRealisasi: actualCups.bubur_2 },
-      { tanggal, produkId: "p-nasitim", qtyRencana: totals.timD, qtyRealisasi: actualCups.tim_1 },
-      { tanggal, produkId: "p-nasitim", qtyRencana: totals.timI, qtyRealisasi: actualCups.tim_2 },
-      { tanggal, produkId: "p-oatmeal", qtyRencana: totals.oatmeal, qtyRealisasi: actualCups.oatmeal },
-      { tanggal, produkId: "p-puding", qtyRencana: totals.puding, qtyRealisasi: actualCups.puding },
-      { tanggal, produkId: "p-abon", qtyRencana: totals.abon, qtyRealisasi: actualCups.abon }
-    ];
-
-    await db.addProduksiBulk(batch);
-    toast.success("Hasil Produksi Aktual berhasil disimpan!");
-    initDistribution();
-    setStep(4);
   };
 
   const initDistribution = () => {

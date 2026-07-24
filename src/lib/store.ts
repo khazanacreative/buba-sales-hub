@@ -409,13 +409,14 @@ export const db = {
 
   async addProduksi(p: Omit<Produksi, "id">) {
     const id = uid();
-    await supabase.from("produksi").insert([{
+    const { error } = await supabase.from("produksi").insert([{
       id,
       tanggal: p.tanggal,
       produk_id: p.produkId,
       qty_rencana: p.qtyRencana,
       qty_realisasi: p.qtyRealisasi
     }]);
+    if (error) throw error;
     fetchFromSupabase();
   },
   async addProduksiBulk(items: Omit<Produksi, "id">[]) {
@@ -426,7 +427,8 @@ export const db = {
       qty_rencana: p.qtyRencana,
       qty_realisasi: p.qtyRealisasi
     }));
-    await supabase.from("produksi").insert(records);
+    const { error } = await supabase.from("produksi").insert(records);
+    if (error) throw error;
     fetchFromSupabase();
   },
   async updateProduksi(id: string, p: Partial<Produksi>) {
@@ -439,7 +441,8 @@ export const db = {
     fetchFromSupabase();
   },
   async deleteProduksi(id: string) {
-    await supabase.from("produksi").delete().eq("id", id);
+    const { error } = await supabase.from("produksi").delete().eq("id", id);
+    if (error) throw error;
     fetchFromSupabase();
   },
 
@@ -687,7 +690,7 @@ export const db = {
 
   async addPermohonanStok(p: Omit<PermohonanStok, "id" | "status">) {
     const id = uid();
-    await supabase.from("permohonan_stok").insert([{
+    const { error } = await supabase.from("permohonan_stok").insert([{
       id,
       tanggal: p.tanggal,
       tanggal_kirim: p.tanggalKirim,
@@ -697,6 +700,7 @@ export const db = {
       status: "Pending",
       catatan: p.catatan
     }]);
+    if (error) throw error;
     fetchFromSupabase();
   },
   async addPermohonanStokBulk(items: Omit<PermohonanStok, "id" | "status">[]) {
@@ -710,11 +714,13 @@ export const db = {
       status: "Pending",
       catatan: p.catatan
     }));
-    await supabase.from("permohonan_stok").insert(records);
+    const { error } = await supabase.from("permohonan_stok").insert(records);
+    if (error) throw error;
     fetchFromSupabase();
   },
   async updatePermohonanStokStatus(id: string, status: PermohonanStokStatus) {
-    await supabase.from("permohonan_stok").update({ status }).eq("id", id);
+    const { error } = await supabase.from("permohonan_stok").update({ status }).eq("id", id);
+    if (error) throw error;
     fetchFromSupabase();
   },
   async updatePermohonanStok(id: string, p: Partial<PermohonanStok>) {
@@ -724,11 +730,13 @@ export const db = {
     if (p.qty !== undefined) mapped.qty = p.qty;
     if (p.status !== undefined) mapped.status = p.status;
     if (p.catatan !== undefined) mapped.catatan = p.catatan;
-    await supabase.from("permohonan_stok").update(mapped).eq("id", id);
+    const { error } = await supabase.from("permohonan_stok").update(mapped).eq("id", id);
+    if (error) throw error;
     fetchFromSupabase();
   },
   async deletePermohonanStok(id: string) {
-    await supabase.from("permohonan_stok").delete().eq("id", id);
+    const { error } = await supabase.from("permohonan_stok").delete().eq("id", id);
+    if (error) throw error;
     fetchFromSupabase();
   },
   async addUser(u: UserAccount) {

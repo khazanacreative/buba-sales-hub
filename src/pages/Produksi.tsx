@@ -23,7 +23,7 @@ import { TablePagination } from "@/components/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
-import { matchVariantRecords, scaleGridToActual, clampGridToActual, calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid } from "@/lib/produksi-utils";
+import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid } from "@/lib/produksi-utils";
 
 // Base ratios for Bubur (per 100gr beras = 6 cup)
 // Base ratio: Beras:Daging:Air:S.Hijau:S.Brokoli:S.Putih = 100:5:700:8:5:1.5
@@ -66,16 +66,6 @@ const sumGridRows = (grid: Record<string, Record<string, number>>) => {
     out.abon += r.abon || 0;
   });
   return out;
-};
-
-// Gramasi standar per cup/pcs untuk konversi berat matang <-> jumlah cup
-const getUnitFactor = (prod: string) => {
-  if (prod === "bubur_1" || prod === "bubur_2") return 118;
-  if (prod === "tim_1" || prod === "tim_2") return 108;
-  if (prod === "puding") return 80;
-  if (prod === "oatmeal") return 100;
-  if (prod === "abon") return 10;
-  return 1;
 };
 
 // === MAIN COMPONENT ===
@@ -199,27 +189,10 @@ export default function Produksi() {
   const [activePlanDate, setActivePlanDate] = useState<"date1" | "date2">("date1");
   const [planGrid2, setPlanGrid2] = useState<Record<string, Record<string, number>>>({});
 
-  // STEP 3 STATES (Realisasi masak / produk jadi pasca matang)
-  const [actualGrams, setActualGrams] = useState({
-    bubur_1: 0,
-    bubur_2: 0,
-    tim_1: 0,
-    tim_2: 0,
-    oatmeal: 0,
-    puding: 0,
-    abon: 0
-  });
-  const [actualCups, setActualCups] = useState({
-    bubur_1: 0,
-    bubur_2: 0,
-    tim_1: 0,
-    tim_2: 0,
-    oatmeal: 0,
-    puding: 0,
-    abon: 0
-  });
-
   // STEP 3 STATES (Distribusi ke outlet)
+  // Aktual masak (actualCups) TIDAK diinput manual lagi — diturunkan otomatis dari
+  // total distribusi (distTotals): kapro langsung memasukkan angka aktual per outlet
+  // di kolom distribusi; luberan/penyusutan terlihat dari selisih vs rencana di bawah.
   const [distGrid, setDistGrid] = useState<Record<string, Record<string, number>>>({});
 
   // STEP 4 STATES (Retur & Penjualan)
@@ -371,94 +344,10 @@ export default function Produksi() {
         }
       }
 
-      // Load Step 3 — auto-fill from plan (Step 1) if no existing produksi data, else load from DB
-      const dayProds = produksi.filter((p: any) => p.tanggal === tanggal);
-      const newActualGrams = { bubur_1: 0, bubur_2: 0, tim_1: 0, tim_2: 0, oatmeal: 0, puding: 0, abon: 0 };
-      const newActualCups = { bubur_1: 0, bubur_2: 0, tim_1: 0, tim_2: 0, oatmeal: 0, puding: 0, abon: 0 };
-
-      // Rencana Step 1 (dari permohonan_stok) — hanya acuan bahan & pembeda varian D/I.
-      // Setelah distribusi disetujui, permohonan_stok berisi angka distribusi final,
-      // jadi qty_rencana di produksi tidak selalu cocok → matchVariantRecords fallback.
+      // Load Step 3 — aktual masak diturunkan dari TOTAL DISTRIBUSI (distGrid).
+      // Tidak ada lagi input manual berat matang. Distribusi di-load dari
+      // permohonan_stok (angka rencana) agar kapro tinggal menyesuaikan per outlet.
       const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
-      let planBuburD = 0, planBuburI = 0, planTimD = 0, planTimI = 0;
-      let planOatmeal = 0, planPuding = 0, planAbon = 0;
-      dayReqs.forEach((r: any) => {
-        const split = parseSplit(r.catatan || "");
-        if (r.produkId === "p-bubur") {
-          planBuburD += split.d || r.qty;
-          planBuburI += split.i || 0;
-        } else if (r.produkId === "p-nasitim") {
-          planTimD += split.d || r.qty;
-          planTimI += split.i || 0;
-        } else if (r.produkId === "p-oatmeal") planOatmeal += r.qty;
-        else if (r.produkId === "p-puding") planPuding += r.qty;
-        else if (r.produkId === "p-abon") planAbon += r.qty;
-      });
-
-      if (dayProds.length === 0) {
-        // 🔄 Auto-fill dari rencana Step 1 jika belum ada data realisasi
-        // Gramasi: Bubur=118gr/cup, Tim=108gr/cup, Oatmeal=100gr/cup, Puding=80gr/cup, Abon=10gr/pcs
-        newActualCups.bubur_1 = planBuburD;
-        newActualCups.bubur_2 = planBuburI;
-        newActualCups.tim_1 = planTimD;
-        newActualCups.tim_2 = planTimI;
-        newActualCups.oatmeal = planOatmeal;
-        newActualCups.puding = planPuding;
-        newActualCups.abon = planAbon;
-        newActualGrams.bubur_1 = planBuburD * 118;
-        newActualGrams.bubur_2 = planBuburI * 118;
-        newActualGrams.tim_1 = planTimD * 108;
-        newActualGrams.tim_2 = planTimI * 108;
-        newActualGrams.oatmeal = planOatmeal * 100;
-        newActualGrams.puding = planPuding * 80;
-        newActualGrams.abon = planAbon * 10;
-      } else {
-        // Load existing produksi data — petakan varian D/I berdasarkan qty_rencana
-        // (rencana D vs rencana I), bukan posisi array [0]/[1] yang tidak dijamin urutannya.
-        const buburProds = dayProds.filter((p: any) => p.produkId === "p-bubur");
-        const timProds = dayProds.filter((p: any) => p.produkId === "p-nasitim");
-        const buburMap = matchVariantRecords(buburProds, planBuburD, planBuburI);
-        if (buburMap.rec1) {
-          newActualCups.bubur_1 = buburMap.rec1.qtyRealisasi;
-          newActualGrams.bubur_1 = buburMap.rec1.qtyRealisasi * 118;
-        }
-        if (buburMap.rec2) {
-          newActualCups.bubur_2 = buburMap.rec2.qtyRealisasi;
-          newActualGrams.bubur_2 = buburMap.rec2.qtyRealisasi * 118;
-        }
-        const timMap = matchVariantRecords(timProds, planTimD, planTimI);
-        if (timMap.rec1) {
-          newActualCups.tim_1 = timMap.rec1.qtyRealisasi;
-          newActualGrams.tim_1 = timMap.rec1.qtyRealisasi * 108;
-        }
-        if (timMap.rec2) {
-          newActualCups.tim_2 = timMap.rec2.qtyRealisasi;
-          newActualGrams.tim_2 = timMap.rec2.qtyRealisasi * 108;
-        }
-        const oatmealProd = dayProds.find((p: any) => p.produkId === "p-oatmeal");
-        if (oatmealProd) {
-          newActualCups.oatmeal = oatmealProd.qtyRealisasi;
-          newActualGrams.oatmeal = oatmealProd.qtyRealisasi * 100;
-        }
-        const pudingProd = dayProds.find((p: any) => p.produkId === "p-puding");
-        if (pudingProd) {
-          newActualCups.puding = pudingProd.qtyRealisasi;
-          newActualGrams.puding = pudingProd.qtyRealisasi * 80;
-        }
-        const abonProd = dayProds.find((p: any) => p.produkId === "p-abon");
-        if (abonProd) {
-          newActualCups.abon = abonProd.qtyRealisasi;
-          newActualGrams.abon = abonProd.qtyRealisasi * 10;
-        }
-      }
-      
-      setActualGrams(newActualGrams);
-      setActualCups(newActualCups);
-
-      // Load Step 4 — distribusi mengacu realisasi pasca produksi (bukan rencana).
-      // Grid awal dari permohonan_stok (angka rencana); jika belum disetujui/dikirim,
-      // skala proporsional ke hasil masak aktual agar total tidak melebihi realisasi
-      // (mencegah blokir validasi palsu "melebihi hasil masak aktual").
       const dGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
         dGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
@@ -480,10 +369,6 @@ export default function Produksi() {
           dGrid[r.outletId].abon = r.qty;
         }
       });
-      if (!dayReqs.some((r: any) => r.status === "Disetujui")) {
-        const scaled = scaleGridToActual(dGrid, newActualCups);
-        Object.keys(scaled).forEach((k) => { dGrid[k] = { ...scaled[k] }; });
-      }
       setDistGrid(dGrid);
 
       // Load Step 5 — returGrid from penjualan data (sent - sold)
@@ -603,33 +488,6 @@ export default function Produksi() {
     const cur = ids.includes(currentId) ? currentId : ids[0];
     const next = (ids.indexOf(cur) + dir + ids.length) % ids.length;
     setCurrent(ids[next]);
-  };
-
-  const handleGramsChange = (prod: string, grams: number) => {
-    if (isReadOnlyGudang) return;
-    hasUserModifiedGrids.current = true;
-    setActualGrams(prev => ({ ...prev, [prod]: grams }));
-    const factor = getUnitFactor(prod);
-    const cups = Math.floor(grams / factor);
-    setActualCups(prev => ({ ...prev, [prod]: cups }));
-  };
-
-  const handleCupsChange = (prod: string, cups: number) => {
-    if (isReadOnlyGudang) return;
-    hasUserModifiedGrids.current = true;
-    setActualCups(prev => ({ ...prev, [prod]: cups }));
-    // Sinkronkan berat matang agar konsisten saat user mengoreksi jumlah cup aktual
-    if (!isNaN(cups)) {
-      setActualGrams(prev => ({ ...prev, [prod]: cups * getUnitFactor(prod) }));
-    }
-  };
-
-  // Isi ulang realisasi sesuai rencana (target) — koreksi cepat jika input tidak sengaja salah
-  const resetToPlan = (prod: string, targetCups: number, unitWeight: number) => {
-    if (isReadOnlyGudang) return;
-    hasUserModifiedGrids.current = true;
-    setActualCups(prev => ({ ...prev, [prod]: targetCups }));
-    setActualGrams(prev => ({ ...prev, [prod]: targetCups * unitWeight }));
   };
 
   // STEP 1 Action: Save pre-production target plans
@@ -901,6 +759,19 @@ export default function Produksi() {
     };
   }, [distGrid]);
 
+  // Aktual masak = TOTAL DISTRIBUSI ke semua outlet (kapro memasukkan angka aktual
+  // langsung di kolom distribusi per outlet; luberan/penyusutan terlihat dari
+  // selisih vs rencana di bagian bawah). Tidak ada lagi input manual berat matang.
+  const actualCups = useMemo(() => ({
+    bubur_1: distTotals.buburD,
+    bubur_2: distTotals.buburI,
+    tim_1: distTotals.timD,
+    tim_2: distTotals.timI,
+    oatmeal: distTotals.oatmeal,
+    puding: distTotals.puding,
+    abon: distTotals.abon,
+  }), [distTotals]);
+
   const materialReqs = useMemo(() => {
     const t = combinedTotals; // use combined totals for material calculation
     const reqs: { bahanId: string; kode: string; nama: string; qty: number; rawQtyGrams: number; satuan: string }[] = [];
@@ -1090,12 +961,10 @@ export default function Produksi() {
 
       // === AUTO-KONFIRMASI OH ABON KE DISTRIBUSI ===
       // Abon OH (sisa kemarin) sudah matang — realisasi = rencana & permohonan langsung
-      // Disetujui, sehingga melewati input realisasi masak di Langkah 3.
+      // Disetujui, sehingga melewati input distribusi di Langkah 3.
       let autoConfirmed = false;
       if (ohAbonApplied && totals.abon > 0) {
         try {
-          setActualCups(prev => ({ ...prev, abon: totals.abon }));
-          setActualGrams(prev => ({ ...prev, abon: totals.abon * 10 }));
           const abonReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal && r.produkId === "p-abon");
           await Promise.all(abonReqs.map((r: any) => db.updatePermohonanStok(r.id, { qty: r.qty, status: "Disetujui", catatan: r.catatan || "" })));
           const existingAbonProd = produksi.filter((p: any) => p.tanggal === tanggal && p.produkId === "p-abon");
@@ -1221,27 +1090,10 @@ export default function Produksi() {
       }
 
       // === SIMPAN DISTRIBUSI (Langkah 3 = realisasi + alokasi outlet) ===
-      // Jika hasil masak aktual (realisasi) lebih kecil dari rencana, jangan
-      // hard-block — sesuaikan otomatis (clamp proporsional per outlet) agar
-      // distribusi tetap terkirim & stok awal di outlet bisa diinput OH.
-      const clamped = clampGridToActual(distGrid, actualCups);
-      const overTotals: string[] = [];
-      if (distTotals.buburD > actualCups.bubur_1) overTotals.push(`Bubur 1 (${bubur1Name}): ${distTotals.buburD} cup`);
-      if (distTotals.buburI > actualCups.bubur_2) overTotals.push(`Bubur 2 (${bubur2Name}): ${distTotals.buburI} cup`);
-      if (distTotals.timD > actualCups.tim_1) overTotals.push(`Nasi Tim 1 (${tim1Name}): ${distTotals.timD} cup`);
-      if (distTotals.timI > actualCups.tim_2) overTotals.push(`Nasi Tim 2 (${tim2Name}): ${distTotals.timI} cup`);
-      if (distTotals.oatmeal > actualCups.oatmeal) overTotals.push(`Oatmeal: ${distTotals.oatmeal} cup`);
-      if (distTotals.puding > actualCups.puding) overTotals.push(`Puding: ${distTotals.puding} cup`);
-      if (distTotals.abon > actualCups.abon) overTotals.push(`Abon: ${distTotals.abon} pcs`);
-
-      const grid = overTotals.length > 0 ? clamped : distGrid;
-      if (overTotals.length > 0) {
-        setDistGrid(grid);
-        toast.warning(
-          `Hasil masak aktual lebih kecil dari rencana untuk: ${overTotals.join(", ")}. ` +
-          `Jumlah distribusi disesuaikan otomatis ke hasil masak aktual agar stok awal tetap terkirim ke outlet.`
-        );
-      }
+      // Aktual masak = total distribusi yang diinput kapro per outlet (tidak ada
+      // lagi input manual berat matang) — jadi tidak ada clamp: distribusi yang
+      // diinput itulah realisasi & langsung disimpan apa adanya.
+      const grid = distGrid;
 
       const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
       await Promise.all(dayReqs.map(async (r: any) => {
@@ -1356,26 +1208,6 @@ export default function Produksi() {
     } else {
       performSaveStep3();
     }
-  };
-
-  const initDistribution = () => {
-    // Grid awal dari rencana Step 1 (proporsi per outlet), lalu diskala ke
-    // realisasi pasca produksi — distribusi mengacu hasil masak aktual, bukan rencana.
-    const grid: Record<string, Record<string, number>> = {};
-    outlets.forEach(o => {
-      const plan = planGrid[o.id] || {};
-      grid[o.id] = {
-        bubur_d: plan.bubur_d || 0,
-        bubur_i: plan.bubur_i || 0,
-        tim_d: plan.tim_d || 0,
-        tim_i: plan.tim_i || 0,
-        oatmeal: plan.oatmeal || 0,
-        puding: plan.puding || 0,
-        abon: plan.abon || 0
-      };
-    });
-    const scaled = scaleGridToActual(grid, actualCups);
-    setDistGrid(scaled);
   };
 
   // STEP 4 Action — only VALIDATES & CLOSES the cycle.
@@ -2752,14 +2584,14 @@ export default function Produksi() {
           <div>
             <CardTitle>Langkah 3: Distribusi & Alokasi Outlet</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Input <strong>hasil masak aktual</strong> sesuai rencana dulu (tidak perlu ditimbang menyeluruh),
-              lalu alokasikan <strong>ke semua outlet</strong>. Bila ada <strong>lebihan/kekurangan</strong>, revisi jumlah
-              distribusi tiap outlet secara manual — <strong>selisih vs rencana</strong> terhitung otomatis di bagian bawah.
-              Kemasan (cup &amp; tutup <strong>Puding/Oatmeal</strong>) dipotong otomatis sesuai hasil aktual saat menyimpan.
+              <strong>Aktual masak</strong> diinput langsung di kolom distribusi tiap outlet sesuai kondisi lapangan.
+              Bila ada <strong>luberan/penyusutan</strong>, bandingkan dengan rencana lalu sesuaikan jumlah per outlet —
+              <strong>selisih vs rencana</strong> terhitung otomatis di bagian bawah. Kemasan (cup &amp; tutup
+              <strong>Puding/Oatmeal</strong>) dipotong otomatis sesuai total distribusi saat menyimpan.
             </p>
           </div>
           <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-xl border text-xs shrink-0">
-            <span className="font-bold text-muted-foreground">Status Masak (Actual/Target):</span>
+            <span className="font-bold text-muted-foreground">Aktual Distribusi (Total/Rencana):</span>
             <span className="font-semibold text-primary">
               B: {actualCups.bubur_1 + actualCups.bubur_2}/{totals.totalBubur} · T: {actualCups.tim_1 + actualCups.tim_2}/{totals.totalTim}
             </span>
@@ -2773,113 +2605,11 @@ export default function Produksi() {
                 <p className="font-bold">Abon OH terkonfirmasi otomatis ke distribusi</p>
                 <p className="text-[11px] opacity-90">
                   Abon dari sisa kemarin sudah matang — realisasi disamakan dengan rencana ({totals.abon} pcs) saat stok dipotong.
-                  {hasOtherProducts ? " Isi hasil masak menu lain lalu lanjutkan." : " Semua menu hanya abon — alokasi abon sudah terisi otomatis, lanjutkan."}
+                  {hasOtherProducts ? " Isi distribusi menu lain lalu lanjutkan." : " Semua menu hanya abon — alokasi abon sudah terisi otomatis, lanjutkan."}
                 </p>
               </div>
             </div>
           )}
-
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[
-              { id: "bubur_1", label: `Bubur 1 (${bubur1Name})`, unitWeight: 118, targetCups: totals.buburD },
-              { id: "bubur_2", label: `Bubur 2 (${bubur2Name})`, unitWeight: 118, targetCups: totals.buburI },
-              { id: "tim_1", label: `Nasi Tim 1 (${tim1Name})`, unitWeight: 108, targetCups: totals.timD },
-              { id: "tim_2", label: `Nasi Tim 2 (${tim2Name})`, unitWeight: 108, targetCups: totals.timI },
-              { id: "oatmeal", label: "Oatmeal", unitWeight: 100, targetCups: totals.oatmeal },
-              { id: "puding", label: "Puding", unitWeight: 80, targetCups: totals.puding },
-              { id: "abon", label: "Abon", unitWeight: 10, targetCups: totals.abon }
-            ].map((p) => {
-              const grams = actualGrams[p.id as keyof typeof actualGrams] || 0;
-              const cups = actualCups[p.id as keyof typeof actualCups] || 0;
-              const isAutoAbon = p.id === "abon" && ohAbonAutoConfirmed;
-              return (
-                <div key={p.id} className={`p-4 rounded-2xl border bg-card/40 space-y-4 ${isAutoAbon ? "border-green-500/40 bg-green-500/5" : ""}`}>
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="space-y-1 min-w-0">
-                      <span className="font-bold text-sm block truncate">{p.label}</span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] border ${
-                          isAutoAbon
-                            ? "bg-green-500/10 text-green-600 border-green-500/30"
-                            : cups === p.targetCups
-                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                            : p.targetCups > 0 && Math.abs(cups - p.targetCups) / p.targetCups > DEVIASI_THRESHOLD
-                            ? "bg-destructive/10 text-destructive border-destructive/30"
-                            : "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                        }`}
-                      >
-                        {isAutoAbon
-                          ? "✓ Auto OH — Terkonfirmasi"
-                          : cups === p.targetCups
-                          ? "✓ Sesuai rencana"
-                          : p.targetCups > 0
-                          ? `${cups > p.targetCups ? "+" : ""}${cups - p.targetCups} cup dari rencana`
-                          : cups > 0
-                          ? `+${cups} cup (target 0)`
-                          : "0 cup dari rencana"}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                        Target: {p.targetCups} cup ({(p.targetCups * p.unitWeight).toLocaleString("id-ID")} g)
-                      </Badge>
-                      {!isAutoAbon && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-primary"
-                          onClick={() => resetToPlan(p.id, p.targetCups, p.unitWeight)}
-                          title="Kembalikan ke nilai rencana"
-                        >
-                          <RotateCcw className="h-3 w-3 mr-1" /> Pakai Rencana
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Berat Matang (Gram)</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={grams || ""}
-                        onChange={(e) => handleGramsChange(p.id, parseInt(e.target.value))}
-                        className="h-10"
-                        placeholder="Contoh: 11800"
-                        disabled={isAutoAbon}
-                      />
-                      <span className="text-xs text-muted-foreground font-semibold">g</span>
-                    </div>
-                    {(p.id === "bubur_1" || p.id === "bubur_2" || p.id === "tim_1" || p.id === "tim_2") && (
-                      <p className="text-[11px] text-emerald-600 font-medium mt-1">
-                        ✨ Konversi: <span className="font-bold">{Math.floor(grams / p.unitWeight)} cup</span> (Standar {p.unitWeight}g per cup)
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Konversi Cup (Aktual)</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={cups || ""}
-                        onChange={(e) => handleCupsChange(p.id, parseInt(e.target.value))}
-                        className="h-10 font-bold text-primary border-primary/40 focus-visible:ring-primary"
-                        disabled={isAutoAbon}
-                      />
-                      <span className="text-xs text-muted-foreground">cup</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground block italic">
-                      Disarankan: {Math.floor(grams / p.unitWeight)} cup (@ {p.unitWeight}g)
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
 
           {/* Dropdown Selector & Row Form */}
           <div className="bg-muted/30 p-5 rounded-2xl border space-y-4 shadow-sm">
@@ -2887,21 +2617,10 @@ export default function Produksi() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Calculator className="h-3.5 w-3.5 text-primary" />
                 <span>
-                  Alokasi ke outlet mengikuti <strong>hasil masak aktual</strong> di atas. Jika hasil meluber/kurang, revisi
-                  jumlah tiap outlet <strong>secara manual</strong> di sini — sisa belum terdistribusi tampil otomatis di bawah.
+                  Input <strong>jumlah aktual</strong> per outlet sesuai kondisi lapangan. Total semua outlet = <strong>aktual masak</strong>
+                  — luberan/penyusutan terlihat otomatis di tabel <strong>selisih vs rencana</strong> bagian bawah.
                 </span>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-[11px]"
-                onClick={() => { initDistribution(); toast.info("Distribusi disesuaikan dengan hasil masak aktual"); }}
-                title="Skala ulang alokasi tiap outlet agar total sama dengan hasil masak aktual"
-              >
-                <RotateCcw className="h-3 w-3" />
-                Sesuaikan dengan Hasil Masak
-              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="space-y-1.5 flex-1 min-w-[200px]">
@@ -3024,54 +2743,6 @@ export default function Produksi() {
             })()}
           </div>
 
-          {/* Sisa Hasil Masak (Undistributed Stock) */}
-          <div className="bg-muted/15 p-4 rounded-2xl border border-dashed space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sisa Hasil Masak (Belum Didistribusikan)</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.bubur_1 - distTotals.buburD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.bubur_1 - distTotals.buburD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_1}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.bubur_2 - distTotals.buburI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.bubur_2 - distTotals.buburI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_2}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.tim_1 - distTotals.timD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.tim_1 - distTotals.timD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_1}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.tim_2 - distTotals.timI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.tim_2 - distTotals.timI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_2}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</span>
-                <span className={`text-sm font-bold block ${actualCups.oatmeal - distTotals.oatmeal < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.oatmeal - distTotals.oatmeal} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.oatmeal}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-muted-foreground block truncate">Puding</span>
-                <span className={`text-sm font-bold block ${actualCups.puding - distTotals.puding < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.puding - distTotals.puding} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.puding}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-muted-foreground block truncate">Abon</span>
-                <span className={`text-sm font-bold block ${actualCups.abon - distTotals.abon < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.abon - distTotals.abon} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.abon}</span>
-                </span>
-              </div>
-            </div>
-          </div>
 
           {/* Consolidated Table at the Bottom */}
           <div className="space-y-2 pt-2">
@@ -3156,7 +2827,7 @@ export default function Produksi() {
             </h3>
             <p className="text-[11px] text-muted-foreground">
               Bahan utama sudah dipotong di Langkah 2 sesuai rencana dan <strong>tidak berubah</strong> oleh hasil produksi.
-              Kemasan dihitung dari hasil aktual di atas — bisa berbeda dari rencana karena hasil bisa <strong>menyusut</strong> atau <strong>meluber</strong>. Dipotong otomatis saat menyimpan Langkah 3.
+              Kemasan dihitung dari <strong>total distribusi</strong> (aktual masak) — bisa berbeda dari rencana karena hasil bisa <strong>menyusut</strong> atau <strong>meluber</strong>. Dipotong otomatis saat menyimpan Langkah 3.
             </p>
             <p className="text-[11px] text-muted-foreground">
               Kemasan <strong>Bubur &amp; Nasi Tim</strong> (CUP BUBUR &amp; TUTUP) <strong>tidak</strong> ikut dipotong di sini — stoknya berkurang saat <strong>request outlet disetujui</strong> di Stok Gudang, dan sisa kembali lewat <strong>retur perlengkapan</strong>.
@@ -3212,8 +2883,8 @@ export default function Produksi() {
               <Calculator className="h-4 w-4 text-primary" /> Selisih Rencana vs Produk Jadi Pasca Matang
             </h3>
             <p className="text-[11px] text-muted-foreground">
-              Terhitung otomatis dari <strong>hasil masak aktual</strong> di atas dibanding <strong>rencana</strong> (Langkah 1).
-              Hasil bisa <strong>menyusut/meluber</strong> — alokasi ke outlet mengikuti angka realisasi (hasil masak aktual).
+              Terhitung otomatis dari <strong>total distribusi</strong> (aktual masak) dibanding <strong>rencana</strong> (Langkah 1).
+              Hasil bisa <strong>menyusut/meluber</strong> — kapro menyesuaikan jumlah per outlet saat menginput distribusi.
             </p>
             <div className="rounded-xl border overflow-hidden">
               <Table>
@@ -3221,7 +2892,7 @@ export default function Produksi() {
                   <TableRow className="bg-muted/40">
                     <TableHead>Produk</TableHead>
                     <TableHead className="text-right">Rencana</TableHead>
-                    <TableHead className="text-right">Produk Jadi (Aktual)</TableHead>
+                    <TableHead className="text-right">Aktual (Total Distribusi)</TableHead>
                     <TableHead className="text-center">Selisih</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -3275,7 +2946,7 @@ export default function Produksi() {
           </div>
         </CardContent>
 
-        {/* Konfirmasi jika hasil masak menyimpang jauh dari rencana */}
+        {/* Konfirmasi jika total distribusi menyimpang jauh dari rencana */}
         <AlertDialog
           open={deviasiConfirmList !== null}
           onOpenChange={(open) => { if (!open) setDeviasiConfirmList(null); }}
@@ -3284,11 +2955,11 @@ export default function Produksi() {
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Hasil masak menyimpang dari rencana
+                Hasil masak (total distribusi) menyimpang dari rencana
               </AlertDialogTitle>
               <AlertDialogDescription>
                 Beberapa produk berbeda jauh dari target rencana ({Math.round(DEVIASI_THRESHOLD * 100)}%+).
-                Periksa kembali angkanya sebelum menyimpan:
+                Periksa kembali angka distribusinya sebelum menyimpan:
                 <ul className="mt-3 space-y-1.5">
                   {deviasiConfirmList?.map((it) => (
                     <li key={it.label} className="flex justify-between gap-3 text-sm">

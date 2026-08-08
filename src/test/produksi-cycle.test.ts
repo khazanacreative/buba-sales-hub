@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { saldoBahan } from "@/lib/store";
 import { SEED_BAHAN } from "@/lib/seed";
 import { BahanBaku, StokMovement } from "@/lib/types";
-import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups } from "@/lib/produksi-utils";
+import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, type OutletGrid } from "@/lib/produksi-utils";
 
 /**
  * Test siklus produksi — Tutup Oat:
@@ -366,5 +366,120 @@ describe("OH (Sisa Tidak Terjual) — RUSAK vs Kembali ke Stok", () => {
     );
     expect(kemasan.puding).toBe(0);
     expect(kemasan.oatmeal).toBe(0);
+  });
+});
+
+/**
+ * Siklus DIBUKA (Buka Siklus) — admin bisa mengubah data retur Langkah 5 lagi
+ * dan nilai edit manual WAJIB dihormati saat menutup siklus (saveStep5):
+ *  - resolveFreshReturGrid: kalau hasManualReturEdits=true → pakai returGrid
+ *    state admin apa adanya (TIDAK dihitung ulang dari penjualan outlet).
+ *  - Kalau TIDAK ada edit manual → hitung ulang dari penjualan terbaru outlet.
+ *  - handleAutoRefresh tidak boleh menimpa returGrid saat admin sedang edit.
+ */
+describe("Buka Siklus — edit retur manual admin dihormati (saveStep5)", () => {
+  const OUTLETS = [{ id: "o1" }, { id: "o2" }];
+  const ZERO = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+  const distGrid: OutletGrid = {
+    o1: { ...ZERO, bubur_d: 20, bubur_i: 10, oatmeal: 30, abon: 5 },
+    o2: { ...ZERO, tim_d: 15, puding: 20 },
+  };
+  // Penjualan yang di-input outlet via Laporan (sisa gram per menu)
+  const existingPenjualan: any[] = [
+    { outletId: "o1", produkId: "p-bubur", variant: "bubur_d", qty: 18, sisaGram: 236 }, // 236g ≈ 2 cup sisa
+    { outletId: "o1", produkId: "p-bubur", variant: "bubur_i", qty: 10, sisaGram: 0 },
+    { outletId: "o1", produkId: "p-oatmeal", variant: null, qty: 25, sisaGram: 0 },
+    { outletId: "o1", produkId: "p-abon", variant: null, qty: 3, sisaGram: 0 },
+  ];
+
+  it("TANPA edit manual → retur dihitung ulang dari penjualan terbaru outlet", () => {
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid,
+      existingPenjualan,
+      hasManualReturEdits: false,
+    });
+    // o1 bubur_d: sisaGram 236 → min(236, 20*118) = 236 gram (≈ 2 cup sisa)
+    expect(fresh.o1.bubur_d).toBe(236);
+    expect(fresh.o1.bubur_i).toBe(0);
+    // o1 oatmeal: terkirim 30 - terjual 25 = 5 cup sisa
+    expect(fresh.o1.oatmeal).toBe(5);
+    // o1 abon: terkirim 5 - terjual 3 = 2 pcs sisa
+    expect(fresh.o1.abon).toBe(2);
+    // o2 belum input penjualan → semua terkirim dianggap retur:
+    // tim_d 15 cup * 108 g = 1620 g; puding 20 cup
+    expect(fresh.o2.tim_d).toBe(15 * 108);
+    expect(fresh.o2.puding).toBe(20);
+  });
+
+  it("ADMIN EDIT MANUAL (siklus dibuka) → nilai returGrid admin dipakai apa adanya", () => {
+    const manualRetur: OutletGrid = {
+      o1: { ...ZERO, bubur_d: 500, oatmeal: 8, abon: 4 }, // koreksi admin (berbeda dari hitung ulang)
+      o2: { ...ZERO, tim_d: 3 },
+    };
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: manualRetur,
+      distGrid,
+      existingPenjualan,
+      hasManualReturEdits: true,
+    });
+    // Nilai manual dihormati MESKIPUN penjualan outlet berbeda
+    expect(fresh.o1.bubur_d).toBe(500);
+    expect(fresh.o1.oatmeal).toBe(8);
+    expect(fresh.o1.abon).toBe(4);
+    expect(fresh.o2.tim_d).toBe(3);
+    // Field yang tidak di-edit admin tetap 0 (tidak dihitung ulang dari penjualan)
+    expect(fresh.o1.bubur_i).toBe(0);
+    expect(fresh.o2.puding).toBe(0);
+  });
+
+  it("edit manual TIDAK memutasi returGrid input (fungsi mengembalikan salinan)", () => {
+    const manualRetur: OutletGrid = {
+      o1: { ...ZERO, bubur_d: 500 },
+      o2: { ...ZERO },
+    };
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: manualRetur,
+      distGrid,
+      existingPenjualan,
+      hasManualReturEdits: true,
+    });
+    expect(fresh).not.toBe(manualRetur);
+    expect(fresh.o1).not.toBe(manualRetur.o1);
+    // Input tidak berubah
+    expect(manualRetur.o1.bubur_d).toBe(500);
+  });
+
+  it("tanpa penjualan outlet → retur semua 0 (tidak ada data basi)", () => {
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid,
+      existingPenjualan: [],
+      hasManualReturEdits: false,
+    });
+    expect(fresh.o1.bubur_d).toBe(0);
+    expect(fresh.o1.oatmeal).toBe(0);
+    expect(fresh.o1.abon).toBe(0);
+    expect(fresh.o2.tim_d).toBe(0);
+    expect(fresh.o2.puding).toBe(0);
+  });
+
+  it("sisa gram tidak boleh melebihi yang terkirim (clamp ke dist * gramPerCup)", () => {
+    // sisaGram 9999 g tapi hanya terkirim 5 cup bubur (5*118 = 590 g max)
+    const penjualanBesar = [
+      { outletId: "o1", produkId: "p-bubur", variant: "bubur_d", qty: 0, sisaGram: 9999 },
+    ];
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid: { o1: { ...ZERO, bubur_d: 5 }, o2: { ...ZERO } },
+      existingPenjualan: penjualanBesar,
+      hasManualReturEdits: false,
+    });
+    expect(fresh.o1.bubur_d).toBe(5 * 118); // clamp ke 590 gram
   });
 });

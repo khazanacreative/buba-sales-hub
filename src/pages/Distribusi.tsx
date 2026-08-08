@@ -16,7 +16,7 @@ import { ArrowNav } from "@/components/ArrowNav";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { BUBUR_BASE, formatDecimal, buburCalc, parseSplit, serializeSplit, parseVariants, getVariantNamesForDate, loadGridFromReqs, sumGrid, matchVariantRecords, scaleGridToActual, clampGridToActual, sisaGramToCups, type OutletGrid } from "@/lib/produksi-utils";
+import { BUBUR_BASE, formatDecimal, buburCalc, parseSplit, serializeSplit, parseVariants, getVariantNamesForDate, loadGridFromReqs, sumGrid, matchVariantRecords, scaleGridToActual, clampGridToActual, sisaGramToCups, resolveFreshReturGrid, type OutletGrid } from "@/lib/produksi-utils";
 
 export default function Distribusi() {
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ export default function Distribusi() {
 
   const [tanggal, setTanggal] = useState(todayISO());
   const hasUserModifiedGrids = useRef(false);
-  // Tandai saat admin mengedit input retur Langkah 5 secara manual — nilai itu
+  // Tandai saat admin mengedit input retur Langkah 4 secara manual — nilai itu
   // WAJIB dihormati saat tutup siklus (tidak boleh dihitung ulang dari penjualan).
   const hasManualReturEdits = useRef(false);
 
@@ -35,7 +35,7 @@ export default function Distribusi() {
     hasManualReturEdits.current = false;
   }, [tanggal]);
 
-  const [step, setStep] = useState(4);
+  const [step, setStep] = useState(3);
   const [settings, setSettings] = useState(getBubaSettings());
   useEffect(() => {
     const handler = () => setSettings(getBubaSettings());
@@ -43,15 +43,15 @@ export default function Distribusi() {
     return () => window.removeEventListener("buba_settings_changed", handler);
   }, []);
 
-  const [step4OutletId, setStep4OutletId] = useState("");
-  const [step5OutletId, setStep5OutletId] = useState("");
+  const [distOutletId, setDistOutletId] = useState("");
+  const [returOutletId, setReturOutletId] = useState("");
 
   useEffect(() => {
     if (outlets.length > 0) {
-      if (!step4OutletId) setStep4OutletId(outlets[0].id);
-      if (!step5OutletId) setStep5OutletId(outlets[0].id);
+      if (!distOutletId) setDistOutletId(outlets[0].id);
+      if (!returOutletId) setReturOutletId(outlets[0].id);
     }
-  }, [outlets, step4OutletId, step5OutletId]);
+  }, [outlets, distOutletId, returOutletId]);
 
   // Variant names from catatan
   const variantNames = useMemo(() => {
@@ -196,8 +196,8 @@ export default function Distribusi() {
 
   const distTotals = useMemo(() => sumGrid(distGrid as OutletGrid), [distGrid]);
 
-  // STEP 4 Action
-  const saveStep4 = async () => {
+  // STEP 3 Action (Distribusi)
+  const saveStep3 = async () => {
     // Jika hasil masak aktual (realisasi) lebih kecil dari rencana, jangan
     // hard-block — sesuaikan otomatis (clamp proporsional per outlet) agar
     // distribusi tetap terkirim & stok awal di outlet bisa diinput OH.
@@ -282,7 +282,7 @@ export default function Distribusi() {
     setReturGrid(rGrid);
     hasUserModifiedGrids.current = false;
     hasManualReturEdits.current = false;
-    setStep(5);
+    setStep(4);
   };
 
   // Siklus dianggap TERTUTUP bila ada jurnal OUT-SALES untuk tanggal ini
@@ -335,7 +335,8 @@ export default function Distribusi() {
   };
 
   // STEP 5 Action
-  const saveStep5 = async () => {
+  // STEP 4 Action (Retur & Penjualan — tutup siklus)
+  const saveStep4 = async () => {
     if (closingCycle) return;
     setClosingCycle(true);
 
@@ -348,48 +349,13 @@ export default function Distribusi() {
       // Retur grid yang dipakai untuk perhitungan OH — hormati edit manual admin
       // (returGrid state), selain itu hitung ulang dari penjualan terbaru outlet
       // agar stok retur tidak memakai data basi.
-      const freshReturGrid: Record<string, Record<string, number>> = {};
-      outlets.forEach(o => {
-        freshReturGrid[o.id] = hasManualReturEdits.current
-          ? { ...(returGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }) }
-          : { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+      const freshReturGrid = resolveFreshReturGrid({
+        outlets,
+        returGrid,
+        distGrid,
+        existingPenjualan,
+        hasManualReturEdits: hasManualReturEdits.current
       });
-
-      if (!hasManualReturEdits.current && existingPenjualan.length > 0) {
-        outlets.forEach((o) => {
-          const sent = distGrid[o.id] || {};
-          if (!sent) return;
-
-          const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
-            const gramPerCup = baseId === "p-bubur" ? 118 : 108;
-            const dRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
-            const iRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
-            if (dRec) {
-              freshReturGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
-            }
-            if (iRec) {
-              freshReturGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
-            }
-            if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingPenjualan.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                freshReturGrid[o.id][dField] = dReturCups * gramPerCup;
-                freshReturGrid[o.id][iField] = iReturCups * gramPerCup;
-              }
-            }
-          };
-
-          calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
-          calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
-          freshReturGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingPenjualan.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
-          freshReturGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingPenjualan.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
-          freshReturGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingPenjualan.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
-        });
-      }
 
       setReturGrid(freshReturGrid);
       lastSyncedSalesRef.current = penjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
@@ -551,7 +517,11 @@ export default function Distribusi() {
       if (movPromises.length > 0) { await Promise.all(movPromises); }
 
       toast.success("Siklus distribusi harian ditutup! Penjualan outlet tercatat — OH (sisa) otomatis rusak & OH abon kembali ke stok.");
-      setStep(4);
+      // Siklus sudah ditutup — lepas guard edit manual agar sesi berikutnya
+      // (Buka Siklus lagi / ganti tanggal) grid di-reload dari data terbaru DB.
+      hasUserModifiedGrids.current = false;
+      hasManualReturEdits.current = false;
+      setStep(3);
     } catch (err) {
       toast.error("Gagal menutup siklus distribusi");
       console.error(err);
@@ -563,10 +533,14 @@ export default function Distribusi() {
   // Auto-refresh returGrid
   const handleAutoRefresh = useCallback(async () => {
     if (refreshing || !tanggal || outlets.length === 0) return;
+    // Hormati edit manual admin (Langkah 4 saat siklus dibuka, atau grid lain
+    // yang sedang dikerjakan) — jangan timpa nilai yang sedang dikoreksi admin
+    // dengan hitung ulang otomatis dari penjualan outlet. saveStep4 yang akan
+    // memakai nilai manual tsb saat menutup siklus.
+    if (hasUserModifiedGrids.current || hasManualReturEdits.current) return;
     setRefreshing(true);
     try {
       hasUserModifiedGrids.current = false;
-      hasManualReturEdits.current = false;
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
 
@@ -643,12 +617,12 @@ export default function Distribusi() {
 
   // ============ RENDER FUNCTIONS ============
 
-  function renderStep4() {
+  function renderStep3() {
     return (
       <Card className="glass border-0 shadow-card">
         <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle>Langkah 4: Barang Keluar & Alokasi Outlet</CardTitle>
+            <CardTitle>Langkah 3: Distribusi & Alokasi Outlet</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">Pilih outlet di bawah untuk mengisi kuantitas cup yang dikirim, ringkasan pengiriman akan muncul di tabel bawah.</p>
           </div>
           <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-xl border text-xs">
@@ -689,14 +663,14 @@ export default function Distribusi() {
                 <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pilih Outlet</Label>
                 <ArrowNav
                   size="lg"
-                  onPrev={() => { const idx = outlets.findIndex((o: any) => o.id === step4OutletId); if (idx > 0) setStep4OutletId(outlets[idx - 1].id); }}
-                  onNext={() => { const idx = outlets.findIndex((o: any) => o.id === step4OutletId); if (idx < outlets.length - 1) setStep4OutletId(outlets[idx + 1].id); }}
-                  disabledPrev={outlets.findIndex((o: any) => o.id === step4OutletId) <= 0}
-                  disabledNext={outlets.findIndex((o: any) => o.id === step4OutletId) >= outlets.length - 1}
+                  onPrev={() => { const idx = outlets.findIndex((o: any) => o.id === distOutletId); if (idx > 0) setDistOutletId(outlets[idx - 1].id); }}
+                  onNext={() => { const idx = outlets.findIndex((o: any) => o.id === distOutletId); if (idx < outlets.length - 1) setDistOutletId(outlets[idx + 1].id); }}
+                  disabledPrev={outlets.findIndex((o: any) => o.id === distOutletId) <= 0}
+                  disabledNext={outlets.findIndex((o: any) => o.id === distOutletId) >= outlets.length - 1}
                   prevLabel="Outlet sebelumnya"
                   nextLabel="Outlet berikutnya"
                 >
-                  <Select value={step4OutletId} onValueChange={setStep4OutletId}>
+                  <Select value={distOutletId} onValueChange={setDistOutletId}>
                     <SelectTrigger className="h-11 font-semibold text-sm"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                     <SelectContent>
                       {outlets.map((o: any) => <SelectItem key={o.id} value={o.id} className="font-medium text-xs">{o.nama}</SelectItem>)}
@@ -707,7 +681,7 @@ export default function Distribusi() {
             </div>
 
             {(() => {
-              const row = distGrid[step4OutletId] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+              const row = distGrid[distOutletId] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
               return (
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
                   {[
@@ -721,7 +695,7 @@ export default function Distribusi() {
                   ].map((item) => (
                     <div key={item.field} className={`space-y-1 p-2.5 rounded-xl ${item.bgClass}`}>
                       <Label className={`text-[10px] font-bold ${item.colorClass} block truncate`}>{item.label}</Label>
-                      <Input type="number" min={0} value={(row as any)[item.field] || ""} onChange={(e) => handleDistChange(step4OutletId, item.field, parseInt(e.target.value))} className={`h-9 text-xs text-center ${item.colorClass} focus-visible:ring-amber-500 font-semibold`} placeholder="0" />
+                      <Input type="number" min={0} value={(row as any)[item.field] || ""} onChange={(e) => handleDistChange(distOutletId, item.field, parseInt(e.target.value))} className={`h-9 text-xs text-center ${item.colorClass} focus-visible:ring-amber-500 font-semibold`} placeholder="0" />
                       <span className="text-[9px] text-muted-foreground/80 block text-center mt-1">({((row as any)[item.field] || 0) * item.unitWeight} g)</span>
                     </div>
                   ))}
@@ -751,9 +725,9 @@ export default function Distribusi() {
                   <TableBody>
                     {outlets.map((o: any) => {
                       const row = distGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
-                      const isSelected = o.id === step4OutletId;
+                      const isSelected = o.id === distOutletId;
                       return (
-                        <TableRow key={o.id} onClick={() => setStep4OutletId(o.id)} className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" : "hover:bg-muted/30"}`}>
+                        <TableRow key={o.id} onClick={() => setDistOutletId(o.id)} className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" : "hover:bg-muted/30"}`}>
                           <TableCell className="font-semibold py-3 flex items-center gap-1.5 whitespace-nowrap">
                             {o.nama}{isSelected && <Badge className="text-[9px] bg-primary/10 text-primary hover:bg-primary/20 border-primary/20" variant="outline">Edit</Badge>}
                           </TableCell>
@@ -777,7 +751,7 @@ export default function Distribusi() {
             <Button variant="outline" onClick={() => navigate("/produksi")} className="h-10">
               <ArrowLeft className="h-4 w-4 md:mr-2" /><span className="hidden md:inline">Kembali ke Produksi</span>
             </Button>
-            <Button onClick={saveStep4} className="gradient-primary text-primary-foreground hover-lift h-10">
+            <Button onClick={saveStep3} className="gradient-primary text-primary-foreground hover-lift h-10">
               <Check className="h-4 w-4 md:mr-2" /><span className="hidden md:inline">Konfirmasi Pengiriman & Lanjutkan</span>
             </Button>
           </div>
@@ -786,12 +760,12 @@ export default function Distribusi() {
     );
   }
 
-  function renderStep5() {
+  function renderStep4() {
     return (
       <Card className="glass border-0 shadow-card">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <CardTitle>Langkah 5: Retur & Penjualan Akhir Hari</CardTitle>
+            <CardTitle>Langkah 4: Retur & Penjualan Akhir Hari</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
               Input retur (sisa tidak terjual) per menu per outlet. Bubur & Nasi Tim dalam <strong>gram</strong>, Oatmeal & Puding dalam <strong>cup</strong>, Abon dalam <strong>pcs</strong>.
             </p>
@@ -812,14 +786,14 @@ export default function Distribusi() {
             <div className="space-y-1.5 flex-1 min-w-[200px]">
               <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pilih Outlet</Label>                <ArrowNav
                   size="lg"
-                  onPrev={() => { const idx = outlets.findIndex((o: any) => o.id === step5OutletId); if (idx > 0) setStep5OutletId(outlets[idx - 1].id); }}
-                  onNext={() => { const idx = outlets.findIndex((o: any) => o.id === step5OutletId); if (idx < outlets.length - 1) setStep5OutletId(outlets[idx + 1].id); }}
-                  disabledPrev={outlets.findIndex((o: any) => o.id === step5OutletId) <= 0}
-                  disabledNext={outlets.findIndex((o: any) => o.id === step5OutletId) >= outlets.length - 1}
+                  onPrev={() => { const idx = outlets.findIndex((o: any) => o.id === returOutletId); if (idx > 0) setReturOutletId(outlets[idx - 1].id); }}
+                  onNext={() => { const idx = outlets.findIndex((o: any) => o.id === returOutletId); if (idx < outlets.length - 1) setReturOutletId(outlets[idx + 1].id); }}
+                  disabledPrev={outlets.findIndex((o: any) => o.id === returOutletId) <= 0}
+                  disabledNext={outlets.findIndex((o: any) => o.id === returOutletId) >= outlets.length - 1}
                   prevLabel="Outlet sebelumnya"
                   nextLabel="Outlet berikutnya"
                 >
-                  <Select value={step5OutletId} onValueChange={setStep5OutletId}>
+                  <Select value={returOutletId} onValueChange={setReturOutletId}>
                     <SelectTrigger className="h-11 font-semibold text-sm"><SelectValue placeholder="Pilih Outlet" /></SelectTrigger>
                     <SelectContent>
                       {outlets.map((o: any) => <SelectItem key={o.id} value={o.id} className="font-medium text-xs">{o.nama}</SelectItem>)}
@@ -831,8 +805,8 @@ export default function Distribusi() {
 
           {/* Retur Input Fields */}
           {(() => {
-            const row = returGrid[step5OutletId] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
-            const sent = distGrid[step5OutletId] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+            const row = returGrid[returOutletId] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+            const sent = distGrid[returOutletId] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
 
             const returItems = [
               { field: "bubur_d", label: `Bubur ${bubur1Name}`, gramFactor: 118, sent: sent.bubur_d || 0, colorClass: "text-amber-600 border-amber-300/80" },
@@ -869,7 +843,7 @@ export default function Distribusi() {
                             min={0}
                             max={isBuburTim ? item.sent * item.gramFactor : item.sent}
                             value={returVal || ""}
-                            onChange={(e) => handleReturChange(step5OutletId, item.field, parseInt(e.target.value) || 0)}
+                            onChange={(e) => handleReturChange(returOutletId, item.field, parseInt(e.target.value) || 0)}
                             className={`h-10 font-semibold ${item.colorClass}`}
                             placeholder="0"
                           />
@@ -905,7 +879,7 @@ export default function Distribusi() {
                     {outlets.map((o: any) => {
                       const row = returGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
                       const sent = distGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
-                      const isSelected = o.id === step5OutletId;
+                      const isSelected = o.id === returOutletId;
 
                       const calcSold = (sent: number, returCups: number) => Math.max(0, sent - Math.min(returCups, sent));
 
@@ -921,7 +895,7 @@ export default function Distribusi() {
                       const abonSent = sent.abon || 0;
 
                       return (
-                        <TableRow key={o.id} onClick={() => setStep5OutletId(o.id)} className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" : "hover:bg-muted/30"}`}>
+                        <TableRow key={o.id} onClick={() => setReturOutletId(o.id)} className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" : "hover:bg-muted/30"}`}>
                           <TableCell className="font-semibold py-3">{o.nama}</TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
                             <span className="text-destructive">{buburRet}</span> / <span className="text-primary font-semibold">{calcSold(buburSent, buburRet)}</span>
@@ -951,7 +925,7 @@ export default function Distribusi() {
           </div>
 
           <div className="flex justify-between items-center border-t pt-6">
-            <Button variant="outline" onClick={() => setStep(4)} className="h-10">
+            <Button variant="outline" onClick={() => setStep(3)} className="h-10">
               <ArrowLeft className="h-4 w-4 md:mr-2" /><span className="hidden md:inline">Kembali</span>
             </Button>
             <div className="flex items-center gap-2">
@@ -969,7 +943,7 @@ export default function Distribusi() {
                   <span className="hidden md:inline">{bukaSiklusLoading ? "Membuka..." : "Buka Siklus"}</span>
                 </Button>
               )}
-              <Button onClick={saveStep5} disabled={closingCycle || bukaSiklusLoading} className="gradient-primary text-primary-foreground hover-lift h-10">
+              <Button onClick={saveStep4} disabled={closingCycle || bukaSiklusLoading} className="gradient-primary text-primary-foreground hover-lift h-10">
                 <Check className="h-4 w-4 md:mr-2" /><span className="hidden md:inline">Selesaikan & Tutup Siklus</span>
               </Button>
             </div>
@@ -1001,8 +975,8 @@ export default function Distribusi() {
 
   // ============ MAIN RENDER ============
   const distSteps = [
-    { num: 4, label: "Distribusi" },
-    { num: 5, label: "Retur & Penjualan" },
+    { num: 3, label: "Distribusi" },
+    { num: 4, label: "Retur & Penjualan" },
   ];
 
   return (
@@ -1076,8 +1050,8 @@ export default function Distribusi() {
       </div>
 
       {/* Step Content */}
+      {step === 3 && renderStep3()}
       {step === 4 && renderStep4()}
-      {step === 5 && renderStep5()}
     </div>
   );
 }

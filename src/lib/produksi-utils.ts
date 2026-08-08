@@ -231,6 +231,90 @@ export function calcKemasanKebutuhan(actualCups: { puding: number; oatmeal: numb
 }
 
 // =============================================================================
+// RETUR GRID LANGKAH 5 (Buka/Tutup Siklus) — hormati edit manual admin
+// =============================================================================
+//
+// Saat admin membuka siklus (Buka Siklus), data penjualan dari outlet tetap bisa
+// diubah dan Langkah 5 bisa dikoreksi manual oleh admin. Saat menutup siklus
+// (saveStep5), nilai retur yang dipakai untuk perhitungan OH adalah:
+//   - Bila admin MENGEDIT returGrid manual → pakai nilai state admin apa adanya
+//     (koreksi manual dihormati, TIDAK dihitung ulang dari penjualan).
+//   - Bila TIDAK ada edit manual → hitung ulang dari penjualan terbaru outlet
+//     (sisa gram per menu), agar stok retur tidak memakai data basi.
+
+// Hitung grid retur final untuk saveStep5 — mengembalikan salinan baru (tidak
+// memutasi input). Dipakai oleh saveStep5 di Produksi.tsx & Distribusi.tsx.
+// Tipe input memakai bentuk longgar (Record<string, Record<string, number>>)
+// agar kompatibel dengan state komponen; baris per outlet dinormalisasi di
+// dalam fungsi.
+export function resolveFreshReturGrid(opts: {
+  outlets: { id: string }[];
+  returGrid: Record<string, Record<string, number>>;
+  distGrid: Record<string, Record<string, number>>;
+  existingPenjualan: any[];
+  hasManualReturEdits: boolean;
+}): Record<string, Record<string, number>> {
+  const { outlets, returGrid, distGrid, existingPenjualan, hasManualReturEdits } = opts;
+  const fresh = createEmptyGrid(outlets) as Record<string, Record<string, number>>;
+  if (hasManualReturEdits) {
+    // Edit manual admin (Langkah 5, siklus dibuka) — pakai nilai returGrid
+    // state apa adanya (koreksi admin TIDAK dihitung ulang dari penjualan).
+    outlets.forEach((o) => {
+      fresh[o.id] = { ...fresh[o.id], ...(returGrid[o.id] || {}) };
+    });
+  }
+
+  if (!hasManualReturEdits && existingPenjualan.length > 0) {
+    outlets.forEach((o) => {
+      const sent = distGrid[o.id] || ({} as OutletGrid[string]);
+      const row = fresh[o.id];
+      if (!row) return;
+
+      const calcRetur = (
+        baseId: string,
+        dField: keyof OutletGrid[string],
+        iField: keyof OutletGrid[string],
+        dSent: number,
+        iSent: number
+      ) => {
+        const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+        const dRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+        const iRec = existingPenjualan.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+        if (dRec) row[dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
+        if (iRec) row[iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
+        if (!dRec && !iRec) {
+          const totalSent = dSent + iSent;
+          const sold = existingPenjualan
+            .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
+            .reduce((s: number, p: any) => s + p.qty, 0);
+          const totalRetur = Math.max(0, totalSent - sold);
+          if (totalSent > 0) {
+            const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+            const iReturCups = totalRetur - dReturCups;
+            row[dField] = dReturCups * gramPerCup;
+            row[iField] = iReturCups * gramPerCup;
+          }
+        }
+      };
+
+      calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
+      calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
+
+      row.oatmeal = Math.max(0, (sent.oatmeal || 0) - existingPenjualan
+        .filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal")
+        .reduce((s: number, p: any) => s + p.qty, 0));
+      row.puding = Math.max(0, (sent.puding || 0) - existingPenjualan
+        .filter((p: any) => p.outletId === o.id && p.produkId === "p-puding")
+        .reduce((s: number, p: any) => s + p.qty, 0));
+      row.abon = Math.max(0, (sent.abon || 0) - existingPenjualan
+        .filter((p: any) => p.outletId === o.id && p.produkId === "p-abon")
+        .reduce((s: number, p: any) => s + p.qty, 0));
+    });
+  }
+  return fresh;
+}
+
+// =============================================================================
 // VARIANT MAPPING & DISTRIBUTION SCALING (referensi pasca produksi)
 // =============================================================================
 //

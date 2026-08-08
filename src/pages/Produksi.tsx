@@ -2752,9 +2752,10 @@ export default function Produksi() {
           <div>
             <CardTitle>Langkah 3: Distribusi & Alokasi Outlet</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Input <strong>hasil masak aktual</strong> (produk jadi pasca matang), lihat <strong>selisih terhadap rencana</strong>,
-              lalu alokasikan <strong>ke semua outlet</strong>. Kemasan (cup &amp; tutup <strong>Puding/Oatmeal</strong>)
-              dipotong otomatis sesuai hasil aktual saat menyimpan.
+              Input <strong>hasil masak aktual</strong> sesuai rencana dulu (tidak perlu ditimbang menyeluruh),
+              lalu alokasikan <strong>ke semua outlet</strong>. Bila ada <strong>lebihan/kekurangan</strong>, revisi jumlah
+              distribusi tiap outlet secara manual — <strong>selisih vs rencana</strong> terhitung otomatis di bagian bawah.
+              Kemasan (cup &amp; tutup <strong>Puding/Oatmeal</strong>) dipotong otomatis sesuai hasil aktual saat menyimpan.
             </p>
           </div>
           <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-xl border text-xs shrink-0">
@@ -2778,62 +2779,6 @@ export default function Produksi() {
             </div>
           )}
 
-          {/* Selisih Rencana vs Produk Jadi Pasca Matang */}
-          <div className="bg-muted/15 p-4 rounded-2xl border space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Calculator className="h-4 w-4 text-primary" /> Selisih Rencana vs Produk Jadi Pasca Matang
-            </h3>
-            <p className="text-[11px] text-muted-foreground">
-              Bandingkan <strong>rencana</strong> (Langkah 1) dengan <strong>produk jadi pasca matang</strong> di bawah ini.
-              Nilai realisasi bisa disusut/meluber — alokasi ke outlet mengikuti angka realisasi (hasil masak aktual).
-            </p>
-            <div className="rounded-xl border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead>Produk</TableHead>
-                    <TableHead className="text-right">Rencana</TableHead>
-                    <TableHead className="text-right">Produk Jadi (Aktual)</TableHead>
-                    <TableHead className="text-center">Selisih</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { label: `Bubur 1 (${bubur1Name})`, rencana: totals.buburD, aktual: actualCups.bubur_1, satuan: "cup" },
-                    { label: `Bubur 2 (${bubur2Name})`, rencana: totals.buburI, aktual: actualCups.bubur_2, satuan: "cup" },
-                    { label: `Nasi Tim 1 (${tim1Name})`, rencana: totals.timD, aktual: actualCups.tim_1, satuan: "cup" },
-                    { label: `Nasi Tim 2 (${tim2Name})`, rencana: totals.timI, aktual: actualCups.tim_2, satuan: "cup" },
-                    { label: "Oatmeal", rencana: totals.oatmeal, aktual: actualCups.oatmeal, satuan: "cup" },
-                    { label: "Puding", rencana: totals.puding, aktual: actualCups.puding, satuan: "cup" },
-                    { label: "Abon", rencana: totals.abon, aktual: actualCups.abon, satuan: "pcs" }
-                  ].map((it) => {
-                    const selisih = it.aktual - it.rencana;
-                    return (
-                      <TableRow key={it.label}>
-                        <TableCell className="font-semibold">{it.label}</TableCell>
-                        <TableCell className="text-right tabular-nums">{it.rencana} {it.satuan}</TableCell>
-                        <TableCell className="text-right tabular-nums font-bold text-primary">{it.aktual} {it.satuan}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] border ${
-                              selisih === 0
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                : selisih < 0
-                                ? "bg-destructive/10 text-destructive border-destructive/30"
-                                : "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                            }`}
-                          >
-                            {selisih === 0 ? "✓ Sesuai" : `${selisih > 0 ? "+" : ""}${selisih} ${it.satuan}`}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[
               { id: "bubur_1", label: `Bubur 1 (${bubur1Name})`, unitWeight: 118, targetCups: totals.buburD },
@@ -2936,119 +2881,14 @@ export default function Produksi() {
             })}
           </div>
 
-          {/* Kemasan sesuai hasil aktual — dipotong otomatis saat simpan */}
-          <div className="bg-muted/15 p-4 rounded-2xl border space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Package className="h-4 w-4 text-primary" /> Kemasan Sesuai Hasil Aktual (Cup &amp; Tutup)
-            </h3>
-            <p className="text-[11px] text-muted-foreground">
-              Bahan utama sudah dipotong di Langkah 2 sesuai rencana dan <strong>tidak berubah</strong> oleh hasil produksi.
-              Kemasan dihitung dari hasil aktual di atas — bisa berbeda dari rencana karena hasil bisa <strong>menyusut</strong> atau <strong>meluber</strong>. Dipotong otomatis saat menyimpan Langkah 3.
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Kemasan <strong>Bubur &amp; Nasi Tim</strong> (CUP BUBUR &amp; TUTUP) <strong>tidak</strong> ikut dipotong di sini — stoknya berkurang saat <strong>request outlet disetujui</strong> di Stok Gudang, dan sisa kembali lewat <strong>retur perlengkapan</strong>.
-            </p>
-            <div className="rounded-xl border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead>Kemasan</TableHead>
-                    <TableHead>Kode</TableHead>
-                    <TableHead className="text-right">Kebutuhan (Aktual)</TableHead>
-                    <TableHead className="text-right">Stok Gudang</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {packagingReqs.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                        Tidak ada kebutuhan kemasan — hasil aktual Oatmeal &amp; Puding 0 cup.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {packagingReqs.map((r) => {
-                    const saldo = saldoBahan(r.bahanId, dbState);
-                    const isSufficient = saldo >= r.qty;
-                    return (
-                      <TableRow key={r.bahanId}>
-                        <TableCell className="font-semibold">{r.nama}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{r.kode}</TableCell>
-                        <TableCell className="text-right font-bold text-primary">{r.qty} pcs</TableCell>
-                        <TableCell className="text-right">{Math.round(saldo)} pcs</TableCell>
-                        <TableCell className="text-center">
-                          {isSufficient ? (
-                            <Badge className="bg-success text-success-foreground">Aman</Badge>
-                          ) : (
-                            <Badge variant="destructive" className="gap-1 justify-center">
-                              <AlertTriangle className="h-3 w-3" /> Kurang {r.qty - Math.round(saldo)}
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          {/* Sisa Hasil Masak (Undistributed Stock) */}
-          <div className="bg-muted/15 p-4 rounded-2xl border border-dashed space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sisa Hasil Masak (Belum Didistribusikan)</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.bubur_1 - distTotals.buburD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.bubur_1 - distTotals.buburD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_1}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.bubur_2 - distTotals.buburI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.bubur_2 - distTotals.buburI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_2}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.tim_1 - distTotals.timD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.tim_1 - distTotals.timD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_1}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</span>
-                <span className={`text-sm font-bold block ${actualCups.tim_2 - distTotals.timI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.tim_2 - distTotals.timI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_2}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</span>
-                <span className={`text-sm font-bold block ${actualCups.oatmeal - distTotals.oatmeal < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.oatmeal - distTotals.oatmeal} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.oatmeal}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-muted-foreground block truncate">Puding</span>
-                <span className={`text-sm font-bold block ${actualCups.puding - distTotals.puding < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.puding - distTotals.puding} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.puding}</span>
-                </span>
-              </div>
-              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
-                <span className="text-[10px] font-bold text-muted-foreground block truncate">Abon</span>
-                <span className={`text-sm font-bold block ${actualCups.abon - distTotals.abon < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {actualCups.abon - distTotals.abon} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.abon}</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* Dropdown Selector & Row Form */}
           <div className="bg-muted/30 p-5 rounded-2xl border space-y-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Calculator className="h-3.5 w-3.5 text-primary" />
                 <span>
-                  Alokasi ke outlet mengikuti <strong>hasil masak aktual</strong> di atas. Ubah realisasi dulu, lalu sesuaikan distribusi bila perlu.
+                  Alokasi ke outlet mengikuti <strong>hasil masak aktual</strong> di atas. Jika hasil meluber/kurang, revisi
+                  jumlah tiap outlet <strong>secara manual</strong> di sini — sisa belum terdistribusi tampil otomatis di bawah.
                 </span>
               </div>
               <Button
@@ -3184,6 +3024,55 @@ export default function Produksi() {
             })()}
           </div>
 
+          {/* Sisa Hasil Masak (Undistributed Stock) */}
+          <div className="bg-muted/15 p-4 rounded-2xl border border-dashed space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sisa Hasil Masak (Belum Didistribusikan)</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.bubur_1 - distTotals.buburD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.bubur_1 - distTotals.buburD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_1}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.bubur_2 - distTotals.buburI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.bubur_2 - distTotals.buburI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.bubur_2}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.tim_1 - distTotals.timD < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.tim_1 - distTotals.timD} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_1}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</span>
+                <span className={`text-sm font-bold block ${actualCups.tim_2 - distTotals.timI < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.tim_2 - distTotals.timI} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.tim_2}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</span>
+                <span className={`text-sm font-bold block ${actualCups.oatmeal - distTotals.oatmeal < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.oatmeal - distTotals.oatmeal} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.oatmeal}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-muted-foreground block truncate">Puding</span>
+                <span className={`text-sm font-bold block ${actualCups.puding - distTotals.puding < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.puding - distTotals.puding} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.puding}</span>
+                </span>
+              </div>
+              <div className="space-y-1 bg-card p-2.5 rounded-xl border shadow-sm">
+                <span className="text-[10px] font-bold text-muted-foreground block truncate">Abon</span>
+                <span className={`text-sm font-bold block ${actualCups.abon - distTotals.abon < 0 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {actualCups.abon - distTotals.abon} <span className="text-[10px] font-normal text-muted-foreground">/ {actualCups.abon}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Consolidated Table at the Bottom */}
           <div className="space-y-2 pt-2">
             <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Ringkasan Distribusi Pengiriman (Klik baris untuk edit)</Label>
@@ -3257,6 +3146,120 @@ export default function Produksi() {
                   </TableBody>
                 </Table>
               </div>
+            </div>
+          </div>
+
+          {/* Kemasan sesuai hasil aktual — dipotong otomatis saat simpan */}
+          <div className="bg-muted/15 p-4 rounded-2xl border space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Package className="h-4 w-4 text-primary" /> Kemasan Sesuai Hasil Aktual (Cup &amp; Tutup)
+            </h3>
+            <p className="text-[11px] text-muted-foreground">
+              Bahan utama sudah dipotong di Langkah 2 sesuai rencana dan <strong>tidak berubah</strong> oleh hasil produksi.
+              Kemasan dihitung dari hasil aktual di atas — bisa berbeda dari rencana karena hasil bisa <strong>menyusut</strong> atau <strong>meluber</strong>. Dipotong otomatis saat menyimpan Langkah 3.
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Kemasan <strong>Bubur &amp; Nasi Tim</strong> (CUP BUBUR &amp; TUTUP) <strong>tidak</strong> ikut dipotong di sini — stoknya berkurang saat <strong>request outlet disetujui</strong> di Stok Gudang, dan sisa kembali lewat <strong>retur perlengkapan</strong>.
+            </p>
+            <div className="rounded-xl border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Kemasan</TableHead>
+                    <TableHead>Kode</TableHead>
+                    <TableHead className="text-right">Kebutuhan (Aktual)</TableHead>
+                    <TableHead className="text-right">Stok Gudang</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {packagingReqs.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                        Tidak ada kebutuhan kemasan — hasil aktual Oatmeal &amp; Puding 0 cup.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {packagingReqs.map((r) => {
+                    const saldo = saldoBahan(r.bahanId, dbState);
+                    const isSufficient = saldo >= r.qty;
+                    return (
+                      <TableRow key={r.bahanId}>
+                        <TableCell className="font-semibold">{r.nama}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{r.kode}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">{r.qty} pcs</TableCell>
+                        <TableCell className="text-right">{Math.round(saldo)} pcs</TableCell>
+                        <TableCell className="text-center">
+                          {isSufficient ? (
+                            <Badge className="bg-success text-success-foreground">Aman</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="gap-1 justify-center">
+                              <AlertTriangle className="h-3 w-3" /> Kurang {r.qty - Math.round(saldo)}
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Selisih Rencana vs Produk Jadi Pasca Matang */}
+          <div className="bg-muted/15 p-4 rounded-2xl border space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Calculator className="h-4 w-4 text-primary" /> Selisih Rencana vs Produk Jadi Pasca Matang
+            </h3>
+            <p className="text-[11px] text-muted-foreground">
+              Terhitung otomatis dari <strong>hasil masak aktual</strong> di atas dibanding <strong>rencana</strong> (Langkah 1).
+              Hasil bisa <strong>menyusut/meluber</strong> — alokasi ke outlet mengikuti angka realisasi (hasil masak aktual).
+            </p>
+            <div className="rounded-xl border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Produk</TableHead>
+                    <TableHead className="text-right">Rencana</TableHead>
+                    <TableHead className="text-right">Produk Jadi (Aktual)</TableHead>
+                    <TableHead className="text-center">Selisih</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    { label: `Bubur 1 (${bubur1Name})`, rencana: totals.buburD, aktual: actualCups.bubur_1, satuan: "cup" },
+                    { label: `Bubur 2 (${bubur2Name})`, rencana: totals.buburI, aktual: actualCups.bubur_2, satuan: "cup" },
+                    { label: `Nasi Tim 1 (${tim1Name})`, rencana: totals.timD, aktual: actualCups.tim_1, satuan: "cup" },
+                    { label: `Nasi Tim 2 (${tim2Name})`, rencana: totals.timI, aktual: actualCups.tim_2, satuan: "cup" },
+                    { label: "Oatmeal", rencana: totals.oatmeal, aktual: actualCups.oatmeal, satuan: "cup" },
+                    { label: "Puding", rencana: totals.puding, aktual: actualCups.puding, satuan: "cup" },
+                    { label: "Abon", rencana: totals.abon, aktual: actualCups.abon, satuan: "pcs" }
+                  ].map((it) => {
+                    const selisih = it.aktual - it.rencana;
+                    return (
+                      <TableRow key={it.label}>
+                        <TableCell className="font-semibold">{it.label}</TableCell>
+                        <TableCell className="text-right tabular-nums">{it.rencana} {it.satuan}</TableCell>
+                        <TableCell className="text-right tabular-nums font-bold text-primary">{it.aktual} {it.satuan}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] border ${
+                              selisih === 0
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                : selisih < 0
+                                ? "bg-destructive/10 text-destructive border-destructive/30"
+                                : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                            }`}
+                          >
+                            {selisih === 0 ? "✓ Sesuai" : `${selisih > 0 ? "+" : ""}${selisih} ${it.satuan}`}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           </div>
 

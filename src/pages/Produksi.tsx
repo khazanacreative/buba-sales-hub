@@ -2646,16 +2646,26 @@ export default function Produksi() {
               </div>
             </div>
 
-            {/* Input fields laid out as a row */}
+            {/* Input fields laid out as a row — dengan panduan jumlah RENCANA cup per menu */}
             {(() => {
               const row = distGrid[distOutletId] || {
                 bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
                 oatmeal: 0, puding: 0, abon: 0
               };
+              const planRow = planGrid[distOutletId] || {
+                bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+                oatmeal: 0, puding: 0, abon: 0
+              };
+              const planBadge = (label: string, plan: number, color: string) => (
+                <span className={`text-[9px] font-bold ${color} block truncate`} title={`Rencana ${label}: ${plan} cup`}>
+                  Rencana: {plan} cup
+                </span>
+              );
               return (
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Bubur ${bubur1Name}`}>B. {bubur1Name}</Label>
+                    {planBadge(`Bubur ${bubur1Name}`, planRow.bubur_d || 0, "text-amber-600")}
                     <Input
                       type="number"
                       min={0}
@@ -2668,6 +2678,7 @@ export default function Produksi() {
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name}`}>B. {bubur2Name}</Label>
+                    {planBadge(`Bubur ${bubur2Name}`, planRow.bubur_i || 0, "text-blue-600")}
                     <Input
                       type="number"
                       min={0}
@@ -2680,6 +2691,7 @@ export default function Produksi() {
                   </div>
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name}`}>T. {tim1Name}</Label>
+                    {planBadge(`Tim ${tim1Name}`, planRow.tim_d || 0, "text-amber-600")}
                     <Input
                       type="number"
                       min={0}
@@ -2692,6 +2704,7 @@ export default function Produksi() {
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name}`}>T. {tim2Name}</Label>
+                    {planBadge(`Tim ${tim2Name}`, planRow.tim_i || 0, "text-blue-600")}
                     <Input
                       type="number"
                       min={0}
@@ -2704,6 +2717,7 @@ export default function Produksi() {
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal</Label>
+                    {planBadge("Oatmeal", planRow.oatmeal || 0, "text-muted-foreground")}
                     <Input
                       type="number"
                       min={0}
@@ -2716,6 +2730,7 @@ export default function Produksi() {
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Puding</Label>
+                    {planBadge("Puding", planRow.puding || 0, "text-muted-foreground")}
                     <Input
                       type="number"
                       min={0}
@@ -2728,6 +2743,7 @@ export default function Produksi() {
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Abon</Label>
+                    {planBadge("Abon", planRow.abon || 0, "text-muted-foreground")}
                     <Input
                       type="number"
                       min={0}

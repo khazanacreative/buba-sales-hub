@@ -3248,13 +3248,13 @@ export default function Produksi() {
                   <TableHeader>
                     <TableRow className="bg-muted/40">
                       <TableHead>Outlet</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur1Name} Dikirim/Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name} Dikirim/Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim {tim1Name} Dikirim/Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name} Dikirim/Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Oatmeal Dikirim/Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Puding Dikirim/Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Abon Dikirim/Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur1Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim {tim1Name}</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name}</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Oatmeal</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Puding</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Abon</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

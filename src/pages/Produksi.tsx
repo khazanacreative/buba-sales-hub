@@ -659,6 +659,17 @@ export default function Produksi() {
       }
 
       toast.success("Rencana Pra-Produksi berhasil disimpan!");
+
+      // Prefill distribusi (Langkah 3) dari rencana — aktual masak = total distribusi,
+      // jadi tabel input per outlet langsung terisi angka rencana agar kapro tinggal
+      // menyesuaikan yang berbeda saja sesuai aktual masak di lapangan.
+      // (useEffect load tidak jalan di sini karena guard hasUserModifiedGrids aktif
+      // sejak kapro mengisi rencana di Langkah 1.)
+      const distPrefill: Record<string, Record<string, number>> = {};
+      Object.entries(planGrid).forEach(([outletId, vals]) => {
+        distPrefill[outletId] = { ...vals };
+      });
+      setDistGrid(distPrefill);
       setStep(2);
     } catch (err: any) {
       console.error("saveStep1 error:", err);
@@ -2617,7 +2628,8 @@ export default function Produksi() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Calculator className="h-3.5 w-3.5 text-primary" />
                 <span>
-                  Input <strong>jumlah aktual</strong> per outlet sesuai kondisi lapangan. Total semua outlet = <strong>aktual masak</strong>
+                  Input <strong>jumlah aktual</strong> per outlet — kolom sudah terisi otomatis dari <strong>rencana</strong>,
+                  cukup ubah yang berbeda sesuai aktual masak di lapangan. Total semua outlet = <strong>aktual masak</strong>
                   — luberan/penyusutan terlihat otomatis di tabel <strong>selisih vs rencana</strong> bagian bawah.
                 </span>
               </div>
@@ -3236,13 +3248,13 @@ export default function Produksi() {
                   <TableHeader>
                     <TableRow className="bg-muted/40">
                       <TableHead>Outlet</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur1Name} Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name} Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim {tim1Name} Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name} Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Oatmeal Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Puding Retur/Terjual</TableHead>
-                      <TableHead className="text-center font-semibold text-xs">Abon Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur1Name} Dikirim/Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5">Bubur {bubur2Name} Dikirim/Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-amber-600 bg-amber-500/5">Tim {tim1Name} Dikirim/Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-bold text-xs text-blue-600 bg-blue-500/5 font-semibold">Tim {tim2Name} Dikirim/Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Oatmeal Dikirim/Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Puding Dikirim/Retur/Terjual</TableHead>
+                      <TableHead className="text-center font-semibold text-xs">Abon Dikirim/Retur/Terjual</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -3273,6 +3285,7 @@ export default function Produksi() {
                             </div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_d || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.bubur_d || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
@@ -3280,6 +3293,7 @@ export default function Produksi() {
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_d || 0) - sisaGramToCups(row.bubur_d || 0, 118))} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_i || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.bubur_i || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
@@ -3287,6 +3301,7 @@ export default function Produksi() {
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_i || 0) - sisaGramToCups(row.bubur_i || 0, 118))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_d || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_d || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
@@ -3294,6 +3309,7 @@ export default function Produksi() {
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_d || 0) - sisaGramToCups(row.tim_d || 0, 108))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_i || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_i || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
@@ -3301,6 +3317,7 @@ export default function Produksi() {
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_i || 0) - sisaGramToCups(row.tim_i || 0, 108))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.oatmeal || 0} cup</div>
                             <div className="font-medium text-xs">
                               <span className="text-destructive">{row.oatmeal || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
@@ -3308,6 +3325,7 @@ export default function Produksi() {
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.oatmeal || 0) - (row.oatmeal || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.puding || 0} cup</div>
                             <div className="font-medium text-xs">
                               <span className="text-destructive">{row.puding || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
@@ -3315,6 +3333,7 @@ export default function Produksi() {
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.puding || 0) - (row.puding || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.abon || 0} pcs</div>
                             <div className="font-medium text-xs">
                               <span className="text-destructive">{row.abon || 0}</span>
                               <span className="text-muted-foreground/60"> retur</span>
@@ -3344,30 +3363,37 @@ export default function Produksi() {
                             </div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.bubur_d || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.bubur_d || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.bubur_d || 0) - sisaGramToCups(tRow.bubur_d || 0, 118))} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.bubur_i || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.bubur_i || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.bubur_i || 0) - sisaGramToCups(tRow.bubur_i || 0, 118))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.tim_d || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.tim_d || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.tim_d || 0) - sisaGramToCups(tRow.tim_d || 0, 108))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.tim_i || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.tim_i || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.tim_i || 0) - sisaGramToCups(tRow.tim_i || 0, 108))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.oatmeal || 0} cup</div>
                             <div className="font-medium text-xs"><span className="text-destructive">{tRow.oatmeal || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.oatmeal || 0) - (tRow.oatmeal || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.puding || 0} cup</div>
                             <div className="font-medium text-xs"><span className="text-destructive">{tRow.puding || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.puding || 0) - (tRow.puding || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
+                            <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.abon || 0} pcs</div>
                             <div className="font-medium text-xs"><span className="text-destructive">{tRow.abon || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.abon || 0) - (tRow.abon || 0))} pcs</div>
                           </TableCell>

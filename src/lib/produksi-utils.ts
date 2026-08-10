@@ -137,12 +137,15 @@ export function loadGridFromReqs(
   dayReqs.forEach((r: any) => {
     if (!grid[r.outletId]) return;
     const split = parseSplit(r.catatan || "");
+    // Split [D:X,I:Y] yang ada di catatan (termasuk D=0 atau I=0) harus dihormati;
+    // fallback ke r.qty hanya untuk data lama tanpa format split.
+    const hasSplit = /D:\d+,I:\d+/.test(r.catatan || "");
     if (r.produkId === "p-bubur") {
-      grid[r.outletId].bubur_d = split.d || r.qty;
-      grid[r.outletId].bubur_i = split.i || 0;
+      grid[r.outletId].bubur_d = hasSplit ? split.d : r.qty;
+      grid[r.outletId].bubur_i = hasSplit ? split.i : 0;
     } else if (r.produkId === "p-nasitim") {
-      grid[r.outletId].tim_d = split.d || r.qty;
-      grid[r.outletId].tim_i = split.i || 0;
+      grid[r.outletId].tim_d = hasSplit ? split.d : r.qty;
+      grid[r.outletId].tim_i = hasSplit ? split.i : 0;
     } else if (r.produkId === "p-oatmeal") {
       grid[r.outletId].oatmeal = r.qty;
     } else if (r.produkId === "p-puding") {

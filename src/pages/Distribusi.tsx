@@ -185,13 +185,13 @@ export default function Distribusi() {
 
   const handleDistChange = (outletId: string, field: string, val: number) => {
     hasUserModifiedGrids.current = true;
-    setDistGrid(prev => ({ ...prev, [outletId]: { ...prev[outletId], [field]: isNaN(val) ? 0 : val } }));
+    setDistGrid(prev => ({ ...prev, [outletId]: { ...prev[outletId], [field]: isNaN(val) ? 0 : Math.max(0, val) } }));
   };
 
   const handleReturChange = (outletId: string, field: string, val: number) => {
     hasUserModifiedGrids.current = true;
     hasManualReturEdits.current = true;
-    setReturGrid(prev => ({ ...prev, [outletId]: { ...prev[outletId], [field]: isNaN(val) ? 0 : val } }));
+    setReturGrid(prev => ({ ...prev, [outletId]: { ...prev[outletId], [field]: isNaN(val) ? 0 : Math.max(0, val) } }));
   };
 
   const distTotals = useMemo(() => sumGrid(distGrid as OutletGrid), [distGrid]);

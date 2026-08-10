@@ -484,12 +484,15 @@ function SisaProduksiOH({
     const map = new Map<string, number>();
     distributions.forEach((r: any) => {
       const split = parseSplit(r.catatan || "");
+      // Split [D:X,I:Y] yang ada di catatan (termasuk D=0 / I=0) harus dihormati;
+      // fallback ke r.qty hanya untuk data lama tanpa format split.
+      const hasSplit = /D:\d+,I:\d+/.test(r.catatan || "");
       if (r.produkId === "p-bubur") {
-        map.set("bubur_d", (map.get("bubur_d") || 0) + (split.d || r.qty));
-        map.set("bubur_i", (map.get("bubur_i") || 0) + (split.i || 0));
+        map.set("bubur_d", (map.get("bubur_d") || 0) + (hasSplit ? split.d : r.qty));
+        map.set("bubur_i", (map.get("bubur_i") || 0) + (hasSplit ? split.i : 0));
       } else if (r.produkId === "p-nasitim") {
-        map.set("tim_d", (map.get("tim_d") || 0) + (split.d || r.qty));
-        map.set("tim_i", (map.get("tim_i") || 0) + (split.i || 0));
+        map.set("tim_d", (map.get("tim_d") || 0) + (hasSplit ? split.d : r.qty));
+        map.set("tim_i", (map.get("tim_i") || 0) + (hasSplit ? split.i : 0));
       } else if (r.produkId === "p-oatmeal") {
         map.set("oatmeal", (map.get("oatmeal") || 0) + r.qty);
       } else if (r.produkId === "p-puding") {
@@ -1128,11 +1131,14 @@ function SisaProduksiAdminView({
 
       distRecords.forEach((r: any) => {
         const split = parseSplit(r.catatan || "");
+        // Split [D:X,I:Y] yang ada di catatan (termasuk D=0 / I=0) harus dihormati;
+        // fallback ke r.qty hanya untuk data lama tanpa format split.
+        const hasSplit = /D:\d+,I:\d+/.test(r.catatan || "");
         MENU_ITEMS.forEach((item) => {
           if (r.produkId === item.baseId) {
             let qty = 0;
-            if (item.subId === "bubur_d" || item.subId === "tim_d") qty = split.d || r.qty;
-            else if (item.subId === "bubur_i" || item.subId === "tim_i") qty = split.i || 0;
+            if (item.subId === "bubur_d" || item.subId === "tim_d") qty = hasSplit ? split.d : r.qty;
+            else if (item.subId === "bubur_i" || item.subId === "tim_i") qty = hasSplit ? split.i : 0;
             else if (item.subId === "oatmeal" || item.subId === "puding" || item.subId === "abon") qty = r.qty;
 
             if (qty > 0) {

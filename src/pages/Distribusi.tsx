@@ -516,6 +516,17 @@ export default function Distribusi() {
 
       if (movPromises.length > 0) { await Promise.all(movPromises); }
 
+      // Jika tidak ada omzet → jurnal OUT-SALES tidak dibuat → siklus TIDAK
+      // dianggap tertutup. Jangan tampilkan toast sukses palsu; beri tahu user
+      // secara jujur bahwa tidak ada yang ditutup (tombol Buka Siklus pun
+      // tidak akan muncul untuk tanggal ini).
+      if (totalSalesRevenue <= 0) {
+        toast.warning(
+          `Tidak ada omzet penjualan untuk tanggal ${tanggal} — siklus TIDAK ditutup (jurnal OUT-SALES tidak dibuat, tombol Buka Siklus tidak muncul). Isi rencana produksi & distribusi atau data penjualan outlet terlebih dahulu.`
+        );
+        return;
+      }
+
       toast.success("Siklus distribusi harian ditutup! Penjualan outlet tercatat — OH (sisa) otomatis rusak & OH abon kembali ke stok.");
       // Siklus sudah ditutup — lepas guard edit manual agar sesi berikutnya
       // (Buka Siklus lagi / ganti tanggal) grid di-reload dari data terbaru DB.

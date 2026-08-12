@@ -25,11 +25,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { computeIsLocked, DEFAULT_LOCK_DEADLINE, sisaGramToCups } from "@/lib/produksi-utils";
+import { computeIsLocked, DEFAULT_LOCK_DEADLINE } from "@/lib/produksi-utils";
 
 type Periode = "harian" | "mingguan" | "bulanan";
 
-// Gramasi per cup untuk konversi
+// Gramasi per cup utk konversi (pembulatan hitung terjual & pemotongan stok):
+// Bubur 118 gr, Nasi Tim 108 gr.
 const GRAM_PER_CUP: Record<string, number> = {
   "p-bubur": 118,
   "p-nasitim": 108,
@@ -631,8 +632,8 @@ function SisaProduksiOH({
         sisaGram = sisaCups * item.gramPerCup;
       } else {
         sisaGram = storedVal; // stored in grams for bubur/tim
-        // Aturan OH 50g: sisa ≤ 50 gr → 0 cup (semua terjual), > 50 gr → dibulatkan naik
-        sisaCups = item.gramPerCup > 0 ? sisaGramToCups(sisaGram, item.gramPerCup) : 0;
+        // Pembulatan SETELAH gramasi (aturan baru): sisa cup = round(sisa gr ÷ gram pembulatan)
+        sisaCups = item.gramPerCup > 0 ? Math.min(Math.round(sisaGram / item.gramPerCup), distQty) : 0;
       }
 
       // Omset SELARAS dgn tab Riwayat & Rekap: saat record penjualan sudah tersimpan
@@ -1253,8 +1254,8 @@ function SisaProduksiAdminView({
             sisaGram = sisaCups * item.gramPerCup;
           } else {
             sisaGram = storedVal; // stored in grams
-            // Aturan OH 50g: sisa ≤ 50 gr → 0 cup (semua terjual), > 50 gr → dibulatkan naik
-            sisaCups = item.gramPerCup > 0 ? sisaGramToCups(sisaGram, item.gramPerCup) : 0;
+            // Pembulatan SETELAH gramasi (aturan baru): sisa cup = round(sisa gr ÷ gram pembulatan)
+            sisaCups = item.gramPerCup > 0 ? Math.min(Math.round(sisaGram / item.gramPerCup), info.distQty) : 0;
           }
           // Omset SELARAS dgn tab Riwayat & Rekap: pakai qty & harga TERSIMPAN saat record
           // sudah ada & admin belum mengubah grid; hitung ulang hanya utk input baru.
@@ -2030,8 +2031,8 @@ function RiwayatTransaksiTab({
             dbSisaCups = dbRec.sisaGram;
             displayGr = dbSisaCups * gramPerCup;
           } else {
-            // sisaGram stores grams for bubur/tim — aturan OH 50g (sisa > 50 gr = 1 cup)
-            dbSisaCups = gramPerCup > 0 ? sisaGramToCups(dbRec.sisaGram, gramPerCup) : 0;
+            // sisaGram stores grams for bubur/tim — pembulatan setelah gramasi
+            dbSisaCups = gramPerCup > 0 ? Math.max(0, Math.round(dbRec.sisaGram / gramPerCup)) : 0;
             displayGr = dbRec.sisaGram;
           }
         } else {

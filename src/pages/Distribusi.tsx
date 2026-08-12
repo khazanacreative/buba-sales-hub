@@ -16,7 +16,7 @@ import { ArrowNav } from "@/components/ArrowNav";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { BUBUR_BASE, formatDecimal, buburCalc, parseSplit, serializeSplit, parseVariants, getVariantNamesForDate, loadGridFromReqs, sumGrid, matchVariantRecords, scaleGridToActual, clampGridToActual, sisaGramToCups, resolveFreshReturGrid, type OutletGrid } from "@/lib/produksi-utils";
+import { BUBUR_BASE, formatDecimal, buburCalc, parseSplit, serializeSplit, parseVariants, getVariantNamesForDate, loadGridFromReqs, sumGrid, matchVariantRecords, scaleGridToActual, clampGridToActual, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, type OutletGrid } from "@/lib/produksi-utils";
 
 export default function Distribusi() {
   const navigate = useNavigate();
@@ -369,9 +369,9 @@ export default function Distribusi() {
           const ret = freshReturGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
 
           const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
-          const buburRet = sisaGramToCups((ret.bubur_d || 0) + (ret.bubur_i || 0), 118);
           if (buburSent > 0) {
-            const buburSold = Math.max(0, buburSent - Math.min(buburRet, buburSent));
+            // Pembulatan setelah gramasi (118 gr/cup): Terjual = (Stok gr − OH gr) ÷ 118
+            const buburSold = hitungTerjualOh(buburSent, (ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN);
             if (buburSold > 0) {
               const prod = produk.find((p: any) => p.id === "p-bubur");
               penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-bubur", qty: buburSold, harga: prod?.harga || 0 });
@@ -379,9 +379,9 @@ export default function Distribusi() {
           }
 
           const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
-          const timRet = sisaGramToCups((ret.tim_d || 0) + (ret.tim_i || 0), 108);
           if (timSent > 0) {
-            const timSold = Math.max(0, timSent - Math.min(timRet, timSent));
+            // Pembulatan setelah gramasi (108 gr/cup): Terjual = (Stok gr − OH gr) ÷ 108
+            const timSold = hitungTerjualOh(timSent, (ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN);
             if (timSold > 0) {
               const prod = produk.find((p: any) => p.id === "p-nasitim");
               penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-nasitim", qty: timSold, harga: prod?.harga || 0 });
@@ -809,13 +809,13 @@ export default function Distribusi() {
             const sent = distGrid[returOutletId] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
 
             const returItems = [
-              { field: "bubur_d", label: `Bubur ${bubur1Name}`, gramFactor: 118, sent: sent.bubur_d || 0, colorClass: "text-amber-600 border-amber-300/80" },
-              { field: "bubur_i", label: `Bubur ${bubur2Name}`, gramFactor: 118, sent: sent.bubur_i || 0, colorClass: "text-blue-600 border-blue-300/80" },
-              { field: "tim_d", label: `Tim ${tim1Name}`, gramFactor: 108, sent: sent.tim_d || 0, colorClass: "text-amber-600 border-amber-300/80" },
-              { field: "tim_i", label: `Tim ${tim2Name}`, gramFactor: 108, sent: sent.tim_i || 0, colorClass: "text-blue-600 border-blue-300/80" },
-              { field: "oatmeal", label: "Oatmeal", gramFactor: 100, sent: sent.oatmeal || 0, colorClass: "text-muted-foreground" },
-              { field: "puding", label: "Puding", gramFactor: 80, sent: sent.puding || 0, colorClass: "text-muted-foreground" },
-              { field: "abon", label: "Abon", gramFactor: 10, sent: sent.abon || 0, colorClass: "text-muted-foreground" },
+              { field: "bubur_d", label: `Bubur ${bubur1Name}`, gramFactor: 118, roundGram: BUBUR_GRAM_PEMBULATAN, sent: sent.bubur_d || 0, colorClass: "text-amber-600 border-amber-300/80" },
+              { field: "bubur_i", label: `Bubur ${bubur2Name}`, gramFactor: 118, roundGram: BUBUR_GRAM_PEMBULATAN, sent: sent.bubur_i || 0, colorClass: "text-blue-600 border-blue-300/80" },
+              { field: "tim_d", label: `Tim ${tim1Name}`, gramFactor: 108, roundGram: TIM_GRAM_PEMBULATAN, sent: sent.tim_d || 0, colorClass: "text-amber-600 border-amber-300/80" },
+              { field: "tim_i", label: `Tim ${tim2Name}`, gramFactor: 108, roundGram: TIM_GRAM_PEMBULATAN, sent: sent.tim_i || 0, colorClass: "text-blue-600 border-blue-300/80" },
+              { field: "oatmeal", label: "Oatmeal", gramFactor: 100, roundGram: 100, sent: sent.oatmeal || 0, colorClass: "text-muted-foreground" },
+              { field: "puding", label: "Puding", gramFactor: 80, roundGram: 80, sent: sent.puding || 0, colorClass: "text-muted-foreground" },
+              { field: "abon", label: "Abon", gramFactor: 10, roundGram: 10, sent: sent.abon || 0, colorClass: "text-muted-foreground" },
             ];
 
             return (
@@ -825,8 +825,8 @@ export default function Distribusi() {
                     const returVal = (row as any)[item.field] || 0;
                     const isBuburTim = ["bubur_d", "bubur_i", "tim_d", "tim_i"].includes(item.field);
                     // returGrid: Bubur/Tim dalam gram, Oatmeal/Puding dalam cup, Abon dalam pcs.
-                    // Aturan OH 50g untuk Bubur/Tim (gram): sisa ≤ 50 gr → 0 cup, > 50 gr → bulat naik.
-                    const returCups = isBuburTim ? sisaGramToCups(returVal, item.gramFactor) : returVal;
+                    // Pembulatan setelah gramasi (118 Bubur / 108 Tim): cup retur = round(gram ÷ gram/cup).
+                    const returCups = isBuburTim ? Math.round(returVal / item.roundGram) : returVal;
                     const sold = Math.max(0, item.sent - Math.min(returCups, item.sent));
                     const unitLabel = item.field === "abon" ? "pcs" : "cup";
 
@@ -848,7 +848,7 @@ export default function Distribusi() {
                             placeholder="0"
                           />
                           {isBuburTim && (
-                            <p className="text-[11px] text-emerald-600 font-medium mt-1">✨ {returCups} cup (@ {item.gramFactor}g)</p>
+                            <p className="text-[11px] text-emerald-600 font-medium mt-1">✨ {returCups} cup (@ {item.roundGram}g)</p>
                           )}
                         </div>
                         <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t">
@@ -883,9 +883,9 @@ export default function Distribusi() {
 
                       const calcSold = (sent: number, returCups: number) => Math.max(0, sent - Math.min(returCups, sent));
 
-                      const buburRet = sisaGramToCups((row.bubur_d || 0) + (row.bubur_i || 0), 118);
+                      const buburRet = Math.round(((row.bubur_d || 0) + (row.bubur_i || 0)) / BUBUR_GRAM_PEMBULATAN);
                       const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
-                      const timRet = sisaGramToCups((row.tim_d || 0) + (row.tim_i || 0), 108);
+                      const timRet = Math.round(((row.tim_d || 0) + (row.tim_i || 0)) / TIM_GRAM_PEMBULATAN);
                       const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
                       const oatRet = row.oatmeal || 0; // returGrid menyimpan Oatmeal dalam cup
                       const oatSent = sent.oatmeal || 0;

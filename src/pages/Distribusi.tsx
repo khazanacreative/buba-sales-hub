@@ -360,9 +360,12 @@ export default function Distribusi() {
       setReturGrid(freshReturGrid);
       lastSyncedSalesRef.current = penjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
 
-      // Auto-create penjualan if no data from outlet
+      // Auto-create penjualan if no data from outlet. Batch HANYA DIHITUNG
+      // dulu (belum ditulis) agar revenue final sudah diketahui SEBELUM guard
+      // omzet — tanggal tanpa omzet tidak menulis apa pun (penjualan, jurnal,
+      // maupun movement RUSAK/OH).
+      const penjualanBatch: any[] = [];
       if (existingPenjualan.length === 0) {
-        const penjualanBatch: any[] = [];
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
           if (!sent) return;
@@ -400,12 +403,24 @@ export default function Distribusi() {
           addSold("p-puding", sent.puding || 0, ret.puding || 0);
           addSold("p-abon", sent.abon || 0, ret.abon || 0);
         });
-
-        for (const p of penjualanBatch) { await db.addPenjualan(p); }
-        if (penjualanBatch.length > 0) {
-          totalSalesRevenue = penjualanBatch.reduce((sum, p) => sum + p.qty * p.harga, 0);
-        }
       }
+      if (penjualanBatch.length > 0) {
+        totalSalesRevenue = penjualanBatch.reduce((sum, p) => sum + p.qty * p.harga, 0);
+      }
+
+      // Jika tidak ada omzet → jurnal OUT-SALES tidak dibuat → siklus TIDAK
+      // dianggap tertutup. Guard diletakkan SEBELUM penulisan apa pun (penjualan,
+      // jurnal, & movement RUSAK/OH) — tanggal tanpa omzet tidak boleh memotong
+      // stok atau merusak bahan; tombol Buka Siklus pun tidak akan muncul.
+      if (totalSalesRevenue <= 0) {
+        toast.warning(
+          `Tidak ada omzet penjualan untuk tanggal ${tanggal} — siklus TIDAK ditutup (jurnal OUT-SALES tidak dibuat, tombol Buka Siklus tidak muncul). Isi rencana produksi & distribusi atau data penjualan outlet terlebih dahulu.`
+        );
+        return;
+      }
+
+      // Guard omzet lolos → tulis penjualan auto-create (bila ada)
+      for (const p of penjualanBatch) { await db.addPenjualan(p); }
 
       // Hitung OH (sisa tidak terjual di outlet) per bahan baku.
       // Aturan baru: OH Bubur/Nasi Tim/Puding/Oatmeal → otomatis RUSAK (bahan
@@ -515,17 +530,6 @@ export default function Distribusi() {
       }
 
       if (movPromises.length > 0) { await Promise.all(movPromises); }
-
-      // Jika tidak ada omzet → jurnal OUT-SALES tidak dibuat → siklus TIDAK
-      // dianggap tertutup. Jangan tampilkan toast sukses palsu; beri tahu user
-      // secara jujur bahwa tidak ada yang ditutup (tombol Buka Siklus pun
-      // tidak akan muncul untuk tanggal ini).
-      if (totalSalesRevenue <= 0) {
-        toast.warning(
-          `Tidak ada omzet penjualan untuk tanggal ${tanggal} — siklus TIDAK ditutup (jurnal OUT-SALES tidak dibuat, tombol Buka Siklus tidak muncul). Isi rencana produksi & distribusi atau data penjualan outlet terlebih dahulu.`
-        );
-        return;
-      }
 
       toast.success("Siklus distribusi harian ditutup! Penjualan outlet tercatat — OH (sisa) otomatis rusak & OH abon kembali ke stok.");
       // Siklus sudah ditutup — lepas guard edit manual agar sesi berikutnya

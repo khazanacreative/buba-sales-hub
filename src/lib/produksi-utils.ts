@@ -199,7 +199,7 @@ export const TIM_GRAM_PEMBULATAN = 108;
 
 // Terjual (cup) Bubur/Nasi Tim dari sisa OH (gram) — pembulatan SETELAH
 // gramasi: Terjual = (Stok Awal gr − OH gr) ÷ gramPerCup, dibulatkan biasa
-// (Math.round). gramPerCup = gram PEMBULATAN (120 Bubur / 110 Nasi Tim).
+// (Math.round). gramPerCup = gram PEMBULATAN (118 Bubur / 108 Nasi Tim).
 export function hitungTerjualOh(distCups: number, ohGram: number, gramPerCup: number): number {
   const dist = Math.max(0, Number(distCups) || 0);
   const oh = Math.max(0, Number(ohGram) || 0);

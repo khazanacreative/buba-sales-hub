@@ -82,7 +82,9 @@ async function main() {
     }
   });
 
-  const sisaGramToCups = (g: number, gpc: number) => { const gg = Math.max(0, Number(g) || 0); return gg <= 50 ? 0 : Math.ceil(gg / gpc); };
+  // Identik dgn sisaGramToCups di produksi-utils.ts: bagi dulu, baru bulat
+  // naik 1 cup jika desimalnya > 0,5 (mis. 541/108 = 5,009 → 5 cup).
+  const sisaGramToCups = (g: number, gpc: number) => { const gg = Math.max(0, Number(g) || 0); if (gg <= 50) return 0; const c = Math.floor(gg / gpc); return c + ((gg / gpc - c) > 0.5 ? 1 : 0); };
 
   // Hitung perubahan yang akan dilakukan
   interface Change { rec: any; newQty: number; newSisa: number; newTotal: number; totalOnly: boolean; }

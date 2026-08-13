@@ -92,11 +92,14 @@ const parseSplit = (catatan?: string | null) => {
   return { d: 0, i: 0 };
 };
 
-// Aturan OH 50g (identik dgn sisaGramToCups di produksi-utils.ts)
+// Aturan OH 50g (identik dgn sisaGramToCups di produksi-utils.ts):
+// sisa gram ÷ gram/cup, baru bulat naik 1 cup jika desimalnya > 0,5.
 function sisaGramToCups(sisaGram: number, gramPerCup: number): number {
   const grams = Math.max(0, Number(sisaGram) || 0);
   if (grams <= OH_MIN_GRAM) return 0;
-  return Math.ceil(grams / gramPerCup);
+  const cups = Math.floor(grams / gramPerCup);
+  const frac = grams / gramPerCup - cups;
+  return cups + (frac > 0.5 ? 1 : 0);
 }
 
 // ===== Main =====

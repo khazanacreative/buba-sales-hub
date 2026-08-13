@@ -9,7 +9,9 @@ import { sisaGramToCups, OH_MIN_GRAM, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TI
  *           stok 12 cup × 108 = 1.296g − OH 213g = 1.083g; 1.083 ÷ 108 = 10,028 → terjual 10.
  *
  * Konversi PEMOTONGAN STOK (RUSAK bahan baku) memakai gram aktual 118/108
- * dengan aturan OH 50g (sisaGramToCups).
+ * dengan aturan OH 50g (sisaGramToCups): sisa gram ÷ gram/cup, lalu baru
+ * dibulatkan naik 1 cup jika angka desimalnya > 0,5 (mis. 541g ÷ 108 = 5,009
+ * → 5 cup; 85g ÷ 118 = 0,72 → 1 cup).
  */
 
 describe("sisaGramToCups — konversi RUSAK bahan baku (gram aktual 118/108, aturan 50g)", () => {
@@ -28,8 +30,9 @@ describe("sisaGramToCups — konversi RUSAK bahan baku (gram aktual 118/108, atu
     expect(sisaGramToCups(30, 118)).toBe(0);
   });
 
-  it("sisa > 50 gr tapi kurang dari 1 cup → 1 cup sisa", () => {
-    expect(sisaGramToCups(51, 118)).toBe(1);
+  it("sisa > 50 gr tapi kurang dari setengah cup → 0 cup sisa", () => {
+    // 51/118 = 0,43 (< 0,5) → 0 cup; 85/118 = 0,72 (> 0,5) → 1 cup
+    expect(sisaGramToCups(51, 118)).toBe(0);
     expect(sisaGramToCups(85, 118)).toBe(1); // contoh SOP
     expect(sisaGramToCups(90, 108)).toBe(1);
   });
@@ -39,10 +42,11 @@ describe("sisaGramToCups — konversi RUSAK bahan baku (gram aktual 118/108, atu
     expect(sisaGramToCups(108, 108)).toBe(1);
   });
 
-  it("sisa lebih dari 1 cup → dibulatkan naik (ceil)", () => {
-    expect(sisaGramToCups(130, 118)).toBe(2);
+  it("sisa lebih dari 1 cup → hanya bulat naik jika lebiihannya > 0,5 cup", () => {
+    expect(sisaGramToCups(130, 118)).toBe(1); // 130/118 = 1,10 → lebiihan 0,10 → 1 cup
     expect(sisaGramToCups(590, 118)).toBe(5); // 590/118 = 5 cup
     expect(sisaGramToCups(540, 108)).toBe(5);
+    expect(sisaGramToCups(541, 108)).toBe(5); // 541/108 = 5,009 → tetap 5 cup
   });
 
   it("nilai negatif / NaN diperlakukan sebagai 0", () => {

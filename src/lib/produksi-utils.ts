@@ -188,9 +188,9 @@ export function sumGrid(grid: OutletGrid) {
 //    1.083 ÷ 108 = 10,028 → terjual 10.)
 //
 // 2) PEMOTONGAN STOK / RUSAK — tetap memakai gram aktual 118 (Bubur) / 108
-//    (Nasi Tim) dengan aturan sisa ≤ 50 gr → 0 cup, > 50 gr → bulat NAIK
-//    (fungsi sisaGramToCups di bawah). Dipakai untuk menulis RUSAK bahan
-//    baku dari OH, BUKAN untuk menghitung terjual.
+//    (Nasi Tim). Sisa gram dibagi gram per cup; hanya jika lebihannya > 0,5 cup
+//    dibulatkan naik 1 cup (fungsi sisaGramToCups di bawah). Dipakai untuk
+//    menulis RUSAK bahan baku dari OH, BUKAN untuk menghitung terjual.
 
 // Gram per cup yang dipakai SAAT PEMBULATAN hitung terjual (aturan terbaru):
 // Bubur 118 gr, Nasi Tim 108 gr — sama dengan gram aktual pemotongan stok.
@@ -211,15 +211,19 @@ export function hitungTerjualOh(distCups: number, ohGram: number, gramPerCup: nu
 // === Konversi PEMOTONGAN STOK (RUSAK) — gram aktual 118/108, aturan 50g ===
 export const OH_MIN_GRAM = 50;
 
-// Konversi sisa gram (OH) → cup untuk RUSAK bahan baku Bubur & Nasi Tim
-// dengan aturan 50g. Nilai di atas kelipatan cup penuh dibulatkan NAIK (ceil)
-// karena sisa > 50 gr dianggap minimal 1 cup sisa (mis. 90 gr → 1 cup,
-// 130 gr → 2 cup). TIDAK dipakai untuk hitung terjual — lihat hitungTerjualOh.
+// Konversi sisa gram (OH) → cup untuk RUSAK bahan baku Bubur & Nasi Tim.
+// Aturan: sisa gram dibagi gram per cup, lalu lihat angka desimalnya — baru
+// dibulatkan naik 1 cup jika lebihannya > 0,5 cup, selain itu dihitung cup
+// penuhnya saja. Contoh: 541 gr ÷ 108 = 5,009 → 5 cup (bukan 6);
+// 85 gr ÷ 118 = 0,72 → 1 cup; 130 gr ÷ 118 = 1,10 → 1 cup.
+// TIDAK dipakai untuk hitung terjual — lihat hitungTerjualOh.
 export function sisaGramToCups(sisaGram: number, gramPerCup: number): number {
   const grams = Math.max(0, Number(sisaGram) || 0);
-  // Di cabang ini grams > 50 > 0, jadi ceil selalu ≥ 1 — cukup ceil langsung.
+  // Sisa ≤ 50 gr dianggap 0 cup (tidak memotong stok).
   if (grams <= OH_MIN_GRAM) return 0;
-  return Math.ceil(grams / gramPerCup);
+  const cups = Math.floor(grams / gramPerCup);
+  const frac = grams / gramPerCup - cups;
+  return cups + (frac > 0.5 ? 1 : 0);
 }
 
 // =============================================================================

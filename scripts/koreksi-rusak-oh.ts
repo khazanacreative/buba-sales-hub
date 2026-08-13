@@ -22,6 +22,10 @@
  *   npx tsx scripts/koreksi-rusak-oh.ts --dari=2026-08-08 --sampai=2026-08-11 --apply
  *   npx tsx scripts/koreksi-rusak-oh.ts --tanggal=2026-08-13 --outlet=o-kesambi
  * Opsi: --tanggal=YYYY-MM-DD | --dari=.. --sampai=.. | --outlet=<id> | --apply
+ *       --force  → tulis ulang SEMUA movement RUSAK:OH tanggal tsb (termasuk
+ *                  puding/oat/kemasan) sesuai data penjualan sekarang + aturan
+ *                  baru, tanpa cek konsistensi. Dipakai utk tanggal yg movement-nya
+ *                  basi (data diubah setelah siklus ditutup).
  */
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
@@ -38,6 +42,7 @@ const supabase = createClient(env["VITE_SUPABASE_URL"], env["VITE_SUPABASE_SERVI
 
 const args = process.argv.slice(2);
 const APPLY = args.includes("--apply");
+const FORCE = args.includes("--force");
 const tanggalArg = args.find((a) => a.startsWith("--tanggal="));
 const dariArg = args.find((a) => a.startsWith("--dari="));
 const sampaiArg = args.find((a) => a.startsWith("--sampai="));
@@ -132,7 +137,78 @@ function addIngredient(oh: Record<string, number>, isTim: boolean, cups: number)
   oh.sayurProtein += cups * ing.sayurProtein;
 }
 
-async function processDate(tanggal: string) {
+// ===== Mode --force: hitung ulang SEMUA movement RUSAK:OH (persis saveStep app) =====
+const SETTINGS_FULL = { ...SETTINGS, oatmealCup: 25.71, pudingCup: 13.0 };
+
+function buildReturGrid(distGrid: Record<string, any>, sales: any[]) {
+  const grid: Record<string, any> = {};
+  for (const outletId of Object.keys(distGrid)) {
+    const sent = distGrid[outletId];
+    const row: any = { ...ZERO };
+    for (const v of [...BUBUR_FIELDS, ...TIM_FIELDS]) {
+      const baseId = v.startsWith("bubur") ? "p-bubur" : "p-nasitim";
+      const rec = sales.find((p) => p.outlet_id === outletId && p.produk_id === baseId && p.variant === v && p.sisa_gram != null);
+      if (rec) row[v] = Math.min(rec.sisa_gram, sent[v] * GPC[baseId]);
+    }
+    for (const v of ["oatmeal", "puding", "abon"]) {
+      const baseId = v === "oatmeal" ? "p-oatmeal" : v === "puding" ? "p-puding" : "p-abon";
+      const sold = sales.filter((p) => p.outlet_id === outletId && p.produk_id === baseId).reduce((s, p) => s + (p.qty || 0), 0);
+      row[v] = Math.max(0, sent[v] - sold);
+    }
+    grid[outletId] = row;
+  }
+  return grid;
+}
+
+function computeRusak(distGrid: Record<string, any>, returGrid: Record<string, any>) {
+  const ohRusak = { beras: 0, puding: 0, oat: 0, sayurHijau: 0, sayurBuah: 0, sayurProtein: 0 };
+  const kemasanRusak = { puding: 0, oatmeal: 0 };
+  for (const o of Object.keys(distGrid)) {
+    const sent = distGrid[o];
+    const retur = returGrid[o] || ZERO;
+    const process = (fields: readonly string[], gpc: number, isTim: boolean) => {
+      for (const v of fields) {
+        const s = sent[v] || 0;
+        if (s <= 0) continue;
+        const cups = Math.min(newCups(retur[v] || 0, gpc), s);
+        if (cups > 0) addIngredient(ohRusak, isTim, cups);
+      }
+    };
+    process(BUBUR_FIELDS, 118, false);
+    process(TIM_FIELDS, 108, true);
+    if (sent.oatmeal > 0) { const ar = Math.min(retur.oatmeal || 0, sent.oatmeal); if (ar > 0) { ohRusak.oat += ar * SETTINGS_FULL.oatmealCup; kemasanRusak.oatmeal += ar; } }
+    if (sent.puding > 0) { const ar = Math.min(retur.puding || 0, sent.puding); if (ar > 0) { ohRusak.puding += ar * SETTINGS_FULL.pudingCup; kemasanRusak.puding += ar; } }
+  }
+  return { ohRusak, kemasanRusak };
+}
+
+function buildRusakMovements(tanggal: string, ohRusak: any, kemasanRusak: any, konv: { puding: number; oat: number }) {
+  const movs: { bahanId: string; tipe: string; qty: number; keterangan: string }[] = [];
+  const add = (bahanId: string, qty: number, keterangan: string) => { if (qty > 0) movs.push({ bahanId, tipe: "OUT", qty, keterangan }); };
+  if (ohRusak.beras > 1) add("b-brs01", Math.ceil(ohRusak.beras), `RUSAK:OH Beras (sisa Bubur/Tim) (${Math.ceil(ohRusak.beras)} gr) [${tanggal}]`);
+  if (ohRusak.puding > 1) {
+    const qtyPuding = Math.ceil(ohRusak.puding / konv.puding);
+    add("b-pud01", qtyPuding, `RUSAK:OH Puding (sisa) (${qtyPuding} pcs) [${tanggal}]`);
+  }
+  if (ohRusak.oat > 1) {
+    const qtyOat = Math.ceil(ohRusak.oat / konv.oat);
+    add("b-oat01", qtyOat, `RUSAK:OH Oatmeal (sisa) (${qtyOat} pcs) [${tanggal}]`);
+  }
+  if (ohRusak.sayurHijau > 1) add("b-sh01", Math.ceil(ohRusak.sayurHijau), `RUSAK:OH Sayur Hijau (sisa) (${Math.ceil(ohRusak.sayurHijau)} gr) [${tanggal}]`);
+  if (ohRusak.sayurBuah > 1) add("b-sb01", Math.ceil(ohRusak.sayurBuah), `RUSAK:OH Sayur Buah (sisa) (${Math.ceil(ohRusak.sayurBuah)} gr) [${tanggal}]`);
+  if (ohRusak.sayurProtein > 1) add("b-sp01", Math.ceil(ohRusak.sayurProtein), `RUSAK:OH Sayur Protein (sisa) (${Math.ceil(ohRusak.sayurProtein)} gr) [${tanggal}]`);
+  if (kemasanRusak.puding > 0) {
+    add("b-cuppud01", kemasanRusak.puding, `RUSAK:OH Cup Puding (sisa) (${kemasanRusak.puding} pcs) [${tanggal}]`);
+    add("b-plas01", kemasanRusak.puding, `RUSAK:OH Plastik Seler (sisa) (${kemasanRusak.puding} pcs) [${tanggal}]`);
+  }
+  if (kemasanRusak.oatmeal > 0) {
+    add("b-cupoat1", kemasanRusak.oatmeal, `RUSAK:OH Cup Oat (sisa) (${kemasanRusak.oatmeal} pcs) [${tanggal}]`);
+    add("b-ttoat01", kemasanRusak.oatmeal, `RUSAK:OH Tutup Oat (sisa) (${kemasanRusak.oatmeal} pcs) [${tanggal}]`);
+  }
+  return movs;
+}
+
+async function processDate(tanggal: string, konv: { puding: number; oat: number }) {
   console.log(`\n──── ${tanggal} ────`);
   const { distGrid, sales } = await fetchDateData(tanggal);
 
@@ -182,6 +258,41 @@ async function processDate(tanggal: string) {
 
   if (existing.length === 0) {
     console.log(`  RUSAK:OH: tidak ada movement (siklus ${tanggal} belum ditutup) → tidak perlu koreksi. Saat siklus ditutup, aturan baru otomatis terpakai.`);
+    return qtyChanges;
+  }
+
+  // ===== Mode --force: tulis ulang SEMUA movement RUSAK:OH dari data sekarang =====
+  if (FORCE) {
+    const returGrid = buildReturGrid(distGrid, sales);
+    const { ohRusak, kemasanRusak } = computeRusak(distGrid, returGrid);
+    const newMovs = buildRusakMovements(tanggal, ohRusak, kemasanRusak, konv);
+    const sig = (m: any) => `${m.bahanId || m.bahan_id}|${m.tipe}|${m.qty}`;
+    const oldByBahan = new Map(existing.map((m) => [(m.bahan_id || m.bahanId), m]));
+    let changed = 0;
+    for (const nm of newMovs) {
+      const om = oldByBahan.get(nm.bahanId);
+      if (!om || om.qty !== nm.qty) {
+        console.log(`  [FORCE] ${nm.bahanId}: ${om ? om.qty : "-"} → ${nm.qty} (${nm.keterangan})`);
+        changed++;
+      }
+    }
+    for (const om of existing) {
+      if (!newMovs.some((n) => n.bahanId === (om.bahan_id || om.bahanId))) {
+        console.log(`  [FORCE] ${om.bahan_id || om.bahanId}: ${om.qty} → 0 (hapus, tidak ada OH)`);
+        changed++;
+      }
+    }
+    if (changed === 0) {
+      console.log(`  RUSAK:OH (--force): sudah sesuai data sekarang + aturan baru (${newMovs.length} movement).`);
+      return qtyChanges;
+    }
+    if (APPLY) {
+      for (const m of existing) await supabase.from("stok_movement").delete().eq("id", m.id);
+      for (const nm of newMovs) {
+        await supabase.from("stok_movement").insert({ id: uid(), tanggal, bahan_id: nm.bahanId, tipe: nm.tipe, qty: nm.qty, keterangan: nm.keterangan });
+      }
+      console.log(`  ✅ RUSAK:OH ${tanggal} ditulis ulang (${newMovs.length} movement).`);
+    }
     return qtyChanges;
   }
 
@@ -245,11 +356,17 @@ async function processDate(tanggal: string) {
 
 async function main() {
   console.log(`=== KOREKSI RUSAK/OH (${DARI} s.d. ${SAMPAI}) ===`);
-  console.log(`Mode: ${APPLY ? "✅ MENULIS KE DATABASE (--apply)" : "🔍 DRY-RUN (tidak menulis)"}${OUTLET ? ` | outlet: ${OUTLET}` : ""}\n`);
+  console.log(`Mode: ${APPLY ? "✅ MENULIS KE DATABASE (--apply)" : "🔍 DRY-RUN (tidak menulis)"}${FORCE ? " | --force (tulis ulang semua RUSAK:OH)" : ""}${OUTLET ? ` | outlet: ${OUTLET}` : ""}\n`);
+
+  const { data: bahan } = await supabase.from("bahan_baku").select("id, konversi_gram");
+  const konv = {
+    puding: (bahan || []).find((b: any) => b.id === "b-pud01")?.konversi_gram || 130,
+    oat: (bahan || []).find((b: any) => b.id === "b-oat01")?.konversi_gram || 180,
+  };
 
   let totalQty = 0;
   for (let d = parseDate(DARI); d <= parseDate(SAMPAI); d = addDays(d, 1)) {
-    totalQty += await processDate(fmtDate(d));
+    totalQty += await processDate(fmtDate(d), konv);
   }
   console.log(`\n=== Selesai. Perubahan qty penjualan: ${totalQty} record ${APPLY ? "diterapkan" : "(dry-run, pakai --apply untuk menulis)"} ===`);
 }

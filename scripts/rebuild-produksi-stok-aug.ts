@@ -148,28 +148,36 @@ async function main() {
 
   let totalDel = 0, totalIns = 0;
   for (const tgl of dates) {
-    // 1. Rencana dari permohonan_stok
+    // 1. Rencana dari permohonan_stok — pakai qty_rencana/catatan_rencana (rencana
+    //    Langkah 1) bila ada; fallback ke qty/catatan untuk data lama. qty/catatan
+    //    kini menyimpan DISTRIBUSI AKTUAL (Langkah 3) yang tidak boleh dipakai
+    //    untuk menghitung pemotongan bahan baku.
     const { data: reqs } = await supabase
-      .from("permohonan_stok").select("produk_id, qty, catatan")
+      .from("permohonan_stok").select("produk_id, qty, catatan, qty_rencana, catatan_rencana")
       .eq("tanggal_kirim", tgl);
     const plan = { buburD: 0, buburI: 0, timD: 0, timI: 0, oatmeal: 0, puding: 0, abon: 0 };
     const varNames = { bubur1: "", bubur2: "", tim1: "", tim2: "" };
     (reqs || []).forEach((r: any) => {
-      const split = parseSplit(r.catatan);
+      const qtyRencana = r.qty_rencana != null ? r.qty_rencana : r.qty;
+      const catatanRencana = r.catatan_rencana || r.catatan || "";
+      const split = parseSplit(catatanRencana);
+      // Split [D:X,I:Y] (termasuk D=0/I=0) dihormati; fallback ke qty_rencana
+      // hanya untuk data lama tanpa format split.
+      const hasSplit = /D:\d+,I:\d+/.test(catatanRencana);
       if (r.produk_id === "p-bubur") {
-        plan.buburD += split.d || r.qty; plan.buburI += split.i || 0;
+        plan.buburD += hasSplit ? split.d : qtyRencana; plan.buburI += hasSplit ? split.i : 0;
         // Varian dari record PERTAMA (sama dgn aplikasi: dayReqsForVariant.find)
-        const ids = parseVariantIds(r.catatan); const names = parseVariants(r.catatan);
+        const ids = parseVariantIds(catatanRencana); const names = parseVariants(catatanRencana);
         if (!varNames.bubur1) varNames.bubur1 = ids.v1 || names.v1;
         if (!varNames.bubur2) varNames.bubur2 = ids.v2 || names.v2;
       } else if (r.produk_id === "p-nasitim") {
-        plan.timD += split.d || r.qty; plan.timI += split.i || 0;
-        const ids = parseVariantIds(r.catatan); const names = parseVariants(r.catatan);
+        plan.timD += hasSplit ? split.d : qtyRencana; plan.timI += hasSplit ? split.i : 0;
+        const ids = parseVariantIds(catatanRencana); const names = parseVariants(catatanRencana);
         if (!varNames.tim1) varNames.tim1 = ids.v1 || names.v1;
         if (!varNames.tim2) varNames.tim2 = ids.v2 || names.v2;
-      } else if (r.produk_id === "p-oatmeal") plan.oatmeal += r.qty;
-      else if (r.produk_id === "p-puding") plan.puding += r.qty;
-      else if (r.produk_id === "p-abon") plan.abon += r.qty;
+      } else if (r.produk_id === "p-oatmeal") plan.oatmeal += qtyRencana;
+      else if (r.produk_id === "p-puding") plan.puding += qtyRencana;
+      else if (r.produk_id === "p-abon") plan.abon += qtyRencana;
     });
     const variantIds = {
       bubur1: toId(varNames.bubur1),

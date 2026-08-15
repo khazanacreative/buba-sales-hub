@@ -138,4 +138,8 @@ export interface PermohonanStok {
   qty: number;
   status: PermohonanStokStatus;
   catatan?: string;
+  // Rencana Langkah 1 (pra-produksi) — tidak ditimpa saat Langkah 3 (distribusi
+  // aktual) disimpan. qty & catatan tetap = distribusi aktual.
+  qtyRencana?: number;
+  catatanRencana?: string;
 }

@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { db, useDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp, Copy, Package, LockOpen } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp, Copy, Package, LockOpen, Banknote } from "lucide-react";
 import { ArrowNav } from "@/components/ArrowNav";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -23,7 +23,7 @@ import { TablePagination } from "@/components/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
-import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN } from "@/lib/produksi-utils";
+import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, loadRencanaGrid, CYCLE_JURNAL_REFS, hitungOHValue, nilaiPemotonganTanggal, hitungHPPValue, hitungOmzetHarian, loadOmzetSplitCache, saveOmzetSplitCache } from "@/lib/produksi-utils";
 
 // Base ratios for Bubur (per 100gr beras = 6 cup)
 // Base ratio: Beras:Daging:Air:S.Hijau:S.Brokoli:S.Putih = 100:5:700:8:5:1.5
@@ -197,6 +197,30 @@ export default function Produksi() {
 
   // STEP 4 STATES (Retur & Penjualan)
   const [returGrid, setReturGrid] = useState<Record<string, Record<string, number>>>({});
+  // Porsi omzet yang diterima TUNAI (Kas Rupiah 110000); sisanya otomatis Bank
+  // (transfer, 120000). Sumber kebenaran setelah siklus ditutup = jurnal OUT-SALES
+  // (baris Debit 110000/120000); sebelum ditutup memakai cache localStorage.
+  const [omzetKas, setOmzetKas] = useState(0);
+  const omzetSplitLoadedRef = useRef<string>("");
+  useEffect(() => {
+    if (omzetSplitLoadedRef.current === tanggal) return; // muat sekali per tanggal
+    omzetSplitLoadedRef.current = tanggal;
+    const closed = (dbState.jurnal || []).filter((j: any) => j.tanggal === tanggal && j.ref === "OUT-SALES");
+    const kasDebit = closed.filter((j: any) => j.tipe === "Debit" && j.kodeAkun === "110000").reduce((s: number, j: any) => s + j.jumlah, 0);
+    const bankDebit = closed.filter((j: any) => j.tipe === "Debit" && j.kodeAkun === "120000").reduce((s: number, j: any) => s + j.jumlah, 0);
+    if (kasDebit > 0 || bankDebit > 0) {
+      setOmzetKas(kasDebit);
+    } else {
+      setOmzetKas(loadOmzetSplitCache(tanggal) ?? 0);
+    }
+  }, [tanggal]);
+
+  // Total omzet harian (live) — identik dgn logika saveStep4; dipakai untuk
+  // menampilkan total & membatasi input porsi kas/bank di Langkah 4.
+  const omzetTotal = useMemo(() => hitungOmzetHarian({
+    penjualan, tanggal, outlets, distGrid, returGrid, produk
+  }), [penjualan, tanggal, outlets, distGrid, returGrid, produk]);
+
   const [closingCycle, setClosingCycle] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // Track last synced penjualan signature for the new-data indicator
@@ -240,38 +264,12 @@ export default function Produksi() {
     return { v1: "", v2: "" };
   };
 
-  // Load plan for a given date into the specified grid setter
+  // Load plan for a given date into the specified grid setter.
+  // Membaca RENCANA (qty_rencana + catatan_rencana dari Langkah 1) — distribusi
+  // aktual (Langkah 3) TIDAK menimpa rencana, jadi pra-produksi & pemotongan bahan
+  // baku tetap sesuai plan meski kapro memasukkan luberan/pengurangan di Langkah 3.
   const loadPlanForDate = (dateStr: string, setter?: (grid: Record<string, Record<string, number>>) => void) => {
-    const grid: Record<string, Record<string, number>> = {};
-    outlets.forEach(o => {
-      grid[o.id] = {
-        bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
-        oatmeal: 0, puding: 0, abon: 0
-      };
-    });
-
-    const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === dateStr);
-    dayReqs.forEach((r: any) => {
-      if (!grid[r.outletId]) return;
-      const split = parseSplit(r.catatan || "");
-      // Split [D:X,I:Y] yang ada di catatan (termasuk D=0 / I=0) harus dihormati;
-      // fallback ke r.qty hanya untuk data lama tanpa format split.
-      const hasSplit = /D:\d+,I:\d+/.test(r.catatan || "");
-      if (r.produkId === "p-bubur") {
-        grid[r.outletId].bubur_d = hasSplit ? split.d : r.qty;
-        grid[r.outletId].bubur_i = hasSplit ? split.i : 0;
-      } else if (r.produkId === "p-nasitim") {
-        grid[r.outletId].tim_d = hasSplit ? split.d : r.qty;
-        grid[r.outletId].tim_i = hasSplit ? split.i : 0;
-      } else if (r.produkId === "p-oatmeal") {
-        grid[r.outletId].oatmeal = r.qty;
-      } else if (r.produkId === "p-puding") {
-        grid[r.outletId].puding = r.qty;
-      } else if (r.produkId === "p-abon") {
-        grid[r.outletId].abon = r.qty;
-      }
-    });
-    
+    const grid = loadRencanaGrid(outlets, permohonanStok, dateStr);
     if (setter) {
       setter(grid);
     } else {
@@ -349,7 +347,8 @@ export default function Produksi() {
 
       // Load Step 3 — aktual masak diturunkan dari TOTAL DISTRIBUSI (distGrid).
       // Tidak ada lagi input manual berat matang. Distribusi di-load dari
-      // permohonan_stok (angka rencana) agar kapro tinggal menyesuaikan per outlet.
+      // permohonan_stok.qty = DISTRIBUSI AKTUAL bila siklus sudah disimpan (Langkah
+      // 3), atau angka rencana bila belum — agar kapro tinggal menyesuaikan per outlet.
       const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
       const dGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
@@ -515,9 +514,9 @@ export default function Produksi() {
     setBukaSiklusOpen(false);
     setBukaSiklusLoading(true);
     try {
-      // 1. Hapus jurnal OUT-SALES tanggal ini
+      // 1. Hapus jurnal siklus (OUT-SALES/OUT-OH/OUT-HPP) tanggal ini
       const outSales = (dbState.jurnal || []).filter(
-        (j: any) => j.tanggal === tanggal && j.ref === "OUT-SALES"
+        (j: any) => j.tanggal === tanggal && CYCLE_JURNAL_REFS.has(j.ref)
       );
       for (const j of outSales) {
         await supabase.from("jurnal").delete().eq("id", j.id);
@@ -563,7 +562,7 @@ export default function Produksi() {
       const upsertPlan = async (kirimTanggal: string, items: any[]) => {
         const existingRecs = permohonanStok.filter((r: any) => r.tanggalKirim === kirimTanggal);
         const existingByKey = new Map(existingRecs.map((r: any) => [`${r.outletId}|${r.produkId}`, r]));
-        const toUpdate: { id: string; qty: number; catatan: string }[] = [];
+        const toUpdate: { id: string; qty?: number; qtyRencana?: number; catatan?: string; catatanRencana?: string }[] = [];
         const toInsert: any[] = [];
         const plannedKeys = new Set<string>();
         items.forEach((item) => {
@@ -571,12 +570,22 @@ export default function Produksi() {
           plannedKeys.add(key);
           const old = existingByKey.get(key);
           if (old) {
-            toUpdate.push({ id: old.id, qty: item.qty, catatan: item.catatan });
+            // Rencana (qty_rencana + catatan_rencana) SELALU diperbarui. qty/catatan
+            // (distribusi aktual) hanya diubah selama record masih Pending; jika sudah
+            // Disetujui (distribusi dikirim), re-save rencana tidak boleh menimpa
+            // jumlah yang sebenarnya terkirim ke outlet.
+            const rencanaOnly = old.status === "Disetujui";
+            toUpdate.push({
+              id: old.id,
+              ...(rencanaOnly ? {} : { qty: item.qty, catatan: item.catatan }),
+              qtyRencana: item.qty,
+              catatanRencana: item.catatan
+            });
           } else {
-            toInsert.push(item);
+            toInsert.push({ ...item, qtyRencana: item.qty, catatanRencana: item.catatan });
           }
         });
-        await Promise.all(toUpdate.map(u => db.updatePermohonanStok(u.id, { qty: u.qty, catatan: u.catatan })));
+        await Promise.all(toUpdate.map(u => db.updatePermohonanStok(u.id, u)));
         if (toInsert.length > 0) await db.addPermohonanStokBulk(toInsert);
         const stale = existingRecs.filter(r => !plannedKeys.has(`${r.outletId}|${r.produkId}`) && r.status !== "Disetujui");
         await Promise.all(stale.map(r => db.deletePermohonanStok(r.id)));
@@ -1110,9 +1119,15 @@ export default function Produksi() {
       // Aktual masak = total distribusi yang diinput kapro per outlet (tidak ada
       // lagi input manual berat matang) — jadi tidak ada clamp: distribusi yang
       // diinput itulah realisasi & langsung disimpan apa adanya.
+      // qty & catatan di-update ke DISTRIBUSI AKTUAL, tetapi qty_rencana &
+      // catatan_rencana (rencana Langkah 1) TIDAK ikut ditimpa — pra-produksi &
+      // pemotongan bahan baku tetap mengikuti rencana, hanya kemasan yang
+      // mengikuti hasil aktual.
       const grid = distGrid;
 
-      const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+      // Hanya record produksi (p-*) — request/retur perlengkapan (b-*) jangan
+      // diubah status/qty-nya oleh simpanan distribusi.
+      const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal && r.produkId?.startsWith("p-"));
       await Promise.all(dayReqs.map(async (r: any) => {
         const outletAlloc = grid[r.outletId] || {};
         let sentQty = 0;
@@ -1244,13 +1259,7 @@ export default function Produksi() {
       // 1. Baca penjualan yang sudah di-entry outlet dari database
       const existingPenjualan = (penjualan || []).filter((p: any) => p.tanggal === tanggal);
 
-      // 2. Hitung total revenue dari penjualan outlet
-      let totalSalesRevenue = 0;
-      existingPenjualan.forEach((p: any) => {
-        totalSalesRevenue += p.qty * p.harga;
-      });
-
-      // 3. Retur grid yang dipakai untuk perhitungan OH (bahan rusak / abon kembali).
+      // 2. Retur grid yang dipakai untuk perhitungan OH (bahan rusak / abon kembali).
       //    - Jika admin MENGEDIT input retur Langkah 4 secara manual → hormati edit
       //      admin (nilai returGrid state dipakai; handleReturChange sudah membatasi
       //      maksimum sesuai qty kirim outlet).
@@ -1320,10 +1329,12 @@ export default function Produksi() {
           addSold("p-abon", sent.abon || 0, ret.abon || 0);
         });
       }
-      if (penjualanBatch.length > 0) {
-        // Recalculate revenue after auto-create so journal posts correctly
-        totalSalesRevenue = penjualanBatch.reduce((sum, p) => sum + p.qty * p.harga, 0);
-      }
+      // Total omzet final = Σ qty × harga penjualan outlet; bila belum ada data
+      // outlet, dihitung dari distribusi − retur (auto-create penjualan). Memakai
+      // helper yang sama dgn tampilan Langkah 4 agar angka tidak pernah berbeda.
+      const totalSalesRevenue = hitungOmzetHarian({
+        penjualan, tanggal, outlets, distGrid, returGrid: freshReturGrid, produk
+      });
 
       // Jika tidak ada omzet → jurnal OUT-SALES tidak dibuat → siklus TIDAK
       // dianggap tertutup. Guard diletakkan SEBELUM penulisan apa pun (penjualan,
@@ -1431,37 +1442,85 @@ export default function Produksi() {
           }
       });
 
-      // 4. Jurnal posting — berdasarkan penjualan outlet (TIDAK dihapus/direcreate)
+      // 4. Jurnal posting — berdasarkan penjualan outlet (TIDAK dihapus/direcreate).
+      //    Alur keuangan (spec):
+      //      Omset → Jurnal Utama: Pendapatan Utama (K) 410000 → LR; Jurnal Bantu:
+      //              Kas Rupiah (D) 110000 → Neraca.
+      //      OH    → Jurnal Utama: OH (D) 543000 → LR; Jurnal Bantu: Persediaan (K)
+      //              140000 → Neraca (Dr OH Cr Persediaan).
+      //      HPP   → Jurnal Utama: HPP (D) 541000 → LR; Jurnal Bantu: Persediaan (K)
+      //              140000 → Neraca (Dr HPP Cr Persediaan).
+      //    GAJI & HUTANG USAHA dibukukan lewat halaman Absensi & Stok Gudang.
       if (totalSalesRevenue > 0) {
-        // Hapus jurnal lama, lalu buat ulang (update revenue)
+        // Hapus jurnal lama (semua ref siklus), lalu buat ulang (update revenue)
         const existingJurnal = (dbState.jurnal || []).filter(
-          (j: any) => j.tanggal === tanggal && j.ref === "OUT-SALES"
+          (j: any) => j.tanggal === tanggal && CYCLE_JURNAL_REFS.has(j.ref)
         );
         for (const j of existingJurnal) {
           await supabase.from("jurnal").delete().eq("id", j.id);
         }
-        await db.addJurnalBulk([
-            {
-              tanggal,
-              ref: "OUT-SALES",
-              keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
-              kodeAkun: "131000",
-              akun: "Piutang usaha",
-              tipe: "Debit",
-              jumlah: totalSalesRevenue,
-              kategori: "Aset"
-            },
-            {
-              tanggal,
-              ref: "OUT-SALES",
-              keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
-              kodeAkun: "410000",
-              akun: "Pendapatan Utama",
-              tipe: "Kredit",
-              jumlah: totalSalesRevenue,
-              kategori: "Pendapatan"
-            }
-          ]);
+
+        // OH = nilai bahan baku + kemasan yang rusak (sisa tidak terjual)
+        const ohValue = hitungOHValue(ohRusak, kemasanRusak, bahan, GRAM_EXCLUDED_BAHAN);
+        // HPP = nilai pemotongan bahan baku (Pemakaian Produksi/Kemasan) − OH rusak
+        const pemotonganValue = nilaiPemotonganTanggal(stokMov, tanggal, bahan, GRAM_EXCLUDED_BAHAN);
+        const hppValue = hitungHPPValue(pemotonganValue, ohValue);
+
+        // Porsi omzet TUNAI (Kas Rupiah 110000) vs TRANSFER (Bank 120000) —
+        // admin memasukkan porsi kas di Langkah 4; bank = total − kas. Cache
+        // disimpan agar nilai tidak hilang bila siklus dibuka & ditutup lagi.
+        const kas = Math.max(0, Math.min(omzetKas, totalSalesRevenue));
+        const bank = totalSalesRevenue - kas;
+        saveOmzetSplitCache(tanggal, kas);
+
+        const jurnalRows: any[] = [];
+        if (kas > 0) {
+          jurnalRows.push({
+            tanggal,
+            ref: "OUT-SALES",
+            keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
+            kodeAkun: "110000",
+            akun: "Kas Rupiah",
+            tipe: "Debit",
+            jumlah: kas,
+            kategori: "Aset"
+          });
+        }
+        if (bank > 0) {
+          jurnalRows.push({
+            tanggal,
+            ref: "OUT-SALES",
+            keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
+            kodeAkun: "120000",
+            akun: "Bank",
+            tipe: "Debit",
+            jumlah: bank,
+            kategori: "Aset"
+          });
+        }
+        jurnalRows.push({
+          tanggal,
+          ref: "OUT-SALES",
+          keterangan: `Penjualan Outlet MPASI Tanggal ${tanggal}`,
+          kodeAkun: "410000",
+          akun: "Pendapatan Utama",
+          tipe: "Kredit",
+          jumlah: totalSalesRevenue,
+          kategori: "Pendapatan"
+        });
+        if (ohValue > 0) {
+          jurnalRows.push(
+            { tanggal, ref: "OUT-OH", keterangan: `OH (sisa tidak terjual) Tanggal ${tanggal}`, kodeAkun: "543000", akun: "OH", tipe: "Debit", jumlah: ohValue, kategori: "Beban" },
+            { tanggal, ref: "OUT-OH", keterangan: `OH (sisa tidak terjual) Tanggal ${tanggal}`, kodeAkun: "140000", akun: "Persediaan", tipe: "Kredit", jumlah: ohValue, kategori: "Aset" }
+          );
+        }
+        if (hppValue > 0) {
+          jurnalRows.push(
+            { tanggal, ref: "OUT-HPP", keterangan: `HPP (bahan baku terjual) Tanggal ${tanggal}`, kodeAkun: "541000", akun: "HPP Bahan Utama", tipe: "Debit", jumlah: hppValue, kategori: "Beban" },
+            { tanggal, ref: "OUT-HPP", keterangan: `HPP (bahan baku terjual) Tanggal ${tanggal}`, kodeAkun: "140000", akun: "Persediaan", tipe: "Kredit", jumlah: hppValue, kategori: "Aset" }
+          );
+        }
+        await db.addJurnalBulk(jurnalRows);
       }
 
       // 5. Bersihkan movement lama agar re-save tidak dobel:
@@ -3426,6 +3485,56 @@ export default function Produksi() {
             </div>
           </div>
 
+          {/* Pembayaran Omzet — Kas Rupiah (cash) vs Bank (transfer) */}
+          <div className="bg-card border rounded-2xl p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Banknote className="h-3.5 w-3.5" /> Pembayaran Omzet
+              </h4>
+              <div className="text-xs text-muted-foreground">
+                Total Omzet: <span className="font-bold text-primary">{rupiah(omzetTotal)}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Kas Rupiah (Cash)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={omzetTotal}
+                  disabled={omzetTotal <= 0}
+                  value={omzetKas || ""}
+                  onChange={(e) => {
+                    const v = Math.max(0, Math.min(parseInt(e.target.value) || 0, omzetTotal));
+                    setOmzetKas(v);
+                    saveOmzetSplitCache(tanggal, v);
+                  }}
+                  className="h-9 text-sm font-semibold text-center"
+                  placeholder="0"
+                />
+                <p className="text-[10px] text-muted-foreground">Diterima tunai → jurnal Kas Rupiah (110000) di Neraca</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Bank (Transfer)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={omzetTotal}
+                  disabled={omzetTotal <= 0}
+                  value={Math.max(0, omzetTotal - omzetKas) || ""}
+                  onChange={(e) => {
+                    const v = Math.max(0, Math.min(parseInt(e.target.value) || 0, omzetTotal));
+                    setOmzetKas(omzetTotal - v);
+                    saveOmzetSplitCache(tanggal, omzetTotal - v);
+                  }}
+                  className="h-9 text-sm font-semibold text-center"
+                  placeholder="0"
+                />
+                <p className="text-[10px] text-muted-foreground">Transfer → jurnal Bank (120000) di Neraca</p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-between items-center border-t pt-6">
             <Button variant="outline" onClick={() => setStep(3)} className="h-10">
               <ArrowLeft className="h-4 w-4 md:mr-2" />
@@ -3460,7 +3569,7 @@ export default function Produksi() {
                   Buka Siklus {tanggal}?
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Ini akan menghapus <strong>jurnal OUT-SALES</strong> dan <strong>stok retur/OH abon</strong> untuk tanggal {tanggal}.
+                  Ini akan menghapus <strong>jurnal siklus (OUT-SALES/OH/HPP)</strong> dan <strong>stok retur/OH abon</strong> untuk tanggal {tanggal}.
                   Data penjualan <strong>tetap aman</strong> dan bisa diedit ulang. Setelah selesai memperbaiki data, tutup siklus lagi.
                 </AlertDialogDescription>
               </AlertDialogHeader>

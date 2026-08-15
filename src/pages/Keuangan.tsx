@@ -118,10 +118,24 @@ export default function Keuangan() {
     const sum = (kat: AkunKategori) =>
       neracaJurnal.filter((j) => j.kategori === kat)
         .reduce((s, j) => s + (j.tipe === "Debit" ? j.jumlah : -j.jumlah), 0);
+    const saldoAkun = (kode: string) =>
+      neracaJurnal.filter((j) => j.kodeAkun === kode)
+        .reduce((s, j) => s + (j.tipe === "Debit" ? j.jumlah : -j.jumlah), 0);
     const aset = sum("Aset");
     const kewajiban = -sum("Kewajiban");
     const ekuitas = -sum("Ekuitas");
-    return { aset, kewajiban, ekuitas, total: kewajiban + ekuitas };
+    return {
+      aset,
+      kewajiban,
+      ekuitas,
+      total: kewajiban + ekuitas,
+      // Rincian akun utama sesuai alur keuangan: Kas Rupiah/Bank/Persediaan (Aset),
+      // Hutang Usaha (Kewajiban — kredit positif).
+      kasRupiah: saldoAkun("110000"),
+      bank: saldoAkun("120000"),
+      persediaan: saldoAkun("140000"),
+      hutangUsaha: -saldoAkun("210000"),
+    };
   }, [neracaJurnal]);
 
   const labaRugi = useMemo(() => {
@@ -131,6 +145,17 @@ export default function Keuangan() {
     const beban = filteredJurnal
       .filter((j) => j.kategori === "Beban")
       .reduce((s, j) => s + (j.tipe === "Debit" ? j.jumlah : -j.jumlah), 0);
+
+    // Rincian beban sesuai alur keuangan (kode akun tetap):
+    //   HPP  → 541000, OH → 543000, Gaji → 520001
+    const bebanByKode = (kode: string) =>
+      filteredJurnal
+        .filter((j) => j.kategori === "Beban" && j.kodeAkun === kode)
+        .reduce((s, j) => s + (j.tipe === "Debit" ? j.jumlah : -j.jumlah), 0);
+    const hppJurnal = bebanByKode("541000");
+    const ohJurnal = bebanByKode("543000");
+    const gajiJurnal = bebanByKode("520001");
+    const bebanLain = beban - hppJurnal - ohJurnal - gajiJurnal;
 
     // Detect dates that already have OUT-SALES jurnal (siklus closed)
     const closedDates = new Set(
@@ -154,6 +179,10 @@ export default function Keuangan() {
       pendapatanJurnal,
       penjualanOtomatis: totalPenjualanBelumDitutup,
       beban,
+      hppJurnal,
+      ohJurnal,
+      gajiJurnal,
+      bebanLain,
       laba: pendapatan - beban,
     };
   }, [filteredJurnal, filteredPenjualan]);
@@ -301,12 +330,16 @@ export default function Keuangan() {
               <div>
                 <h3 className="font-semibold mb-3 text-primary">Aset</h3>
                 <div className="space-y-2">
-                  <div className="flex justify-between border-b pb-2"><span>Total Aset</span><span className="font-bold">{rupiah(neraca.aset)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Kas Rupiah (110000)</span><span>{rupiah(neraca.kasRupiah)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Bank (120000)</span><span>{rupiah(neraca.bank)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Persediaan (140000)</span><span>{rupiah(neraca.persediaan)}</span></div>
+                  <div className="flex justify-between border-t pt-2"><span>Total Aset</span><span className="font-bold">{rupiah(neraca.aset)}</span></div>
                 </div>
               </div>
               <div>
                 <h3 className="font-semibold mb-3 text-primary">Kewajiban + Ekuitas</h3>
                 <div className="space-y-2">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Hutang Usaha (210000)</span><span>{rupiah(neraca.hutangUsaha)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Kewajiban</span><span>{rupiah(neraca.kewajiban)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Ekuitas</span><span>{rupiah(neraca.ekuitas)}</span></div>
                   <div className="flex justify-between border-t pt-2"><span>Total</span><span className="font-bold">{rupiah(neraca.total)}</span></div>
@@ -420,6 +453,10 @@ export default function Keuangan() {
               <div className="flex justify-between"><span className="text-muted-foreground">Pendapatan dari Penjualan</span><span>{rupiah(labaRugi.penjualanOtomatis)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Pendapatan Lain (jurnal)</span><span>{rupiah(labaRugi.pendapatanJurnal)}</span></div>
               <div className="flex justify-between border-t pt-2"><span className="font-medium">Total Pendapatan</span><span className="font-bold text-success">{rupiah(labaRugi.pendapatan)}</span></div>
+              <div className="flex justify-between mt-2"><span className="text-muted-foreground">HPP (541000)</span><span className="text-destructive">({rupiah(labaRugi.hppJurnal)})</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">OH (543000)</span><span className="text-destructive">({rupiah(labaRugi.ohJurnal)})</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Gaji (520001)</span><span className="text-destructive">({rupiah(labaRugi.gajiJurnal)})</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Beban Lain</span><span className="text-destructive">({rupiah(labaRugi.bebanLain)})</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Total Beban</span><span className="text-destructive">({rupiah(labaRugi.beban)})</span></div>
               <div className="flex justify-between border-t pt-3 text-lg"><span className="font-bold">Laba / Rugi Bersih</span><span className={`font-bold ${labaRugi.laba >= 0 ? "text-success" : "text-destructive"}`}>{rupiah(labaRugi.laba)}</span></div>
             </CardContent>

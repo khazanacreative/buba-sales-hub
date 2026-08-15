@@ -1,3 +1,5 @@
+import { nilaiBahan } from "./format";
+
 // =============================================================================
 // LOCK / DEADLINE — penguncian input sisa (OH) outlet
 // =============================================================================
@@ -155,6 +157,22 @@ export function loadGridFromReqs(
     }
   });
   return grid;
+}
+
+// Load grid RENCANA (Langkah 1 / pemotongan bahan) — memakai qty_rencana &
+// catatan_rencana yang disimpan saat saveStep1 dan TIDAK ditimpa oleh distribusi
+// aktual (Langkah 3). Data lama (kolom null) di-fallback ke qty & catatan.
+export function loadRencanaGrid(
+  outlets: { id: string }[],
+  permohonanStok: any[],
+  tanggal: string
+): OutletGrid {
+  const rencanaReqs = (permohonanStok || []).map((r: any) => ({
+    ...r,
+    qty: r.qtyRencana != null ? r.qtyRencana : r.qty,
+    catatan: r.catatanRencana || r.catatan
+  }));
+  return loadGridFromReqs(outlets, rencanaReqs, tanggal);
 }
 
 // Calculate totals from a grid
@@ -442,6 +460,175 @@ export function scaleGridToActual<T extends Record<string, any>>(
     });
   });
   return out as T;
+}
+
+// =============================================================================
+// JURNAL SIKLUS (ALUR KEUANGAN) — omset, OH, HPP
+// =============================================================================
+//
+// Setiap kali siklus ditutup (saveStep4), aplikasi membukukan otomatis:
+//   Omset  → Dr Kas Rupiah (110000) / Cr Pendapatan Utama (410000)  [ref OUT-SALES]
+//   OH     → Dr OH (543000) / Cr Persediaan (140000)                 [ref OUT-OH]
+//   HPP    → Dr HPP (541000) / Cr Persediaan (140000)                [ref OUT-HPP]
+//
+// Semua ref ini harus dihapus bersama saat "Buka Siklus" agar tidak ada
+// entri jurnal basi yang tertinggal.
+export const CYCLE_JURNAL_REFS = new Set(["OUT-SALES", "OUT-OH", "OUT-HPP"]);
+
+// Nilai rupiah dari qty stok (gram atau satuan utuh) — identik dengan nilai
+// yang dipakai tab Mutasi Stok di Keuangan (nilaiBahan + GRAM_EXCLUDED_BAHAN).
+// bahanId yg termasuk gramExcluded (puding/oat) dihitung per satuan utuh (pcs),
+// lainnya per gram (konversiGram).
+export function nilaiStokBahan(
+  bahanId: string,
+  qty: number,
+  bahan: { id: string; hargaBeli: number; konversiGram?: number }[],
+  gramExcluded: Set<string>
+): number {
+  const item = bahan.find((b) => b.id === bahanId);
+  if (!item || !(qty > 0)) return 0;
+  const konv = item.konversiGram && item.konversiGram > 0 && !gramExcluded.has(item.id) ? item.konversiGram : null;
+  return nilaiBahan(qty, item.hargaBeli, konv);
+}
+
+// =============================================================================
+// PEMBAYARAN OMZET — Kas Rupiah (110000) vs Bank (120000)
+// =============================================================================
+//
+// Omset outlet bisa diterima tunai (Kas Rupiah) atau transfer (Bank). Admin
+// memasukkan porsi Kas di Langkah 4; sisanya otomatis Bank. Nilai tersimpan:
+//   - Setelah siklus ditutup → jurnal OUT-SALES (baris Debit 110000 = kas,
+//     120000 = bank) adalah sumber kebenaran.
+//   - Sebelum ditutup (sedang diinput / siklus dibuka) → cache localStorage
+//     per tanggal agar tidak hilang saat pindah halaman atau reload.
+
+const OMSET_SPLIT_KEY = "buba-omzet-split";
+
+// Muat cache porsi kas (rupiah) untuk tanggal tertentu; null bila belum ada.
+export function loadOmzetSplitCache(tanggal: string): number | null {
+  try {
+    const raw = localStorage.getItem(OMSET_SPLIT_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw);
+    const kas = Number(map?.[tanggal]);
+    return Number.isFinite(kas) && kas >= 0 ? kas : null;
+  } catch {
+    return null;
+  }
+}
+
+// Simpan cache porsi kas (rupiah) untuk tanggal tertentu.
+export function saveOmzetSplitCache(tanggal: string, kas: number): void {
+  try {
+    const raw = localStorage.getItem(OMSET_SPLIT_KEY) || "{}";
+    const map = JSON.parse(raw);
+    map[tanggal] = kas;
+    localStorage.setItem(OMSET_SPLIT_KEY, JSON.stringify(map));
+  } catch {
+    /* localStorage tidak tersedia — abaikan */
+  }
+}
+
+// Total omzet harian — IDENTIK dgn logika saveStep4: bila sudah ada penjualan
+// outlet, total = Σ qty × harga; bila belum ada, total disimulasikan dari
+// distribusi − retur (auto-create penjualan). Dipakai UI Langkah 4 (live) &
+// saveStep4 (revenue final) agar angka tidak pernah berbeda.
+export function hitungOmzetHarian(opts: {
+  penjualan: any[];
+  tanggal: string;
+  outlets: { id: string }[];
+  distGrid: Record<string, Record<string, number>>;
+  returGrid: Record<string, Record<string, number>>;
+  produk: { id: string; harga: number }[];
+}): number {
+  const { penjualan, tanggal, outlets, distGrid, returGrid, produk } = opts;
+  const existing = (penjualan || []).filter((p: any) => p.tanggal === tanggal);
+  if (existing.length > 0) {
+    return existing.reduce((s: number, p: any) => s + p.qty * p.harga, 0);
+  }
+  const harga = (id: string) => produk.find((p: any) => p.id === id)?.harga || 0;
+  let total = 0;
+  outlets.forEach((o) => {
+    const sent = distGrid[o.id] || {};
+    const def: Record<string, number> = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+    const ret = { ...def, ...(returGrid[o.id] || {}) };
+    const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
+    if (buburSent > 0) {
+      total += hitungTerjualOh(buburSent, (ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN) * harga("p-bubur");
+    }
+    const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
+    if (timSent > 0) {
+      total += hitungTerjualOh(timSent, (ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN) * harga("p-nasitim");
+    }
+    const addSold = (baseId: string, subSent: number, subRetur: number) => {
+      if (subSent <= 0) return;
+      total += Math.max(0, subSent - Math.min(subRetur, subSent)) * harga(baseId);
+    };
+    addSold("p-oatmeal", sent.oatmeal || 0, ret.oatmeal || 0);
+    addSold("p-puding", sent.puding || 0, ret.puding || 0);
+    addSold("p-abon", sent.abon || 0, ret.abon || 0);
+  });
+  return total;
+}
+
+// Nilai OH (bahan baku + kemasan yang dinyatakan RUSAK karena sisa tidak terjual).
+// Meniru persis qty movement RUSAK:OH yang dibuat saveStep4 (gram dibulatkan
+// ke atas; puding/oat dikonversi ke pcs via konversiGram, fallback 130/180).
+export function hitungOHValue(
+  ohRusak: { beras: number; puding: number; oat: number; sayurHijau: number; sayurBuah: number; sayurProtein: number },
+  kemasanRusak: { puding: number; oatmeal: number },
+  bahan: { id: string; hargaBeli: number; konversiGram?: number }[],
+  gramExcluded: Set<string>
+): number {
+  const konvPuding = bahan.find((b) => b.id === "b-pud01")?.konversiGram || 130;
+  const konvOat = bahan.find((b) => b.id === "b-oat01")?.konversiGram || 180;
+  let total = 0;
+  if (ohRusak.beras > 1) total += nilaiStokBahan("b-brs01", Math.ceil(ohRusak.beras), bahan, gramExcluded);
+  if (ohRusak.puding > 1) total += nilaiStokBahan("b-pud01", Math.ceil(ohRusak.puding / konvPuding), bahan, gramExcluded);
+  if (ohRusak.oat > 1) total += nilaiStokBahan("b-oat01", Math.ceil(ohRusak.oat / konvOat), bahan, gramExcluded);
+  if (ohRusak.sayurHijau > 1) total += nilaiStokBahan("b-sh01", Math.ceil(ohRusak.sayurHijau), bahan, gramExcluded);
+  if (ohRusak.sayurBuah > 1) total += nilaiStokBahan("b-sb01", Math.ceil(ohRusak.sayurBuah), bahan, gramExcluded);
+  if (ohRusak.sayurProtein > 1) total += nilaiStokBahan("b-sp01", Math.ceil(ohRusak.sayurProtein), bahan, gramExcluded);
+  if (kemasanRusak.puding > 0) {
+    total += nilaiStokBahan("b-cuppud01", kemasanRusak.puding, bahan, gramExcluded);
+    total += nilaiStokBahan("b-plas01", kemasanRusak.puding, bahan, gramExcluded);
+  }
+  if (kemasanRusak.oatmeal > 0) {
+    total += nilaiStokBahan("b-cupoat1", kemasanRusak.oatmeal, bahan, gramExcluded);
+    total += nilaiStokBahan("b-ttoat01", kemasanRusak.oatmeal, bahan, gramExcluded);
+  }
+  return Math.round(total);
+}
+
+// Nilai pemotongan bahan baku (Pemakaian Produksi) & kemasan (Pemakaian Kemasan)
+// untuk tanggal produksi tertentu. Movement dicocokkan lewat label keterangan
+// (tanggal movement = hari saat potong, bukan tanggal produksi). Label 2 hari
+// ("T1 + T2") diatribusikan penuh ke tanggal pertama agar tidak dobel hitung.
+export function nilaiPemotonganTanggal(
+  stokMov: { bahanId: string; tipe: string; qty: number; keterangan?: string }[],
+  tanggal: string,
+  bahan: { id: string; hargaBeli: number; konversiGram?: number }[],
+  gramExcluded: Set<string>
+): number {
+  return (stokMov || [])
+    .filter((m) => {
+      if (m.tipe !== "OUT") return false;
+      const ket = m.keterangan || "";
+      if (ket.startsWith("Pemakaian Produksi [")) {
+        const label = ket.slice("Pemakaian Produksi [".length, ket.lastIndexOf("]"));
+        return label === tanggal || label.startsWith(tanggal + " + ");
+      }
+      if (ket.startsWith("Pemakaian Kemasan [")) {
+        return ket === `Pemakaian Kemasan [${tanggal}]`;
+      }
+      return false;
+    })
+    .reduce((s, m) => s + nilaiStokBahan(m.bahanId, m.qty, bahan, gramExcluded), 0);
+}
+
+// HPP = nilai pemotongan bahan baku − nilai OH rusak (biaya bahan utk barang yang laku).
+export function hitungHPPValue(pemotonganValue: number, ohValue: number): number {
+  return Math.max(0, Math.round(pemotonganValue - ohValue));
 }
 
 // Kembalikan salinan grid yang sudah diklamp ke hasil masak aktual: hanya

@@ -325,7 +325,10 @@ export async function fetchFromSupabase() {
       produkId: p.produk_id,
       qty: p.qty,
       status: p.status,
-      catatan: p.catatan
+      catatan: p.catatan,
+      // Rencana Langkah 1 — fallback ke qty/catatan untuk data lama (kolom baru null)
+      qtyRencana: p.qty_rencana != null ? p.qty_rencana : p.qty,
+      catatanRencana: p.catatan_rencana || p.catatan || undefined
     })),
     users: (usersRes.data || []).map((u: any) => ({
       username: u.username,
@@ -743,7 +746,9 @@ export const db = {
       produk_id: p.produkId,
       qty: p.qty,
       status: "Pending",
-      catatan: p.catatan
+      catatan: p.catatan,
+      qty_rencana: p.qtyRencana != null ? p.qtyRencana : p.qty,
+      catatan_rencana: p.catatanRencana || p.catatan || null
     }]);
     if (error) throw error;
     fetchFromSupabase();
@@ -757,7 +762,9 @@ export const db = {
       produk_id: p.produkId,
       qty: p.qty,
       status: "Pending",
-      catatan: p.catatan
+      catatan: p.catatan,
+      qty_rencana: p.qtyRencana != null ? p.qtyRencana : p.qty,
+      catatan_rencana: p.catatanRencana || p.catatan || null
     }));
     const { error } = await supabase.from("permohonan_stok").insert(records);
     if (error) throw error;
@@ -775,6 +782,8 @@ export const db = {
     if (p.qty !== undefined) mapped.qty = p.qty;
     if (p.status !== undefined) mapped.status = p.status;
     if (p.catatan !== undefined) mapped.catatan = p.catatan;
+    if (p.qtyRencana !== undefined) mapped.qty_rencana = p.qtyRencana;
+    if (p.catatanRencana !== undefined) mapped.catatan_rencana = p.catatanRencana;
     const { error } = await supabase.from("permohonan_stok").update(mapped).eq("id", id);
     if (error) throw error;
     fetchFromSupabase();

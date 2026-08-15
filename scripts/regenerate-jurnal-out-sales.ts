@@ -7,10 +7,14 @@
  * (siklus sudah ditutup); tanggal tanpa jurnal dilewati (siklus masih
  * terbuka — jurnal akan dibuat otomatis saat siklus ditutup).
  *
- * Struktur jurnal yang ditulis (sama persis dgn aplikasi):
- *   Debit  : 131000 Piutang usaha      (Aset)
+ * Struktur jurnal yang ditulis (sama persis dgn aplikasi — alur keuangan):
+ *   Debit  : 110000 Kas Rupiah         (Aset)
  *   Kredit : 410000 Pendapatan Utama   (Pendapatan)
  *   keterangan: "Penjualan Outlet MPASI Tanggal <tanggal>", ref "OUT-SALES"
+ *
+ * CATATAN: skrip ini hanya mengurus ref OUT-SALES (omzet). Jurnal OH (OUT-OH)
+ * dan HPP (OUT-HPP) yang dibuat aplikasi saat tutup siklus TIDAK disentuh —
+ * keduanya punya ref sendiri dan tetap utuh.
  *
  * Cara pakai:
  *   npx tsx scripts/regenerate-jurnal-out-sales.ts                                      (DRY-RUN, 08-08 s/d 12-08)
@@ -60,13 +64,13 @@ async function main() {
   // 2. Jurnal OUT-SALES yang sudah ada di rentang
   const { data: jurnal, error: errJurnal } = await supabase
     .from("jurnal")
-    .select("id, tanggal, ref, tipe, jumlah")
+    .select("id, tanggal, ref, tipe, jumlah, kode_akun")
     .eq("ref", "OUT-SALES")
     .gte("tanggal", DARI)
     .lte("tanggal", SAMPAI);
   if (errJurnal) { console.error("❌ Query jurnal:", errJurnal.message); process.exit(1); }
 
-  const jurnalPerDate = new Map<string, { id: string; jumlah: number }[]>();
+  const jurnalPerDate = new Map<string, { id: string; jumlah: number; tipe?: string; kode_akun?: string }[]>();
   (jurnal || []).forEach((j: any) => {
     if (!jurnalPerDate.has(j.tanggal)) jurnalPerDate.set(j.tanggal, []);
     jurnalPerDate.get(j.tanggal)!.push(j);
@@ -88,13 +92,19 @@ async function main() {
       return;
     }
 
-    if (newTotal === oldTotal && existing.length === 2) {
+    const existingBank = (existing || [])
+      .filter((j: any) => j.tipe === "Debit" && j.kode_akun === "120000")
+      .reduce((s, j: any) => s + Number(j.jumlah), 0);
+    // Sudah sesuai bila total sama & jumlah baris valid (2 = kas+kredit, 3 = kas+bank+kredit)
+    if (newTotal === oldTotal && (existing.length === 2 || existing.length === 3)) {
       console.log(`  ${tgl} | sudah sesuai: Rp ${newTotal.toLocaleString()} — tidak diubah`);
       return;
     }
 
     if (newTotal > 0) {
-      console.log(`  ${tgl} | jurnal lama Rp ${oldTotal.toLocaleString()} → Rp ${newTotal.toLocaleString()} (${existing.length} baris dihapus, 2 baris dibuat)`);
+      const bank = Math.min(existingBank, newTotal);
+      const nRows = 1 + (bank > 0 ? 1 : 0) + 1; // debit kas (+ debit bank) + kredit
+      console.log(`  ${tgl} | jurnal lama Rp ${oldTotal.toLocaleString()} → Rp ${newTotal.toLocaleString()} (${existing.length} baris dihapus, ${nRows} baris dibuat; bank ${bank.toLocaleString("id-ID")})`);
       toUpdate++;
     } else {
       console.log(`  ${tgl} | jurnal lama Rp ${oldTotal.toLocaleString()} → total 0 — jurnal dihapus (tidak ada penjualan)`);
@@ -129,12 +139,22 @@ async function main() {
     const { error: delErr } = await supabase.from("jurnal").delete().in("id", existing.map((j: any) => j.id));
     if (delErr) { console.error(`  ❌ ${tgl} (hapus): ${delErr.message}`); continue; }
 
-    // Buat ulang (hanya jika total > 0 — sama dgn perilaku aplikasi)
+    // Buat ulang (hanya jika total > 0 — sama dgn perilaku aplikasi). Split kas/bank
+    // dipertahankan dari jurnal lama (baris Debit 120000 = bank).
     if (newTotal > 0) {
-      const rows = [
-        { id: randomUUID(), tanggal: tgl, ref: "OUT-SALES", keterangan: `Penjualan Outlet MPASI Tanggal ${tgl}`, kode_akun: "131000", akun: "Piutang usaha", tipe: "Debit", jumlah: newTotal, kategori: "Aset" },
-        { id: randomUUID(), tanggal: tgl, ref: "OUT-SALES", keterangan: `Penjualan Outlet MPASI Tanggal ${tgl}`, kode_akun: "410000", akun: "Pendapatan Utama", tipe: "Kredit", jumlah: newTotal, kategori: "Pendapatan" }
-      ];
+      const existingBank = (existing || [])
+        .filter((j: any) => j.tipe === "Debit" && j.kode_akun === "120000")
+        .reduce((s, j: any) => s + Number(j.jumlah), 0);
+      const bank = Math.min(existingBank, newTotal);
+      const kas = newTotal - bank;
+      const rows: any[] = [];
+      if (kas > 0) {
+        rows.push({ id: randomUUID(), tanggal: tgl, ref: "OUT-SALES", keterangan: `Penjualan Outlet MPASI Tanggal ${tgl}`, kode_akun: "110000", akun: "Kas Rupiah", tipe: "Debit", jumlah: kas, kategori: "Aset" });
+      }
+      if (bank > 0) {
+        rows.push({ id: randomUUID(), tanggal: tgl, ref: "OUT-SALES", keterangan: `Penjualan Outlet MPASI Tanggal ${tgl}`, kode_akun: "120000", akun: "Bank", tipe: "Debit", jumlah: bank, kategori: "Aset" });
+      }
+      rows.push({ id: randomUUID(), tanggal: tgl, ref: "OUT-SALES", keterangan: `Penjualan Outlet MPASI Tanggal ${tgl}`, kode_akun: "410000", akun: "Pendapatan Utama", tipe: "Kredit", jumlah: newTotal, kategori: "Pendapatan" });
       const { error: insErr } = await supabase.from("jurnal").insert(rows);
       if (insErr) { console.error(`  ❌ ${tgl} (insert): ${insErr.message}`); continue; }
     }

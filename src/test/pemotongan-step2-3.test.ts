@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BUBUR_BASE, buburCalc, calcKemasanKebutuhan, KEMASAN_BAHAN } from "@/lib/produksi-utils";
+import { BUBUR_BASE, buburCalc, calcKemasanKebutuhan, KEMASAN_BAHAN, loadRencanaGrid, hitungOHValue, hitungHPPValue, nilaiPemotonganTanggal, hitungOmzetHarian } from "@/lib/produksi-utils";
 
 /**
  * Verifikasi aturan pemotongan stok di siklus produksi (Produksi.tsx):
@@ -151,5 +151,186 @@ describe("Langkah 3 — Pemotongan KEMASAN dari HASIL AKTUAL", () => {
     const kemasanIds = KEMASAN_BAHAN.map((k) => k.bahanId);
     expect(kemasanIds).not.toContain("b-cb01");  // CUP BUBUR
     expect(kemasanIds).not.toContain("b-ttp01"); // TUTUP
+  });
+});
+
+// ===== loadRencanaGrid — rencana (Langkah 1) terpisah dari distribusi aktual (Langkah 3) =====
+describe("loadRencanaGrid — rencana dipertahankan walau distribusi aktual berbeda", () => {
+  const OUTLETS = [{ id: "o1" }, { id: "o2" }, { id: "o3" }];
+  const TGL = "2026-08-14";
+
+  // Rekaman setelah Langkah 3 disimpan: qty/catatan = DISTRIBUSI AKTUAL (luberan),
+  // qtyRencana/catatanRencana = rencana Langkah 1 (disimpan saat saveStep1).
+  const reqsSetelahDistribusi = [
+    {
+      id: "r1", outletId: "o1", produkId: "p-bubur", tanggalKirim: TGL,
+      qty: 80, // aktual terkirim (luberan)
+      catatan: "[D:50,I:30] [V:Ay,Sl]",
+      qtyRencana: 60, // rencana awal
+      catatanRencana: "[D:40,I:20] [V:Ay,Sl]"
+    },
+    {
+      id: "r2", outletId: "o2", produkId: "p-puding", tanggalKirim: TGL,
+      qty: 35, // aktual
+      catatan: "",
+      qtyRencana: 25, // rencana
+      catatanRencana: ""
+    },
+    {
+      id: "r3", outletId: "o3", produkId: "p-oatmeal", tanggalKirim: TGL,
+      qty: 10, catatan: "",
+      qtyRencana: 10, catatanRencana: ""
+    }
+  ];
+
+  it("mengembalikan RENCANA (bukan distribusi aktual) setelah Langkah 3 disimpan", () => {
+    const grid = loadRencanaGrid(OUTLETS, reqsSetelahDistribusi, TGL);
+    expect(grid.o1.bubur_d).toBe(40);
+    expect(grid.o1.bubur_i).toBe(20);
+    expect(grid.o2.puding).toBe(25);
+    expect(grid.o3.oatmeal).toBe(10);
+  });
+
+  it("split D=0 di rencana dihormati ([D:0,I:8] → bubur_d=0, bubur_i=8)", () => {
+    const reqs = [{
+      id: "r4", outletId: "o1", produkId: "p-bubur", tanggalKirim: TGL,
+      qty: 8, catatan: "[D:8,I:0]",
+      qtyRencana: 8, catatanRencana: "[D:0,I:8]"
+    }];
+    const grid = loadRencanaGrid(OUTLETS, reqs, TGL);
+    expect(grid.o1.bubur_d).toBe(0);
+    expect(grid.o1.bubur_i).toBe(8);
+  });
+
+  it("data lama tanpa kolom rencana di-fallback ke qty/catatan", () => {
+    const reqs = [{
+      id: "r5", outletId: "o1", produkId: "p-nasitim", tanggalKirim: TGL,
+      qty: 12, catatan: "[D:12,I:0]",
+      qtyRencana: undefined, catatanRencana: undefined
+    }];
+    const grid = loadRencanaGrid(OUTLETS, reqs, TGL);
+    expect(grid.o1.tim_d).toBe(12);
+    expect(grid.o1.tim_i).toBe(0);
+  });
+
+  it("outlet tanpa record tetap nol di grid", () => {
+    const grid = loadRencanaGrid(OUTLETS, reqsSetelahDistribusi, TGL);
+    expect(grid.o2.bubur_d).toBe(0);
+    expect(grid.o2.bubur_i).toBe(0);
+  });
+});
+
+// ===== Jurnal keuangan siklus — OH & HPP (alur keuangan) =====
+describe("hitungOHValue & hitungHPPValue — nilai jurnal Dr OH / Cr Persediaan", () => {
+  // Bahan baku: beras 15.000/kg, sayur 10.000/kg, puding 130 gr/pcs @ 20.000/pcs, oat 180 gr/pcs @ 18.000/pcs
+  const BAHAN = [
+    { id: "b-brs01", hargaBeli: 15000, konversiGram: 1000 },
+    { id: "b-sh01", hargaBeli: 10000, konversiGram: 1000 },
+    { id: "b-pud01", hargaBeli: 20000, konversiGram: 130 },
+    { id: "b-oat01", hargaBeli: 18000, konversiGram: 180 }
+  ];
+  // GRAM_EXCLUDED_BAHAN: puding & oat dihitung per pcs (bukan per gram)
+  const GRAM_EXCLUDED = new Set(["b-pud01", "b-oat01"]);
+
+  it("menilai OH bahan baku (gram → rupiah, ceil) + kemasan (per pcs)", () => {
+    // Beras 1.234 gr → 2 pcs @15.000 (nilaiBahan ceil per satuan) ; sayur 321 gr → 1 pcs @10.000
+    const oh = hitungOHValue(
+      { beras: 1234, puding: 0, oat: 0, sayurHijau: 321, sayurBuah: 0, sayurProtein: 0 },
+      { puding: 0, oatmeal: 0 },
+      BAHAN,
+      GRAM_EXCLUDED
+    );
+    expect(oh).toBeGreaterThan(0);
+  });
+
+  it("OH puding/oat dikonversi gram → pcs via konversiGram (130/180)", () => {
+    // Puding 260 gr → 2 pcs @20.000; oat 540 gr → 3 pcs @18.000
+    const oh = hitungOHValue(
+      { beras: 0, puding: 260, oat: 540, sayurHijau: 0, sayurBuah: 0, sayurProtein: 0 },
+      { puding: 0, oatmeal: 0 },
+      BAHAN,
+      GRAM_EXCLUDED
+    );
+    expect(oh).toBe(2 * 20000 + 3 * 18000);
+  });
+
+  it("nilai 0 bila tidak ada OH", () => {
+    const oh = hitungOHValue(
+      { beras: 0, puding: 0, oat: 0, sayurHijau: 0, sayurBuah: 0, sayurProtein: 0 },
+      { puding: 0, oatmeal: 0 },
+      BAHAN,
+      GRAM_EXCLUDED
+    );
+    expect(oh).toBe(0);
+  });
+
+  it("HPP = pemotongan bahan − OH rusak (biaya barang yang laku)", () => {
+    const hpp = hitungHPPValue(1_500_000, 120_000);
+    expect(hpp).toBe(1_380_000);
+  });
+
+  it("HPP tidak pernah negatif walau OH > pemotongan", () => {
+    const hpp = hitungHPPValue(100_000, 250_000);
+    expect(hpp).toBe(0);
+  });
+
+  it("nilaiPemotonganTanggal hanya menghitung movement OUT bertanggal label", () => {
+    const movs = [
+      { bahanId: "b-brs01", tipe: "OUT", qty: 2000, keterangan: "Pemakaian Produksi [2026-08-14]" },
+      { bahanId: "b-pud01", tipe: "OUT", qty: 6, keterangan: "Pemakaian Kemasan [2026-08-14]" },
+      { bahanId: "b-brs01", tipe: "OUT", qty: 5000, keterangan: "Pemakaian Produksi [2026-08-15]" }, // tanggal lain — tidak dihitung
+      { bahanId: "b-brs01", tipe: "IN", qty: 1000, keterangan: "Pemakaian Produksi [2026-08-14]" }, // IN — tidak dihitung
+      { bahanId: "b-brs01", tipe: "OUT", qty: 3000, keterangan: "RUSAK:OH [2026-08-14]" } // bukan label pemakaian — tidak dihitung
+    ];
+    const nilai = nilaiPemotonganTanggal(movs, "2026-08-14", BAHAN, GRAM_EXCLUDED);
+    // Beras 2.000 gr = 2 × 15.000 = 30.000; puding 6 pcs × 20.000 = 120.000
+    expect(nilai).toBe(30_000 + 120_000);
+  });
+});
+
+// ===== hitungOmzetHarian — total omzet (cash + bank) di Langkah 4 =====
+describe("hitungOmzetHarian — total omzet harian (dasar split kas/bank)", () => {
+  const OUTLETS2 = [{ id: "o1" }, { id: "o2" }];
+  const TGL2 = "2026-08-14";
+  const PRODUK = [
+    { id: "p-bubur", harga: 20000 },
+    { id: "p-nasitim", harga: 18000 },
+    { id: "p-oatmeal", harga: 15000 },
+    { id: "p-puding", harga: 12000 },
+    { id: "p-abon", harga: 10000 }
+  ];
+  const ZERO = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+
+  it("penjualan outlet sudah ada → total = Σ qty × harga (tanggal lain diabaikan)", () => {
+    const penjualan = [
+      { tanggal: TGL2, outletId: "o1", produkId: "p-bubur", qty: 10, harga: 20000 },
+      { tanggal: TGL2, outletId: "o2", produkId: "p-puding", qty: 5, harga: 12000 },
+      { tanggal: "2026-08-13", outletId: "o1", produkId: "p-bubur", qty: 99, harga: 20000 }
+    ];
+    const total = hitungOmzetHarian({ penjualan, tanggal: TGL2, outlets: OUTLETS2, distGrid: {}, returGrid: {}, produk: PRODUK });
+    expect(total).toBe(10 * 20000 + 5 * 12000);
+  });
+
+  it("belum ada penjualan → disimulasikan dari distribusi − retur (auto-create)", () => {
+    const distGrid = {
+      o1: { ...ZERO, bubur_d: 12, oatmeal: 8, puding: 6, abon: 4 },
+      o2: { ...ZERO, tim_d: 10 }
+    };
+    const returGrid = {
+      o1: { ...ZERO, bubur_d: 2 * 118, oatmeal: 1, puding: 1 }, // bubur retur 2 cup (236 gr), oat 1 cup, puding 1 cup
+      o2: { ...ZERO, tim_d: 108 } // tim retur 1 cup
+    };
+    const total = hitungOmzetHarian({ penjualan: [], tanggal: TGL2, outlets: OUTLETS2, distGrid, returGrid, produk: PRODUK });
+    // o1: bubur terjual = round((12×118 − 236) ÷ 118) = 10 → 10×20.000
+    //     oat = 8−1 = 7 → 7×15.000; puding = 6−1 = 5 → 5×12.000; abon = 4 → 4×10.000
+    // o2: tim terjual = round((10×108 − 108) ÷ 108) = 9 → 9×18.000
+    expect(total).toBe(10 * 20000 + 7 * 15000 + 5 * 12000 + 4 * 10000 + 9 * 18000);
+  });
+
+  it("retur penuh → terjual 0, omzet dari produk lain saja", () => {
+    const distGrid = { o1: { ...ZERO, bubur_d: 10 } };
+    const returGrid = { o1: { ...ZERO, bubur_d: 10 * 118 } }; // semua bubur retur
+    const total = hitungOmzetHarian({ penjualan: [], tanggal: TGL2, outlets: OUTLETS2, distGrid, returGrid, produk: PRODUK });
+    expect(total).toBe(0);
   });
 });

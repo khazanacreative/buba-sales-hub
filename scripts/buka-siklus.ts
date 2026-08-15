@@ -103,13 +103,13 @@ async function bukaSiklus() {
     }
   }
 
-  // ========= STEP 2: jurnal OUT-SALES =========
-  console.log("\n2. Mencari jurnal OUT-SALES...");
+  // ========= STEP 2: jurnal siklus (OUT-SALES / OUT-OH / OUT-HPP) =========
+  console.log("\n2. Mencari jurnal siklus (OUT-SALES/OH/HPP)...");
 
   let q2 = supabase
     .from("jurnal")
     .select("id, tanggal, ref, keterangan")
-    .eq("ref", "OUT-SALES")
+    .in("ref", ["OUT-SALES", "OUT-OH", "OUT-HPP"])
     .order("tanggal", { ascending: false });
   q2 = dateFilter(q2, "tanggal");
   const { data: jurnal, error: jErr } = await q2;
@@ -120,7 +120,7 @@ async function bukaSiklus() {
   }
 
   if (!jurnal || jurnal.length === 0) {
-    console.log("  ℹ️  Tidak ada jurnal OUT-SALES dalam rentang ini");
+    console.log("  ℹ️  Tidak ada jurnal siklus dalam rentang ini");
   } else {
     console.log(`  Ditemukan ${jurnal.length} records dari ${new Set(jurnal.map((r) => r.tanggal)).size} tanggal:`);
     const grouped: Record<string, typeof jurnal> = {};
@@ -145,11 +145,11 @@ async function bukaSiklus() {
     let v1 = supabase.from("stok_movement").select("id").eq("tipe", "IN").or("keterangan.ilike.%Retur Bahan%,keterangan.ilike.%OH abon%");
     v1 = dateFilter(v1, "tanggal");
     const { data: verifyRm } = await v1;
-    let v2 = supabase.from("jurnal").select("id").eq("ref", "OUT-SALES");
+    let v2 = supabase.from("jurnal").select("id").in("ref", ["OUT-SALES", "OUT-OH", "OUT-HPP"]);
     v2 = dateFilter(v2, "tanggal");
     const { data: verifyJr } = await v2;
     console.log(`StokMov Retur/OH tersisa: ${verifyRm?.length || 0}`);
-    console.log(`Jurnal OUT-SALES tersisa: ${verifyJr?.length || 0}`);
+    console.log(`Jurnal siklus tersisa: ${verifyJr?.length || 0}`);
     console.log(`\n✅ Selesai! Siklus ${rangeLabel} sudah dibuka.`);
     console.log(`   Data penjualan tetap aman — bisa diedit ulang di aplikasi.`);
     console.log(`   Jalankan saveStep5 (Tutup Siklus) lagi setelah selesai mengedit.`);

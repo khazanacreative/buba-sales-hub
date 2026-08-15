@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { db, useDB, fetchFromSupabase, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
+import { db, useDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { DateInput } from "@/components/DateInput";
 import { todayISO, rupiah } from "@/lib/format";
@@ -16,7 +16,7 @@ import { ArrowNav } from "@/components/ArrowNav";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { BUBUR_BASE, formatDecimal, buburCalc, parseSplit, serializeSplit, parseVariants, getVariantNamesForDate, loadGridFromReqs, loadRencanaGrid, sumGrid, matchVariantRecords, scaleGridToActual, clampGridToActual, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, CYCLE_JURNAL_REFS, hitungOHValue, nilaiPemotonganTanggal, hitungHPPValue, hitungOmzetHarian, loadOmzetSplitCache, saveOmzetSplitCache, type OutletGrid } from "@/lib/produksi-utils";
+import { BUBUR_BASE, formatDecimal, buburCalc, parseSplit, serializeSplit, parseVariants, getVariantNamesForDate, loadGridFromReqs, loadRencanaGrid, sumGrid, matchVariantRecords, scaleGridToActual, clampGridToActual, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, CYCLE_JURNAL_REFS, hitungOHValue, nilaiPemotonganTanggal, hitungHPPValue, hitungOmzetHarian, loadOmzetSplitCache, saveOmzetSplitCache, calcKemasanKebutuhan, KEMASAN_BAHAN, type OutletGrid } from "@/lib/produksi-utils";
 
 export default function Distribusi() {
   const navigate = useNavigate();
@@ -247,6 +247,16 @@ export default function Distribusi() {
       );
     }
 
+    // Kebutuhan kemasan (cup & tutup Puding/Oatmeal) mengikuti JUMLAH PASCA
+    // PRODUKSI = total distribusi FINAL (grid setelah clamp) yang dikirim ke
+    // outlet — sama dgn halaman Produksi (aktual masak = total distribusi).
+    // Bahan baku TIDAK ikut menyesuaikan: sudah dipotong di Langkah 2 dari
+    // rencana; luberan/penyusutan hanya memengaruhi kemasan.
+    // Kemasan BUBUR & NASI TIM (CUP BUBUR & TUTUP, stok sama) TIDAK dipotong di
+    // sini — stoknya berkurang lewat permohonan/retur perlengkapan outlet.
+    const finalTotals = sumGrid(grid as OutletGrid);
+    const packagingReqs = calcKemasanKebutuhan({ puding: finalTotals.puding, oatmeal: finalTotals.oatmeal });
+
     // Hanya record produksi (p-*) — request/retur perlengkapan (b-*) jangan
     // diubah status/qty-nya oleh simpanan distribusi.
     const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal && r.produkId?.startsWith("p-"));
@@ -279,6 +289,54 @@ export default function Distribusi() {
       // (rencana Langkah 1) tidak ikut ditimpa.
       await db.updatePermohonanStok(r.id, { qty: sentQty, status: "Disetujui", catatan: notes });
     }));
+
+    // === PEMOTONGAN KEMASAN (CUP & TUTUP) SESUAI HASIL AKTUAL ===
+    // Bahan baku sudah dipotong di Langkah 2 (halaman Produksi) langsung dari
+    // rencana dan TIDAK terpengaruh hasil produksi. Kemasan dihitung ulang dari
+    // cup aktual — karena hasil bisa menyusut (kebutuhan berkurang) atau meluber
+    // (kebutuhan bertambah).
+    const kemasanLabel = `Pemakaian Kemasan [${tanggal}]`;
+    const existingKemasan = (stokMov || []).filter(
+      (m: any) => m.tipe === "OUT" && m.keterangan === kemasanLabel
+    );
+    for (const m of existingKemasan) {
+      await db.deleteStokMov(m.id);
+    }
+    // Bersihkan potongan kemasan FORMAT LAMA (versi sebelumnya mencampur cup &
+    // tutup ke label "Pemakaian Produksi [...]") agar tanggal lama yang diproses
+    // ulang tidak terpotong dobel (rencana lama + aktual baru).
+    const kemasanIds = new Set(KEMASAN_BAHAN.map((k) => k.bahanId));
+    const staleKemasan = (stokMov || []).filter(
+      (m: any) =>
+        m.tipe === "OUT" &&
+        kemasanIds.has(m.bahanId) &&
+        m.keterangan?.startsWith("Pemakaian Produksi [") &&
+        m.keterangan.includes(tanggal)
+    );
+    for (const m of staleKemasan) {
+      await db.deleteStokMov(m.id);
+    }
+    const shortItems: string[] = [];
+    for (const k of packagingReqs) {
+      const saldo = saldoBahan(k.bahanId, dbState);
+      if (saldo < k.qty) {
+        shortItems.push(`${k.nama}: butuh ${k.qty} pcs, stok ${Math.max(0, Math.round(saldo))} pcs`);
+      }
+      await db.addStokMov({
+        tanggal: todayISO(),
+        bahanId: k.bahanId,
+        tipe: "OUT",
+        qty: k.qty,
+        keterangan: kemasanLabel
+      });
+    }
+
+    if (packagingReqs.length > 0 && shortItems.length > 0) {
+      toast.warning(
+        `Kemasan dipotong sesuai hasil aktual, namun stok gudang kurang untuk: ${shortItems.join("; ")}. ` +
+        `Pemotongan tetap dicatat (stok dapat minus).`
+      );
+    }
 
     toast.success("Barang keluar (distribusi) berhasil dikirim ke outlet!");
 

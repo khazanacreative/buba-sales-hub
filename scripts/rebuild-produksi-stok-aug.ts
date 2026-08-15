@@ -16,12 +16,17 @@
  *   3. Buat ulang potongan bahan dari permohonan_stok (rencana) + varian dari catatan.
  *   4. Buat ulang potongan kemasan dari realisasi produksi.
  *
+ * Opsi --bahan-only: HANYA rebuild pemotongan BAHAN BAKU (Pemakaian Produksi).
+ * Kemasan (Pemakaian Kemasan) TIDAK disentuh — dipakai saat kemasan sudah benar
+ * 1:1 dgn distribusi aktual (mis. 08-08 sudah dikoreksi ke 50/13) dan hanya
+ * bahan baku yang perlu disesuaikan ke rencana.
+ *
  * Movement lain (IN supplier, RUSAK:OH, Retur Bahan, OH abon) TIDAK disentuh.
  *
  * Cara pakai:
  *   npx tsx scripts/rebuild-produksi-stok-aug.ts                                  # DRY-RUN 08-01..08-07
  *   npx tsx scripts/rebuild-produksi-stok-aug.ts --dari=2026-08-01 --sampai=2026-08-07 --apply
- * Opsi: --dari=YYYY-MM-DD --sampai=YYYY-MM-DD --apply
+ * Opsi: --dari=YYYY-MM-DD --sampai=YYYY-MM-DD --apply | --bahan-only
  */
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
@@ -39,6 +44,7 @@ const supabase = createClient(env["VITE_SUPABASE_URL"], env["VITE_SUPABASE_SERVI
 const args = process.argv.slice(2);
 const APPLY = args.includes("--apply");
 const FILL_REALISASI = args.includes("--fill-realisasi");
+const BAHAN_ONLY = args.includes("--bahan-only");
 const dariArg = args.find((a) => a.startsWith("--dari="));
 const sampaiArg = args.find((a) => a.startsWith("--sampai="));
 const DARI = dariArg ? dariArg.split("=")[1] : "2026-08-01";
@@ -209,7 +215,11 @@ async function main() {
     const { data: movs } = await supabase
       .from("stok_movement").select("id, tanggal, bahan_id, tipe, qty, keterangan")
       .or(`keterangan.eq.Pemakaian Produksi [${tgl}],keterangan.eq.Pemakaian Kemasan [${tgl}]`);
-    const toDelete = (movs || []).filter((m: any) => m.tipe === "OUT");
+    let toDelete = (movs || []).filter((m: any) => m.tipe === "OUT");
+    if (BAHAN_ONLY) {
+      // Hanya hapus potongan BAHAN BAKU — kemasan (Pemakaian Kemasan) dipertahankan
+      toDelete = toDelete.filter((m: any) => (m.keterangan || "").startsWith("Pemakaian Produksi"));
+    }
 
     console.log(`\n----- ${tgl} -----`);
     console.log(`  Rencana: bubur ${plan.buburD}+${plan.buburI}, tim ${plan.timD}+${plan.timI}, oat ${plan.oatmeal}, puding ${plan.puding}, abon ${plan.abon}`);
@@ -219,7 +229,7 @@ async function main() {
     console.log(`  HAPUS (${toDelete.length}):`);
     (toDelete || []).forEach((m: any) => console.log(`    - ${m.tanggal} ${m.bahan_id} qty=${m.qty} "${(m.keterangan || "").slice(0, 55)}" (id=${m.id})`));
     console.log(`  BUAT BAHAN (${bahanReqs.length}): "${bahanReqs.map((r) => `${r.bahanId}=${r.qty}`).join(", ") || "-"}"`);
-    console.log(`  BUAT KEMASAN (${kemasanReqs.length}): "${kemasanReqs.map((r) => `${r.bahanId}=${r.qty}`).join(", ") || "-"}"`);
+    console.log(`  BUAT KEMASAN (${BAHAN_ONLY ? "dilewati (--bahan-only)" : kemasanReqs.length}): "${kemasanReqs.map((r) => `${r.bahanId}=${r.qty}`).join(", ") || "-"}"`);
 
     const delIds = toDelete.map((m: any) => m.id);
     if (APPLY) {
@@ -232,20 +242,22 @@ async function main() {
         const { error } = await supabase.from("stok_movement").insert([{ id: uid(), tanggal: tgl, bahan_id: r.bahanId, tipe: "OUT", qty: r.qty, keterangan: `Pemakaian Produksi [${tgl}]` }]);
         if (error) { console.error(`  ❌ Gagal insert bahan ${r.bahanId}: ${error.message}`); insertErr++; } else insertOk++;
       }
-      for (const r of kemasanReqs) {
-        const { error } = await supabase.from("stok_movement").insert([{ id: uid(), tanggal: tgl, bahan_id: r.bahanId, tipe: "OUT", qty: r.qty, keterangan: `Pemakaian Kemasan [${tgl}]` }]);
-        if (error) { console.error(`  ❌ Gagal insert kemasan ${r.bahanId}: ${error.message}`); insertErr++; } else insertOk++;
+      if (!BAHAN_ONLY) {
+        for (const r of kemasanReqs) {
+          const { error } = await supabase.from("stok_movement").insert([{ id: uid(), tanggal: tgl, bahan_id: r.bahanId, tipe: "OUT", qty: r.qty, keterangan: `Pemakaian Kemasan [${tgl}]` }]);
+          if (error) { console.error(`  ❌ Gagal insert kemasan ${r.bahanId}: ${error.message}`); insertErr++; } else insertOk++;
+        }
       }
       console.log(`  ✅ ${tgl}: hapus ${delIds.length}, buat ${insertOk} (gagal ${insertErr})`);
     }
     totalDel += delIds.length;
-    totalIns += bahanReqs.length + kemasanReqs.length;
+    totalIns += bahanReqs.length + (BAHAN_ONLY ? 0 : kemasanReqs.length);
   }
 
   console.log(`\n=== RINGKASAN ===`);
-  console.log(`  ${dates.length} tanggal diproses`);
+  console.log(`  ${dates.length} tanggal diproses${BAHAN_ONLY ? " (--bahan-only: kemasan dipertahankan)" : ""}`);
   console.log(`  Akan dihapus: ${totalDel} movement | Akan dibuat: ${totalIns} movement`);
   if (!APPLY) console.log(`\n👉 DRY-RUN selesai — jalankan dengan --apply untuk menulis ke database.`);
-  else console.log(`\n✅ Selesai — stok produksi ${DARI} s.d. ${SAMPAI} diselaraskan dengan aturan Step 2 (bahan) & Step 3 (kemasan).`);
+  else console.log(`\n✅ Selesai — stok produksi ${DARI} s.d. ${SAMPAI} diselaraskan dengan aturan Step 2 (bahan)${BAHAN_ONLY ? "" : " & Step 3 (kemasan)"}.`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

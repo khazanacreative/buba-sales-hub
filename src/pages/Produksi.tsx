@@ -23,7 +23,7 @@ import { TablePagination } from "@/components/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
-import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, loadRencanaGrid, CYCLE_JURNAL_REFS, hitungOHValue, nilaiPemotonganTanggal, hitungHPPValue, hitungOmzetHarian, loadOmzetSplitCache, saveOmzetSplitCache } from "@/lib/produksi-utils";
+import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, loadRencanaGrid, CYCLE_JURNAL_REFS, hitungOHValue, nilaiPemotonganTanggal, hitungHPPValue, hitungOmzetHarian, loadOmzetSplitCache, saveOmzetSplitCache, hitungMaterialReqs } from "@/lib/produksi-utils";
 
 // Base ratios for Bubur (per 100gr beras = 6 cup)
 // Base ratio: Beras:Daging:Air:S.Hijau:S.Brokoli:S.Putih = 100:5:700:8:5:1.5
@@ -799,140 +799,15 @@ export default function Produksi() {
   }), [distTotals]);
 
   const materialReqs = useMemo(() => {
-    const t = combinedTotals; // use combined totals for material calculation
-    const reqs: { bahanId: string; kode: string; nama: string; qty: number; rawQtyGrams: number; satuan: string }[] = [];
-
-    // 1. Beras — qty dalam gram (internal stok movement), satuan dari DB (Pack) untuk display konversi
-    const berasGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.beras) + (t.timD * settings.berasTim) + (t.timI * settings.berasTim));
-    const berasBahan = bahan.find((x: any) => x.id === "b-brs01");
-    if (berasGr > 0) {
-      reqs.push({
-        bahanId: "b-brs01",
-        kode: "BRS01",
-        nama: "BERAS",
-        qty: berasGr, // gram
-        rawQtyGrams: berasGr,
-        satuan: berasBahan?.satuan || "g"
-      });
-    }
-
-    // 1b. Sayur
-    const shGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurHijau) + (t.timD + t.timI) * settings.sayurHijauTim);
-    if (shGr > 0) {
-      reqs.push({
-        bahanId: "b-sh01",
-        kode: "SH01",
-        nama: "SAYUR HIJAU",
-        qty: shGr,
-        rawQtyGrams: shGr,
-        satuan: "g"
-      });
-    }
-
-    const sbGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurBuah) + (t.timD + t.timI) * settings.sayurBuahTim);
-    if (sbGr > 0) {
-      reqs.push({
-        bahanId: "b-sb01",
-        kode: "SB01",
-        nama: "SAYUR BUAH",
-        qty: sbGr,
-        rawQtyGrams: sbGr,
-        satuan: "g"
-      });
-    }
-
-    const spGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurProtein) + (t.timD + t.timI) * settings.sayurProteinTim);
-    if (spGr > 0) {
-      reqs.push({
-        bahanId: "b-sp01",
-        kode: "SP01",
-        nama: "SAYUR PROTEIN",
-        qty: spGr,
-        rawQtyGrams: spGr,
-        satuan: "g"
-      });
-    }
-
-    // Helper to add meat variant
-    // qty disimpan sebagai BILANGAN BULAT (kolom stok_movement.qty bertipe integer) —
-    // gram desimal dari rasio per cup dibulatkan agar insert tidak gagal (bug lama:
-    // potongan daging selalu gagal & hilang). rawQtyGrams tetap desimal utk display.
-    const addVariant = (variantId: string, grams: number) => {
-      const b = bahan.find(x => x.id === variantId);
-      if (b && grams > 0) {
-        const existing = reqs.find(r => r.bahanId === variantId);
-        if (existing) {
-          existing.rawQtyGrams += grams;
-          existing.qty = Math.round(existing.rawQtyGrams);
-        } else {
-          reqs.push({
-            bahanId: variantId,
-            kode: b.kode,
-            nama: b.nama,
-            qty: Math.round(grams),
-            rawQtyGrams: grams,
-            satuan: b.satuan
-          });
-        }
-      }
-    };
-
-    // Meats
-    if (t.buburD > 0 && bubur1Variant) addVariant(bubur1Variant, buburCalc(t.buburD, BUBUR_BASE.daging));
-    if (t.buburI > 0 && bubur2Variant) addVariant(bubur2Variant, buburCalc(t.buburI, BUBUR_BASE.daging));
-    if (t.timD > 0 && tim1Variant) addVariant(tim1Variant, t.timD * settings.dagingTim);
-    if (t.timI > 0 && tim2Variant) addVariant(tim2Variant, t.timI * settings.dagingTim);
-
-    // Puding — dalam pcs (produksi selalu habis per pcs, tidak ada sisa gram)
-    const pudingGr = Math.ceil(t.puding * settings.pudingCup);
-    const pudingBahan = bahan.find((x: any) => x.id === "b-pud01");
-    const pudingKonv = pudingBahan?.konversiGram || 130; // konversi dari master data (default 130 gr/pcs)
-    const pudingPcs = Math.ceil(pudingGr / pudingKonv);
-    if (pudingPcs > 0) {
-      reqs.push({
-        bahanId: "b-pud01",
-        kode: "PUD01",
-        nama: "PUDING",
-        qty: pudingPcs,
-        rawQtyGrams: pudingGr,
-        satuan: "pcs"
-      });
-    }
-
-    // Oat — dalam pcs (produksi selalu habis per pcs, tidak ada sisa gram)
-    const oatGr = Math.ceil(t.oatmeal * settings.oatmealCup);
-    const oatBahan = bahan.find((x: any) => x.id === "b-oat01");
-    const oatKonv = oatBahan?.konversiGram || 180; // konversi dari master data (default 180 gr/pcs)
-    const oatPcs = Math.ceil(oatGr / oatKonv);
-    if (oatPcs > 0) {
-      reqs.push({
-        bahanId: "b-oat01",
-        kode: "OAT01",
-        nama: "OAT",
-        qty: oatPcs,
-        rawQtyGrams: oatGr,
-        satuan: "pcs"
-      });
-    }
-
-    // Abon — stock dalam gram (konversi 1 pcs = 10 g), display satuan pcs
-    const abonGr = Math.ceil(t.abon * settings.abonCup);
-    if (t.abon > 0) {
-      reqs.push({
-        bahanId: "b-ab01",
-        kode: "AB01",
-        nama: "ABON",
-        qty: abonGr, // gram (untuk stok movement)
-        rawQtyGrams: t.abon, // pcs (untuk display)
-        satuan: "pcs"
-      });
-    }
-
-    // KEMASAN (CUP & TUTUP) TIDAK dipotong di sini — dihitung di Langkah 3
-    // sesuai HASIL PRODUKSI AKTUAL (hasil bisa menyusut/meluber). Bahan utama
-    // di atas dipotong dari rencana dan TIDAK terpengaruh hasil produksi.
-
-    return reqs;
+    // Bahan baku dihitung dari RENCANA (combinedTotals = planGrid [+ planGrid2]) —
+    // TIDAK dari distribusi aktual. Luberan/menyusut di Langkah 3 tidak mengubah
+    // pemotongan bahan; hanya kemasan yang menyesuaikan hasil aktual.
+    return hitungMaterialReqs(combinedTotals, settings, {
+      bubur1: bubur1Variant,
+      bubur2: bubur2Variant,
+      tim1: tim1Variant,
+      tim2: tim2Variant
+    }, bahan);
   }, [combinedTotals, bubur1Variant, bubur2Variant, tim1Variant, tim2Variant, bahan, settings]);
 
   // Kebutuhan kemasan (cup & tutup Puding/Oatmeal) dihitung dari HASIL PRODUKSI

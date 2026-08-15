@@ -60,6 +60,100 @@ export const formatDecimal = (value: number) => {
 
 export const buburCalc = (cups: number, baseAmount: number) => (cups * baseAmount) / 6;
 
+// =============================================================================
+// PEMOTONGAN BAHAN BAKU — Langkah 2 (hanya dari RENCANA, tidak pernah dari
+// distribusi aktual). Kemasan TIDAK termasuk di sini (dipotong di Langkah 3
+// sesuai hasil aktual — lihat calcKemasanKebutuhan).
+// =============================================================================
+
+export interface MaterialTotals {
+  buburD: number; buburI: number; timD: number; timI: number;
+  oatmeal: number; puding: number; abon: number;
+}
+
+export interface MaterialReq {
+  bahanId: string; kode: string; nama: string;
+  qty: number; rawQtyGrams: number; satuan: string;
+}
+
+// Hitung kebutuhan BAHAN BAKU dari RENCANA produksi (combinedTotals = planGrid,
+// bukan distGrid). Dipanggil SEKALI di Langkah 2 (requestWarehouse) — luberan/
+// menyusut di Langkah 3 TIDAK mengubah hasilnya; hanya kemasan yang menyesuaikan.
+export function hitungMaterialReqs(
+  t: MaterialTotals,
+  settings: {
+    berasTim: number; dagingTim: number; sayurHijauTim: number; sayurBuahTim: number;
+    sayurProteinTim: number; pudingCup: number; oatmealCup: number; abonCup: number;
+  },
+  variants: { bubur1?: string; bubur2?: string; tim1?: string; tim2?: string },
+  bahan: { id: string; kode: string; nama: string; satuan: string; konversiGram?: number }[]
+): MaterialReq[] {
+  const reqs: MaterialReq[] = [];
+
+  // 1. Beras — qty dalam gram (internal stok movement), satuan dari DB (Pack) untuk display konversi
+  const berasGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.beras) + (t.timD * settings.berasTim) + (t.timI * settings.berasTim));
+  const berasBahan = bahan.find((x) => x.id === "b-brs01");
+  if (berasGr > 0) {
+    reqs.push({
+      bahanId: "b-brs01", kode: "BRS01", nama: "BERAS",
+      qty: berasGr, rawQtyGrams: berasGr, satuan: berasBahan?.satuan || "g"
+    });
+  }
+
+  // 1b. Sayur
+  const shGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurHijau) + (t.timD + t.timI) * settings.sayurHijauTim);
+  if (shGr > 0) reqs.push({ bahanId: "b-sh01", kode: "SH01", nama: "SAYUR HIJAU", qty: shGr, rawQtyGrams: shGr, satuan: "g" });
+  const sbGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurBuah) + (t.timD + t.timI) * settings.sayurBuahTim);
+  if (sbGr > 0) reqs.push({ bahanId: "b-sb01", kode: "SB01", nama: "SAYUR BUAH", qty: sbGr, rawQtyGrams: sbGr, satuan: "g" });
+  const spGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurProtein) + (t.timD + t.timI) * settings.sayurProteinTim);
+  if (spGr > 0) reqs.push({ bahanId: "b-sp01", kode: "SP01", nama: "SAYUR PROTEIN", qty: spGr, rawQtyGrams: spGr, satuan: "g" });
+
+  // Daging per varian — qty disimpan sebagai BILANGAN BULAT (kolom stok_movement.qty
+  // bertipe integer): gram desimal dari rasio per cup dibulatkan agar insert tidak
+  // gagal. rawQtyGrams tetap desimal utk display.
+  const addVariant = (variantId: string, grams: number) => {
+    const b = bahan.find((x) => x.id === variantId);
+    if (b && grams > 0) {
+      const existing = reqs.find((r) => r.bahanId === variantId);
+      if (existing) {
+        existing.rawQtyGrams += grams;
+        existing.qty = Math.round(existing.rawQtyGrams);
+      } else {
+        reqs.push({
+          bahanId: variantId, kode: b.kode, nama: b.nama,
+          qty: Math.round(grams), rawQtyGrams: grams, satuan: b.satuan
+        });
+      }
+    }
+  };
+  if (t.buburD > 0 && variants.bubur1) addVariant(variants.bubur1, buburCalc(t.buburD, BUBUR_BASE.daging));
+  if (t.buburI > 0 && variants.bubur2) addVariant(variants.bubur2, buburCalc(t.buburI, BUBUR_BASE.daging));
+  if (t.timD > 0 && variants.tim1) addVariant(variants.tim1, t.timD * settings.dagingTim);
+  if (t.timI > 0 && variants.tim2) addVariant(variants.tim2, t.timI * settings.dagingTim);
+
+  // Puding — dalam pcs (produksi selalu habis per pcs, tidak ada sisa gram)
+  const pudingGr = Math.ceil(t.puding * settings.pudingCup);
+  const pudingBahan = bahan.find((x) => x.id === "b-pud01");
+  const pudingKonv = pudingBahan?.konversiGram || 130; // konversi dari master data (default 130 gr/pcs)
+  const pudingPcs = Math.ceil(pudingGr / pudingKonv);
+  if (pudingPcs > 0) reqs.push({ bahanId: "b-pud01", kode: "PUD01", nama: "PUDING", qty: pudingPcs, rawQtyGrams: pudingGr, satuan: "pcs" });
+
+  // Oat — dalam pcs (produksi selalu habis per pcs, tidak ada sisa gram)
+  const oatGr = Math.ceil(t.oatmeal * settings.oatmealCup);
+  const oatBahan = bahan.find((x) => x.id === "b-oat01");
+  const oatKonv = oatBahan?.konversiGram || 180; // konversi dari master data (default 180 gr/pcs)
+  const oatPcs = Math.ceil(oatGr / oatKonv);
+  if (oatPcs > 0) reqs.push({ bahanId: "b-oat01", kode: "OAT01", nama: "OAT", qty: oatPcs, rawQtyGrams: oatGr, satuan: "pcs" });
+
+  // Abon — stock dalam gram (konversi 1 pcs = 10 g), display satuan pcs
+  const abonGr = Math.ceil(t.abon * settings.abonCup);
+  if (t.abon > 0) reqs.push({ bahanId: "b-ab01", kode: "AB01", nama: "ABON", qty: abonGr, rawQtyGrams: t.abon, satuan: "pcs" });
+
+  // KEMASAN (CUP & TUTUP) TIDAK dipotong di sini — dihitung di Langkah 3 sesuai
+  // HASIL PRODUKSI AKTUAL (lihat calcKemasanKebutuhan).
+  return reqs;
+}
+
 // Parse [D:X, I:Y] split from catatan
 export const parseSplit = (catatan: string) => {
   const match = catatan?.match(/D:(\d+),I:(\d+)/);

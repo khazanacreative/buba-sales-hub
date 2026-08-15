@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BUBUR_BASE, buburCalc, calcKemasanKebutuhan, KEMASAN_BAHAN, loadRencanaGrid, hitungOHValue, hitungHPPValue, nilaiPemotonganTanggal, hitungOmzetHarian } from "@/lib/produksi-utils";
+import { BUBUR_BASE, buburCalc, calcKemasanKebutuhan, KEMASAN_BAHAN, loadRencanaGrid, hitungOHValue, hitungHPPValue, nilaiPemotonganTanggal, hitungOmzetHarian, hitungMaterialReqs } from "@/lib/produksi-utils";
 
 /**
  * Verifikasi aturan pemotongan stok di siklus produksi (Produksi.tsx):
@@ -13,50 +13,24 @@ import { BUBUR_BASE, buburCalc, calcKemasanKebutuhan, KEMASAN_BAHAN, loadRencana
  * Kemasan BUBUR & NASI TIM TIDAK dipotong di produksi (via request outlet).
  */
 
-// ===== Replikasi materialReqs (Step 2) dari Produksi.tsx =====
-const KONV = { puding: 130, oat: 180 }; // konversi gram per pcs (fallback master data)
+// ===== BAHAN BAKU (Step 2) — helper NYATA hitungMaterialReqs dari produksi-utils =====
+// Master bahan minimal yg dipakai helper (satuan beras, kode/nama/satuan daging,
+// konversi puding/oat). Sayur tidak butuh master (kode/nama/satuan di-hardcode).
+const BAHAN = [
+  { id: "b-brs01", kode: "BRS01", nama: "BERAS", satuan: "Pack", konversiGram: 1000 },
+  { id: "b-ay01", kode: "AY01", nama: "AYAM", satuan: "Pack" },
+  { id: "b-sl01", kode: "SL01", nama: "SALMON", satuan: "Pack" },
+  { id: "b-dg01", kode: "DG01", nama: "DAGING SAPI", satuan: "Pack" },
+  { id: "b-tn01", kode: "TN01", nama: "TENGGIRI", satuan: "Pack" },
+  { id: "b-pud01", kode: "PUD01", nama: "PUDING", satuan: "pcs", konversiGram: 130 },
+  { id: "b-oat01", kode: "OAT01", nama: "OAT", satuan: "pcs", konversiGram: 180 }
+];
 
 const materialReqs = (t: {
   buburD: number; buburI: number; timD: number; timI: number;
   oatmeal: number; puding: number; abon: number;
-}, settings: any, variants: { bubur1?: string; bubur2?: string; tim1?: string; tim2?: string }) => {
-  const reqs: { bahanId: string; qty: number; rawQtyGrams?: number }[] = [];
-
-  const berasGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.beras) + (t.timD * settings.berasTim) + (t.timI * settings.berasTim));
-  if (berasGr > 0) reqs.push({ bahanId: "b-brs01", qty: berasGr });
-
-  const shGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurHijau) + (t.timD + t.timI) * settings.sayurHijauTim);
-  if (shGr > 0) reqs.push({ bahanId: "b-sh01", qty: shGr });
-  const sbGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurBuah) + (t.timD + t.timI) * settings.sayurBuahTim);
-  if (sbGr > 0) reqs.push({ bahanId: "b-sb01", qty: sbGr });
-  const spGr = Math.ceil(buburCalc(t.buburD + t.buburI, BUBUR_BASE.sayurProtein) + (t.timD + t.timI) * settings.sayurProteinTim);
-  if (spGr > 0) reqs.push({ bahanId: "b-sp01", qty: spGr });
-
-  // Identik dgn aplikasi: akumulasi desimal, bulatkan TOTAL sekali (kolom integer)
-  const addVariant = (variantId: string | undefined, grams: number) => {
-    if (!variantId || grams <= 0) return;
-    const existing = reqs.find((r) => r.bahanId === variantId);
-    if (existing) {
-      existing.rawQtyGrams = (existing.rawQtyGrams || 0) + grams;
-      existing.qty = Math.round(existing.rawQtyGrams);
-    } else {
-      reqs.push({ bahanId: variantId, qty: Math.round(grams), rawQtyGrams: grams });
-    }
-  };
-  if (t.buburD > 0) addVariant(variants.bubur1, buburCalc(t.buburD, BUBUR_BASE.daging));
-  if (t.buburI > 0) addVariant(variants.bubur2, buburCalc(t.buburI, BUBUR_BASE.daging));
-  if (t.timD > 0) addVariant(variants.tim1, t.timD * settings.dagingTim);
-  if (t.timI > 0) addVariant(variants.tim2, t.timI * settings.dagingTim);
-
-  const pudingPcs = Math.ceil(Math.ceil(t.puding * settings.pudingCup) / KONV.puding);
-  if (pudingPcs > 0) reqs.push({ bahanId: "b-pud01", qty: pudingPcs });
-  const oatPcs = Math.ceil(Math.ceil(t.oatmeal * settings.oatmealCup) / KONV.oat);
-  if (oatPcs > 0) reqs.push({ bahanId: "b-oat01", qty: oatPcs });
-
-  const abonGr = Math.ceil(t.abon * settings.abonCup);
-  if (t.abon > 0) reqs.push({ bahanId: "b-ab01", qty: abonGr });
-  return reqs;
-};
+}, settings: any, variants: { bubur1?: string; bubur2?: string; tim1?: string; tim2?: string }) =>
+  hitungMaterialReqs(t, settings, variants, BAHAN as any);
 
 // ===== Replikasi packagingReqs (Step 3) dari Produksi.tsx =====
 const packagingReqs = (actualCups: { puding: number; oatmeal: number }) =>
@@ -151,6 +125,78 @@ describe("Langkah 3 — Pemotongan KEMASAN dari HASIL AKTUAL", () => {
     const kemasanIds = KEMASAN_BAHAN.map((k) => k.bahanId);
     expect(kemasanIds).not.toContain("b-cb01");  // CUP BUBUR
     expect(kemasanIds).not.toContain("b-ttp01"); // TUTUP
+  });
+});
+
+// ===== Invariant: bahan baku HANYA dari RENCANA (Langkah 2), kemasan mengikuti AKTUAL (Langkah 3) =====
+describe("Invariant — bahan baku TIDAK berubah saat distribusi luberan/menyusut di Langkah 3", () => {
+  // Rencana Langkah 1 = SATU-SATUNYA sumber pemotongan bahan baku.
+  const RENCANA = PLAN;
+
+  // Skenario aktual di Langkah 3 (distribusi) — bisa berbeda dari rencana:
+  // luberan (> rencana), menyusut (< rencana), dan campuran (ada yg naik & turun).
+  const AKTUAL_MENYUSUT = { buburD: 140, buburI: 110, timD: 80, timI: 100, oatmeal: 30, puding: 50, abon: 20 };
+  const AKTUAL_LUBERAN = { buburD: 160, buburI: 130, timD: 100, timI: 120, oatmeal: 45, puding: 70, abon: 30 };
+  const AKTUAL_CAMPURAN = { buburD: 145, buburI: 125, timD: 95, timI: 105, oatmeal: 35, puding: 65, abon: 22 };
+
+  const bahanIds = new Set(["b-brs01", "b-sh01", "b-sb01", "b-sp01", "b-ay01", "b-sl01", "b-dg01", "b-tn01", "b-pud01", "b-oat01", "b-ab01"]);
+  const kemasanIds = new Set(KEMASAN_BAHAN.map((k) => k.bahanId));
+
+  it.each([
+    ["menyusut", AKTUAL_MENYUSUT],
+    ["meluber", AKTUAL_LUBERAN],
+    ["campuran", AKTUAL_CAMPURAN]
+  ])("Langkah 3 (%s) hanya memotong KEMASAN — bahan baku tidak disentuh", (_nama, aktual) => {
+    const cut = calcKemasanKebutuhan({ puding: aktual.puding, oatmeal: aktual.oatmeal });
+    cut.forEach((k) => {
+      expect(kemasanIds.has(k.bahanId)).toBe(true);
+      expect(bahanIds.has(k.bahanId)).toBe(false); // TIDAK ada bahan baku di Langkah 3
+    });
+    // Kemasan mengikuti jumlah AKTUAL (1 cup/1 tutup per porsi), bukan rencana
+    const map = new Map(cut.map((k) => [k.bahanId, k.qty]));
+    expect(map.get("b-cuppud01")).toBe(aktual.puding);
+    expect(map.get("b-plas01")).toBe(aktual.puding);
+    expect(map.get("b-cupoat1")).toBe(aktual.oatmeal);
+    expect(map.get("b-ttoat01")).toBe(aktual.oatmeal);
+  });
+
+  it("simulasi siklus: setiap bahan baku tercatat TEPAT 1× (dari rencana) di semua skenario", () => {
+    // Langkah 2: potong bahan dari RENCANA (sekali, tidak pernah diulang).
+    const cutBahan = materialReqs(RENCANA, SETTINGS, VARIANTS);
+    const qtyBahan = new Map(cutBahan.map((r) => [r.bahanId, r.qty]));
+    expect(qtyBahan.get("b-brs01")).toBeGreaterThan(0);
+
+    for (const aktual of [AKTUAL_MENYUSUT, AKTUAL_LUBERAN, AKTUAL_CAMPURAN]) {
+      // Langkah 3: tambah kemasan dari AKTUAL.
+      const cutKemasan = calcKemasanKebutuhan({ puding: aktual.puding, oatmeal: aktual.oatmeal });
+      const semuaCut = [...cutBahan.map((r) => r.bahanId), ...cutKemasan.map((k) => k.bahanId)];
+      // Bahan baku muncul PERSIS 1× di seluruh movement siklus — tidak ada potongan
+      // ganda & tidak ada bahan yg ikut menyesuaikan aktual (luberan/menyusut).
+      bahanIds.forEach((id) => {
+        expect(semuaCut.filter((x) => x === id).length).toBe(1);
+      });
+      // qty bahan tetap = qty dari RENCANA (tidak berubah walau aktual beda jauh)
+      materialReqs(RENCANA, SETTINGS, VARIANTS).forEach((r) => {
+        expect(qtyBahan.get(r.bahanId)).toBe(r.qty);
+      });
+    }
+  });
+
+  it("kemasan mengikuti aktual: meluber > rencana, menyusut < rencana", () => {
+    const cupPuding = (aktual: any) =>
+      calcKemasanKebutuhan({ puding: aktual.puding, oatmeal: aktual.oatmeal }).find((k) => k.bahanId === "b-cuppud01")!.qty;
+    expect(cupPuding(AKTUAL_LUBERAN)).toBeGreaterThan(RENCANA.puding); // 70 > 60
+    expect(cupPuding(AKTUAL_MENYUSUT)).toBeLessThan(RENCANA.puding);   // 50 < 60
+    expect(cupPuding(AKTUAL_CAMPURAN)).toBe(65); // campuran: ikut aktual (65), bukan rencana (60)
+  });
+
+  it("hitungMaterialReqs sensitif thd input — aplikasi WAJIB memanggilnya dgn RENCANA saja", () => {
+    // Bukti mekanisme: bila helper dipanggil dengan angka AKTUAL, qty bahan berubah
+    // (meluber → membesar, menyusut → mengecil). Karena itu Langkah 3 TIDAK boleh
+    // memanggil hitungMaterialReqs — hanya Langkah 2 yg memanggil dengan rencana.
+    const beras = (t: any) => materialReqs(t, SETTINGS, VARIANTS).find((r) => r.bahanId === "b-brs01")!.qty;
+    expect(beras(AKTUAL_LUBERAN)).toBeGreaterThan(beras(RENCANA));
+    expect(beras(AKTUAL_MENYUSUT)).toBeLessThan(beras(RENCANA));
   });
 });
 

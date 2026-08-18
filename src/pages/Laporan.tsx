@@ -860,13 +860,13 @@ function SisaProduksiOH({
                 <DateInput value={tanggal} onChange={setTanggal} className="text-xs" />
               </div>
               {summary.totalDistribusi > 0 && (
-                <div className="flex items-center gap-4 text-xs">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                   <span className="text-muted-foreground">Dist: <strong className="text-foreground">{summary.totalDistribusi}</strong> cup</span>
                   <span className="text-warning font-medium">Sisa: <strong>{summary.totalSisa}</strong> cup</span>
                   <span className="text-success font-medium">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
                   <span className="text-primary font-medium">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
                   {summary.belumInputCount > 0 && (
-                    <span className="text-amber-600 dark:text-amber-400">{summary.belumInputCount} menu belum input — tidak dihitung</span>
+                    <span className="text-amber-600 dark:text-amber-400 basis-full sm:basis-auto">{summary.belumInputCount} menu belum input — tidak dihitung</span>
                   )}
                 </div>
               )}
@@ -1447,13 +1447,13 @@ function SisaProduksiAdminView({
                 <DateInput value={tanggal} onChange={setTanggal} className="text-xs" />
               </div>
               {grandTotal.totalDist > 0 && (
-                <div className="flex items-center gap-4 text-xs">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                   <span className="text-muted-foreground">Dist: <strong className="text-foreground">{grandTotal.totalDist}</strong> cup</span>
                   <span className="text-warning font-medium">Sisa: <strong>{grandTotal.totalSisa}</strong> cup</span>
                   <span className="text-success font-medium">Terjual: <strong>{grandTotal.totalTerjual}</strong> cup</span>
                   <span className="text-primary font-medium">Omset: <strong>{rupiah(grandTotal.totalOmset)}</strong></span>
                   {grandTotal.belumInputCount > 0 && (
-                    <span className="text-amber-600 dark:text-amber-400">{grandTotal.belumInputCount} baris belum input — tidak dihitung</span>
+                    <span className="text-amber-600 dark:text-amber-400 basis-full sm:basis-auto">{grandTotal.belumInputCount} baris belum input — tidak dihitung</span>
                   )}
                 </div>
               )}
@@ -2137,13 +2137,13 @@ function RiwayatTransaksiTab({
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Compact summary bar */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground border-b pb-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground border-b pb-3">
             <span>Stok: <strong className="text-foreground">{summary.totalStok}</strong> cup</span>
             <span className="text-warning">Retur: <strong>{summary.totalReturPcs}</strong> cup</span>
             <span className="text-success">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
             <span className="text-primary">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
             {summary.belumInputCount > 0 && (
-              <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[10px]">
+              <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[10px] basis-full sm:basis-auto">
                 {summary.belumInputCount} baris belum input — tidak dihitung
               </Badge>
             )}

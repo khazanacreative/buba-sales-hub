@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { db, useDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp, Copy, Package, LockOpen, Banknote } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp, Copy, Package, LockOpen, Banknote, Loader2 } from "lucide-react";
 import { ArrowNav } from "@/components/ArrowNav";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -100,6 +100,9 @@ export default function Produksi() {
   const [range, setRange] = useState<DateRange>({});
   const [requestingWarehouse, setRequestingWarehouse] = useState(false);
   const [warehouseConfirmOpen, setWarehouseConfirmOpen] = useState(false);
+  // Pengaman klik-ganda: cegah saveStep1 terpicu dua kali (pernah membuat
+  // duplikat permohonan_stok — mis. Kuti 2+2=4 & Sidohwayah 3+3=6 pada 18-08).
+  const [savingStep1, setSavingStep1] = useState(false);
   // Buka siklus (khusus admin) — dialog konfirmasi + status proses
   const [bukaSiklusOpen, setBukaSiklusOpen] = useState(false);
   const [bukaSiklusLoading, setBukaSiklusLoading] = useState(false);
@@ -553,6 +556,8 @@ export default function Produksi() {
 
   const saveStep1 = async () => {
     if (isReadOnlyGudang) return toast.error("Anda tidak memiliki izin untuk menyimpan data produksi");
+    if (savingStep1) return; // cegah klik ganda → duplikat rencana/permohonan
+    setSavingStep1(true);
     try {
       // Upsert rencana: update record yang sudah ada (PERTAHANKAN status Disetujui),
       // insert record baru sebagai Pending, dan hapus record lama yang tidak lagi
@@ -689,6 +694,8 @@ export default function Produksi() {
     } catch (err: any) {
       console.error("saveStep1 error:", err);
       toast.error(`Gagal menyimpan rencana: ${err?.message || err || "Unknown error"}`);
+    } finally {
+      setSavingStep1(false);
     }
   };
 
@@ -2254,9 +2261,9 @@ export default function Produksi() {
 
 
           <div className="flex justify-end">
-            <Button onClick={saveStep1} className="gradient-primary text-primary-foreground hover-lift" disabled={isReadOnlyGudang}>
-              <span className="hidden md:inline">Simpan & Lanjutkan ke Bahan Baku</span>
-              <ArrowRight className="h-4 w-4 md:ml-2" />
+            <Button onClick={saveStep1} className="gradient-primary text-primary-foreground hover-lift" disabled={isReadOnlyGudang || savingStep1}>
+              <span className="hidden md:inline">{savingStep1 ? "Menyimpan rencana..." : "Simpan & Lanjutkan ke Bahan Baku"}</span>
+              {savingStep1 ? <Loader2 className="h-4 w-4 md:ml-2 animate-spin" /> : <ArrowRight className="h-4 w-4 md:ml-2" />}
             </Button>
           </div>
         </CardContent>

@@ -2143,9 +2143,9 @@ function RiwayatTransaksiTab({
             <span className="text-success">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
             <span className="text-primary">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
             {summary.belumInputCount > 0 && (
-              <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[10px] basis-full sm:basis-auto">
+              <span className="text-amber-600 dark:text-amber-400 basis-full sm:basis-auto">
                 {summary.belumInputCount} baris belum input — tidak dihitung
-              </Badge>
+              </span>
             )}
           </div>
 

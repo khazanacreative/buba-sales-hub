@@ -361,6 +361,71 @@ setInterval(() => {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// =============================================================================
+// AUTO-BACKUP SEBELUM OPERASI HAPUS
+// =============================================================================
+
+/**
+ * Backup otomatis sebelum operasi hapus data.
+ * Menyimpan ke localStorage + trigger download file JSON.
+ * Dipanggil di deleteKaryawan, deleteUser, dan reset.
+ */
+async function preDeleteBackup(reason: string) {
+  try {
+    console.log(`[auto-backup] Memulai backup sebelum hapus: ${reason}`);
+
+    // Fetch semua data dari Supabase
+    const tables = [
+      "outlets", "produk", "coa", "bahan_baku", "karyawan", "users",
+      "jurnal", "penjualan", "produksi", "stok_movement", "absensi", "permohonan_stok"
+    ];
+    const backup: Record<string, any[]> = {};
+    for (const table of tables) {
+      const { data } = await supabase.from(table).select("*");
+      backup[table] = data || [];
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const payload = {
+      _meta: {
+        createdAt: new Date().toISOString(),
+        reason,
+        source: "auto-backup pre-delete",
+        tables,
+        totalRecords: tables.reduce((sum, t) => sum + (backup[t]?.length || 0), 0)
+      },
+      ...backup
+    };
+
+    // Simpan ke localStorage (max 5 backup terakhir)
+    const STORAGE_KEY = "buba_auto_backups";
+    let existing: any[] = [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) existing = JSON.parse(raw);
+    } catch { /* ignore */ }
+    existing.push({ key: `backup-${timestamp}`, data: payload, reason });
+    if (existing.length > 5) existing = existing.slice(-5);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+
+    // Trigger download file JSON
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `auto-backup-${timestamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    console.log(`[auto-backup] ✅ Backup berhasil: auto-backup-${timestamp}.json`);
+  } catch (err) {
+    console.error("[auto-backup] ⚠️ Backup gagal, operasi tetap dilanjutkan:", err);
+    // Jangan block operasi hapus jika backup gagal
+  }
+}
+
 export const db = {
   async addOutlet(o: Omit<Outlet, "id">) {
     const id = uid();
@@ -679,6 +744,8 @@ export const db = {
     await fetchFromSupabase();
   },
   async deleteKaryawan(id: string) {
+    // Auto-backup sebelum hapus karyawan (+ user terkait)
+    await preDeleteBackup(`deleteKaryawan(${id})`);
     // Delete associated user account first, then karyawan
     const { error: errU } = await supabase.from("users").delete().eq("karyawan_id", id);
     if (errU) throw errU;
@@ -813,11 +880,15 @@ export const db = {
     fetchFromSupabase();
   },
   async deleteUser(username: string) {
+    // Auto-backup sebelum hapus user
+    await preDeleteBackup(`deleteUser(${username})`);
     await supabase.from("users").delete().eq("username", username);
     fetchFromSupabase();
   },
 
   async reset() {
+    // Auto-backup sebelum reset semua data
+    await preDeleteBackup("reset-all-data");
     try {
       await Promise.all([
         supabase.from("penjualan").delete().neq("id", ""),

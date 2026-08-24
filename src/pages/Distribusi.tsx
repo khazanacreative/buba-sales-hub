@@ -1003,7 +1003,8 @@ export default function Distribusi() {
                     // returGrid: Bubur/Tim dalam gram, Oatmeal/Puding dalam cup, Abon dalam pcs.
                     // Pembulatan setelah gramasi (118 Bubur / 108 Tim): cup retur = round(gram ÷ gram/cup).
                     const returCups = isBuburTim ? Math.round(returVal / item.roundGram) : returVal;
-                    const sold = Math.max(0, item.sent - Math.min(returCups, item.sent));
+                    // Pakai hitungTerjualOh agar sesuai dgn formula database (urutan pembulatan sama)
+                    const sold = isBuburTim ? hitungTerjualOh(item.sent, returVal, item.roundGram) : Math.max(0, item.sent - Math.min(returVal, item.sent));
                     const unitLabel = item.field === "abon" ? "pcs" : "cup";
 
                     return (

@@ -1300,6 +1300,14 @@ function SisaProduksiAdminView({
     return { totalDist, totalSisa, totalTerjual, totalOmset, belumInputCount };
   }, [outletRows]);
 
+  // Detect outlets that have distribution but NO penjualan records at all
+  // (ALL items are belumInput = outlet hasn't entered OH)
+  const outletsBelumInput = useMemo(() => {
+    return outletRows
+      .filter(o => o.items.every((i: any) => i.belumInput))
+      .map(o => ({ id: o.outlet.id, nama: o.outlet.nama }));
+  }, [outletRows]);
+
   const handleSubmit = useCallback(async () => {
     if (readOnly) return toast.error("Anda tidak memiliki izin untuk menyimpan data sisa produksi");
     // Guard: prevent concurrent saves (double-click / rapid re-submit)
@@ -1405,6 +1413,32 @@ function SisaProduksiAdminView({
               </p>
               <p>
                 Siklus produksi untuk tanggal ini sudah ditutup. Outlet <strong>tidak dapat mengubah</strong> data sisa produksi lagi. Data yang Anda ubah di sini akan langsung tersimpan ke penjualan.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Outlet belum input OH warning */}
+      {outletsBelumInput.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-xs text-muted-foreground">
+              <p className="font-bold text-amber-700 dark:text-amber-300 text-sm mb-1">
+                ⚠️ {outletsBelumInput.length} Outlet Belum Input OH
+              </p>
+              <p>
+                Outlet berikut sudah terima distribusi tapi <strong>belum menginput sisa produksi</strong>:
+                {' '}{outletsBelumInput.map((o, i) => (
+                  <span key={o.id}>
+                    {i > 0 && ', '}
+                    <strong>{o.nama}</strong>
+                  </span>
+                ))}
+              </p>
+              <p className="mt-1 text-amber-600 dark:text-amber-400">
+                OH belum diinput = terjual otomatis = 100% (tidak akurat). Hubungi outlet untuk segera input data sisa.
               </p>
             </div>
           </div>

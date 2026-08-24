@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -437,6 +437,7 @@ function SisaProduksiOH({
   const [tanggal, setTanggal] = useState(todayISO());
   const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draftSisa, setDraftSisa] = useState<Record<string, number>>({});
   // Track whether user has manually modified sisa values.
@@ -578,12 +579,12 @@ function SisaProduksiOH({
 
 
   const openDialog = () => {
-    // Initialize draft with 0 so user can type directly without clearing pre-filled values.
-    // Distribution info (max grams/cups) is still visible as a reference in the dialog.
+    // Pre-fill draft from saved sisaGrid so user sees previous values.
+    // If no saved value exists, default to 0.
     const initial: Record<string, number> = {};
     MENU_ITEMS.forEach((item) => {
       const key = `${tanggal}-${item.subId}`;
-      initial[key] = 0; // Start from zero — user types actual sisa amount
+      initial[key] = sisaGrid[key] ?? 0;
     });
     setDraftSisa(initial);
     setDialogOpen(true);
@@ -705,13 +706,16 @@ function SisaProduksiOH({
     if (isLocked) {
       return toast.error("Input sisa untuk tanggal ini sudah dikunci oleh admin/produksi");
     }
+    // Guard: prevent concurrent saves (double-click / rapid re-submit)
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       // Create per-VARIANT penjualan records (no merging D+I)
       // Each variant gets its own qty (terjual) and sisaGram preserved exactly as entered
       let savedCount = 0;
 
-      // Group rows by baseId for batch delete (delete ALL old records per base first)
+      // Group rows by baseId for batch delete+insert
       const baseGroups = new Map<string, typeof rows>();
       for (const row of rows) {
         if (row.distribusi <= 0) continue;
@@ -720,44 +724,28 @@ function SisaProduksiOH({
       }
 
       for (const [baseId, variantRows] of baseGroups) {
-        // Delete ALL existing penjualan for this outlet+tanggal+base (all variants)
-        const existingPenjualan = (penjualan || []).filter(
-          (p: any) => p.outletId === user.outletId && p.tanggal === tanggal && p.produkId === baseId
-        );
-        for (const p of existingPenjualan) {
-          await db.deletePenjualan(p.id);
-        }          // Create per-variant records
-          for (const row of variantRows) {
-            const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
-            const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
-            const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
-            let sisaGramVal: number | undefined;
-            if (isGramItem) {
-              sisaGramVal = Math.min(row.sisa, row.distribusi * row.gramPerCup);
-            } else if (isCupItem) {
-              // For cup/pcs-based items (oatmeal, puding, abon), store sisa cups/pcs
-              sisaGramVal = row.sisaCups;
-            }
-            // Selalu simpan record kalo ada distribusi, biar sisaGram (OH) tersimpan di DB
-            // Biarpun terjual = 0 (semua tidak laku), sisa OH-nya tetap tercatat
-            await db.addPenjualan({
-              tanggal,
-              outletId: user.outletId,
-              produkId: row.baseId,
-              qty: terjual,
-              harga: row.harga,
-              sisaGram: sisaGramVal,
-              variant: row.subId,
-            });
-            savedCount++;
+        // Build variant records for atomic replace
+        const variants = variantRows.map((row) => {
+          const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
+          const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
+          const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
+          let sisaGramVal: number | undefined;
+          if (isGramItem) {
+            sisaGramVal = Math.min(row.sisa, row.distribusi * row.gramPerCup);
+          } else if (isCupItem) {
+            sisaGramVal = row.sisaCups;
           }
+          return { subId: row.subId, qty: terjual, harga: row.harga, sisaGram: sisaGramVal };
+        });
+        // Atomic replace: delete old + insert new in ONE Supabase call per base
+        await db.replacePenjualanForOutlet(user.outletId, tanggal, baseId, variants);
+        savedCount += variants.length;
       }
 
       // === OH Abon → Stok Gudang (dalam GRAM, sesuai saldoBahan) ===
       // OH abon (sisa penjualan) bisa dijual lagi besok, jadi harus masuk stok gudang
       // sisaCups = pcs, sisa = sisaCups * 10 = gram (saldoBahan expects gram)
       // Hapus dulu movement OH abon lama utk outlet+tanggal ini agar TIDAK double input.
-      // Data lama otomatis tertimpa (re-save = replace) sampai admin/produksi mengunci hari tsb.
       const abonRow = rows.find(r => r.subId === "abon");
       const existingAbonMovs = (stokMov || []).filter(
         (m: any) => m.keterangan === `OH abon dari ${user.outletId} tanggal ${tanggal}`
@@ -776,10 +764,7 @@ function SisaProduksiOH({
       }
 
       // === JANGAN reset userModifiedSisa di sini! ===
-      // Jika direset, useEffect auto-recalculation akan menimpa nilai
-      // sisa yang sudah diinput user (mis: 1000gr → 944gr karena floor).
       // UserModifiedSisa hanya direset saat ganti tanggal (lihat useEffect tanggal).
-      // setUserModifiedSisa(false); // ⛔ JANGAN DIUNCOMMENT
 
       if (savedCount > 0) {
         toast.success(`${savedCount} penjualan berhasil disimpan! Data terhubung ke admin.`);
@@ -793,6 +778,7 @@ function SisaProduksiOH({
       console.error("Outlet handleSubmit error:", err);
       toast.error(`Gagal menyimpan data sisa produksi: ${errMsg}`);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [rows, tanggal, user.outletId, penjualan, isLocked, stokMov]);
@@ -1101,6 +1087,7 @@ function SisaProduksiAdminView({
   const [tanggal, setTanggal] = useState(todayISO());
   const [sisaGrid, setSisaGrid] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   // Track whether admin has manually modified sisa values.
   // Prevents auto-recalculation from overwriting admin input.
   const [userModifiedSisa, setUserModifiedSisa] = useState(false);
@@ -1312,12 +1299,15 @@ function SisaProduksiAdminView({
 
   const handleSubmit = useCallback(async () => {
     if (readOnly) return toast.error("Anda tidak memiliki izin untuk menyimpan data sisa produksi");
+    // Guard: prevent concurrent saves (double-click / rapid re-submit)
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       let savedCount = 0;
 
       for (const { outlet, items } of outletRows) {
-        // Group by baseId for batch delete (delete ALL old records per base first)
+        // Group by baseId for atomic replace
         const baseGroups = new Map<string, typeof items>();
         for (const row of items) {
           if (!baseGroups.has(row.baseId)) baseGroups.set(row.baseId, []);
@@ -1325,16 +1315,8 @@ function SisaProduksiAdminView({
         }
 
         for (const [baseId, variantRows] of baseGroups) {
-          // Delete ALL existing penjualan for this outlet+tanggal+base (all variants)
-          const existingPenjualan = (penjualan || []).filter(
-            (p: any) => p.outletId === outlet.id && p.tanggal === tanggal && p.produkId === baseId
-          );
-          for (const p of existingPenjualan) {
-            await db.deletePenjualan(p.id);
-          }
-
-          // Create per-variant records
-          for (const row of variantRows) {
+          // Build variant records for atomic replace
+          const variants = variantRows.map((row) => {
             const terjual = Math.max(0, row.distQty - Math.min(row.sisaCups, row.distQty));
             const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
             const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
@@ -1342,28 +1324,17 @@ function SisaProduksiAdminView({
             if (isGramItem) {
               sisaGramVal = Math.min(row.sisaGram, row.distQty * row.gramPerCup);
             } else if (isCupItem) {
-              // For cup/pcs-based items (oatmeal, puding, abon), store sisa cups/pcs
               sisaGramVal = row.sisaCups;
             }
-            // Selalu simpan record kalo ada distribusi, biar sisaGram (OH) tersimpan di DB
-            // Biarpun terjual = 0 (semua tidak laku), sisa OH-nya tetap tercatat
-            await db.addPenjualan({
-              tanggal,
-              outletId: outlet.id,
-              produkId: row.baseId,
-              qty: terjual,
-              harga: row.harga,
-              sisaGram: sisaGramVal,
-              variant: row.subId,
-            });
-            savedCount++;
-          }
+            return { subId: row.subId, qty: terjual, harga: row.harga, sisaGram: sisaGramVal };
+          });
+          // Atomic replace: delete old + insert new in ONE Supabase call per base
+          await db.replacePenjualanForOutlet(outlet.id, tanggal, baseId, variants);
+          savedCount += variants.length;
         }
       }
 
       // === OH Abon → Stok Gudang (dalam GRAM, sesuai saldoBahan) ===
-      // Hapus movement OH abon lama utk tiap outlet+tanggal ini agar TIDAK double input.
-      // Data lama otomatis tertimpa (re-save = replace) sampai hari tsb dikunci.
       for (const { outlet, items } of outletRows) {
         const abonRow = items.find((i: any) => i.subId === "abon");
         const existingAbonMovs = (stokMov || []).filter(
@@ -1384,10 +1355,6 @@ function SisaProduksiAdminView({
       }
 
       // === JANGAN reset userModifiedSisa di sini! ===
-      // Jika direset, useEffect auto-recalculation akan menimpa nilai
-      // sisa yang sudah diinput admin (sama seperti bug di outlet view).
-      // UserModifiedSisa hanya direset saat ganti tanggal (lihat useEffect tanggal).
-      // setUserModifiedSisa(false); // ⛔ JANGAN DIUNCOMMENT
 
       if (savedCount > 0) {
         toast.success(`${savedCount} penjualan berhasil disimpan untuk semua outlet! Data tersinkron ke Langkah 5.`);
@@ -1401,6 +1368,7 @@ function SisaProduksiAdminView({
       console.error("Admin handleSubmit error:", err);
       toast.error(`Gagal menyimpan data sisa produksi: ${errMsg}`);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [outletRows, tanggal, penjualan, stokMov]);

@@ -493,6 +493,43 @@ export const db = {
     if (error) throw error;
     await fetchFromSupabase();
   },
+  /**
+   * Replace ALL penjualan for an outlet+tanggal+baseId in one shot.
+   * Deletes existing records, then inserts new variant records.
+   * Only calls fetchFromSupabase() ONCE at the end (avoids stale-closure race).
+   */
+  async replacePenjualanForOutlet(
+    outletId: string,
+    tanggal: string,
+    baseId: string,
+    variants: { subId: string; qty: number; harga: number; sisaGram?: number }[]
+  ) {
+    // Delete ALL existing for this outlet+tanggal+baseId
+    const { error: delErr } = await supabase
+      .from("penjualan")
+      .delete()
+      .eq("outlet_id", outletId)
+      .eq("tanggal", tanggal)
+      .eq("produk_id", baseId);
+    if (delErr) throw delErr;
+    // Insert new variant records
+    if (variants.length > 0) {
+      const records = variants.map((v) => ({
+        id: uid(),
+        tanggal,
+        outlet_id: outletId,
+        produk_id: baseId,
+        qty: v.qty,
+        harga: v.harga,
+        total: v.qty * v.harga,
+        sisa_gram: v.sisaGram ?? null,
+        variant: v.subId,
+      }));
+      const { error: insErr } = await supabase.from("penjualan").insert(records);
+      if (insErr) throw insErr;
+    }
+    await fetchFromSupabase();
+  },
 
   async addProduksi(p: Omit<Produksi, "id">) {
     const id = uid();

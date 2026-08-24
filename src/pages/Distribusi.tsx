@@ -106,14 +106,11 @@ export default function Distribusi() {
   });
 
   // Load grids and actual cups from DB
-  // hasUserModifiedGrids prevents re-init of plan/dist grids, but returGrid is
-  // ALWAYS rebuilt from penjualan so Langkah 4 shows latest outlet OH data.
   useEffect(() => {
+    if (hasUserModifiedGrids.current) return;
     if (tanggal && outlets.length > 0) {
-      let dGrid: Record<string, Record<string, number>> = {};
-      if (!hasUserModifiedGrids.current) {
       // Load distGrid from permohonanStok
-      dGrid = loadGridFromReqs(outlets, permohonanStok, tanggal);
+      const dGrid = loadGridFromReqs(outlets, permohonanStok, tanggal);
 
       // Load actual cups from produksi table — petakan varian D/I berdasarkan
       // qty_rencana (rencana D vs rencana I), bukan posisi array [0]/[1].
@@ -166,10 +163,8 @@ export default function Distribusi() {
         Object.keys(scaled).forEach((k) => { dGrid[k] = { ...scaled[k] }; });
       }
       setDistGrid(dGrid);
-      } // end if (!hasUserModifiedGrids)
 
       // Load returGrid from penjualan
-      // ALWAYS rebuild from penjualan so Langkah 4 shows latest data
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };

@@ -299,13 +299,12 @@ export default function Produksi() {
   // that when outlet saves sisa penjualan via Laporan page, the returGrid
   // in Step 5 auto-updates with the latest sales data. permohonanStok, produksi, bahan
   // included so that grids load correctly after Supabase fetch completes on page refresh.
-  // hasUserModifiedGrids ref prevents re-init of plan/dist grids if user has manually
-  // edited them — but returGrid is ALWAYS rebuilt from penjualan so Langkah 4 stays current.
+  // hasUserModifiedGrids ref prevents re-init if user has manually edited
+  // any grid input — safe against background-polling reset.
   useEffect(() => {
+    if (hasUserModifiedGrids.current) return;
     if (tanggal && outlets.length > 0) {
-      // Only reload plan/dist grids if admin hasn't manually edited them
-      if (!hasUserModifiedGrids.current) {
-        loadPlanForDate(tanggal);
+      loadPlanForDate(tanggal);
 
       // Load variant selections from database
       const dayReqsForVariant = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
@@ -379,10 +378,8 @@ export default function Produksi() {
         }
       });
       setDistGrid(dGrid);
-      } // end if (!hasUserModifiedGrids)
 
       // Load Step 5 — returGrid from penjualan data (sent - sold)
-      // ALWAYS rebuild from penjualan so Langkah 4 shows latest data regardless of admin edits
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };

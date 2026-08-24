@@ -528,7 +528,6 @@ export const db = {
       const { error: insErr } = await supabase.from("penjualan").insert(records);
       if (insErr) throw insErr;
     }
-    await fetchFromSupabase();
   },
 
   async addProduksi(p: Omit<Produksi, "id">) {

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { db, useDB } from "@/lib/store";
+import { db, useDB, fetchFromSupabase } from "@/lib/store";
 import { rupiah, monthKey, DateRange, inRange, todayISO } from "@/lib/format";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { DateInput } from "@/components/DateInput";
@@ -742,6 +742,9 @@ function SisaProduksiOH({
         savedCount += variants.length;
       }
 
+      // Refresh state ONCE after all baseId groups are saved
+      await fetchFromSupabase();
+
       // === OH Abon → Stok Gudang (dalam GRAM, sesuai saldoBahan) ===
       // OH abon (sisa penjualan) bisa dijual lagi besok, jadi harus masuk stok gudang
       // sisaCups = pcs, sisa = sisaCups * 10 = gram (saldoBahan expects gram)
@@ -1333,6 +1336,9 @@ function SisaProduksiAdminView({
           savedCount += variants.length;
         }
       }
+
+      // Refresh state ONCE after all outlets are saved
+      await fetchFromSupabase();
 
       // === OH Abon → Stok Gudang (dalam GRAM, sesuai saldoBahan) ===
       for (const { outlet, items } of outletRows) {

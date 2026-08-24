@@ -106,11 +106,14 @@ export default function Distribusi() {
   });
 
   // Load grids and actual cups from DB
+  // hasUserModifiedGrids prevents re-init of plan/dist grids, but returGrid is
+  // ALWAYS rebuilt from penjualan so Langkah 4 shows latest outlet OH data.
   useEffect(() => {
-    if (hasUserModifiedGrids.current) return;
     if (tanggal && outlets.length > 0) {
+      let dGrid: Record<string, Record<string, number>> = {};
+      if (!hasUserModifiedGrids.current) {
       // Load distGrid from permohonanStok
-      const dGrid = loadGridFromReqs(outlets, permohonanStok, tanggal);
+      dGrid = loadGridFromReqs(outlets, permohonanStok, tanggal);
 
       // Load actual cups from produksi table — petakan varian D/I berdasarkan
       // qty_rencana (rencana D vs rencana I), bukan posisi array [0]/[1].
@@ -163,8 +166,10 @@ export default function Distribusi() {
         Object.keys(scaled).forEach((k) => { dGrid[k] = { ...scaled[k] }; });
       }
       setDistGrid(dGrid);
+      } // end if (!hasUserModifiedGrids)
 
       // Load returGrid from penjualan
+      // ALWAYS rebuild from penjualan so Langkah 4 shows latest data
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
@@ -675,11 +680,8 @@ export default function Distribusi() {
   // Auto-refresh returGrid
   const handleAutoRefresh = useCallback(async () => {
     if (refreshing || !tanggal || outlets.length === 0) return;
-    // Hormati edit manual admin (Langkah 4 saat siklus dibuka, atau grid lain
-    // yang sedang dikerjakan) — jangan timpa nilai yang sedang dikoreksi admin
-    // dengan hitung ulang otomatis dari penjualan outlet. saveStep4 yang akan
-    // memakai nilai manual tsb saat menutup siklus.
-    if (hasUserModifiedGrids.current || hasManualReturEdits.current) return;
+    // Hormati edit manual retur admin — tapi selalu update dari penjualan terbaru
+    if (hasManualReturEdits.current) return;
     setRefreshing(true);
     try {
       hasUserModifiedGrids.current = false;

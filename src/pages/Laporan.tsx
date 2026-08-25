@@ -953,14 +953,13 @@ function SisaProduksiOH({
                           </span>
                         ) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
-                      <TableCell className="text-right font-bold text-success">
-                        {row.distribusi > 0 && !row.belumInput ? row.terjual : <span className="text-muted-foreground">—</span>}
+                      <TableCell className="text-right font-bold text-success">                          {row.distribusi > 0 ? row.terjual : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
                         {rupiah(row.harga)}
                       </TableCell>
                       <TableCell className="text-right font-bold text-primary">
-                        {row.distribusi > 0 && !row.belumInput ? rupiah(row.omset) : <span className="text-muted-foreground">—</span>}
+                        {row.distribusi > 0 ? rupiah(row.omset) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                     </TableRow>
                     );
@@ -1568,9 +1567,9 @@ function SisaProduksiAdminView({
                                       </span>
                                     ) : <span className="text-muted-foreground">0%</span>}
                                   </TableCell>
-                                  <TableCell className="text-right font-bold text-success">{row.belumInput ? <span className="text-muted-foreground">—</span> : row.terjual}</TableCell>
+                                  <TableCell className="text-right font-bold text-success">{row.terjual}</TableCell>
                                   <TableCell className="text-right text-xs text-muted-foreground">{rupiah(row.harga)}</TableCell>
-                                  <TableCell className="text-right font-bold text-primary">{row.belumInput ? <span className="text-muted-foreground">—</span> : rupiah(row.omset)}</TableCell>
+                                  <TableCell className="text-right font-bold text-primary">{rupiah(row.omset)}</TableCell>
                                 </TableRow>
                               );
                             })}
@@ -2234,11 +2233,11 @@ function RiwayatTransaksiTab({
                           )}
                         </TableCell>
                         <TableCell className="text-right font-bold text-success">
-                          {belumInput ? <span className="text-muted-foreground">—</span> : terjual}
+                          {terjual}
                         </TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground">{rupiah(row.harga)}</TableCell>
                         <TableCell className="text-right font-bold text-primary">
-                          {belumInput ? <span className="text-muted-foreground">—</span> : rupiah(omset)}
+                          {rupiah(omset)}
                         </TableCell>
                       </TableRow>
                     );

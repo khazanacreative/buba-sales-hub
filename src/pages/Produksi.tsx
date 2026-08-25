@@ -23,7 +23,7 @@ import { TablePagination } from "@/components/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { AkunKategori } from "@/lib/types";
-import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, loadRencanaGrid, CYCLE_JURNAL_REFS, hitungOHValue, nilaiPemotonganTanggal, hitungHPPValue, hitungOmzetHarian, loadOmzetSplitCache, saveOmzetSplitCache, hitungMaterialReqs } from "@/lib/produksi-utils";
+import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, loadRencanaGrid, loadGridFromReqs, CYCLE_JURNAL_REFS, hitungOHValue, nilaiPemotonganTanggal, hitungHPPValue, hitungOmzetHarian, loadOmzetSplitCache, saveOmzetSplitCache, hitungMaterialReqs } from "@/lib/produksi-utils";
 
 // Base ratios for Bubur (per 100gr beras = 6 cup)
 // Base ratio: Beras:Daging:Air:S.Hijau:S.Brokoli:S.Putih = 100:5:700:8:5:1.5
@@ -455,21 +455,21 @@ export default function Produksi() {
   }, [tanggal, outlets, penjualan, permohonanStok, produksi, bahan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
 
   // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids maupun hasManualReturEdits ===
-  // useEffect utama terblokir saat admin mengedit grid (plan/dist/retur), sehingga
-  // perubahan penjualan dari outlet TIDAK men-trigger reload returGrid.
-  // useEffect terpisah ini selalu update returGrid dari penjualan terbaru agar
-  // data OH sisa outlet langsung tergambar di tabel, tanpa mengganggu grid lain.
+  // Selalu hitung ulang dari loadGridFromReqs (permohonanStok terbaru) + penjualan
+  // terbaru dari getDB() — tidak bergantung pada distGrid state yang bisa stale.
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
-    const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+    const freshPenjualan = getDB().penjualan;
+    const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
+    // Selalu load fresh dari permohonanStok — tidak bergantung distGrid state
+    const freshDistGrid = loadGridFromReqs(outlets, permohonanStok, tanggal);
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => {
       rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
     });
-    // Pakai distGrid saat ini (bisa dari edit admin atau load DB)
     outlets.forEach((o) => {
-      const sent = distGrid[o.id] || {};
+      const sent = freshDistGrid[o.id] || {};
       if (!sent) return;
       const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
         const gramPerCup = baseId === "p-bubur" ? 118 : 108;
@@ -496,11 +496,11 @@ export default function Produksi() {
       rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
     });
     setReturGrid(rGrid);
-    lastSyncedSalesRef.current = penjualanRef.current
+    lastSyncedSalesRef.current = freshPenjualan
       .filter((p: any) => p.tanggal === tanggal)
       .reduce((s: number, p: any) => s + p.qty, 0)
-      .toString() + "-" + penjualanRef.current.filter((p: any) => p.tanggal === tanggal).length;
-  }, [tanggal, outlets, penjualan, distGrid]);
+      .toString() + "-" + freshPenjualan.filter((p: any) => p.tanggal === tanggal).length;
+  }, [tanggal, outlets, penjualan, permohonanStok]);
 
   const handlePlanChange = (outletId: string, field: string, val: number) => {
     if (isReadOnlyGudang) return;
@@ -1622,10 +1622,13 @@ export default function Produksi() {
       // — prevents stale closure when event fires before React re-renders
       await fetchFromSupabase();
       const freshPenjualan = getDB().penjualan;
+      const freshPermohonan = getDB().permohonanStok;
       const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
+      // Selalu load fresh dari permohonanStok — tidak bergantung distGrid state
+      const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = distGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {};
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
@@ -1687,7 +1690,7 @@ export default function Produksi() {
     } finally {
       setRefreshing(false);
     }
-  }, [tanggal, outlets, distGrid, refreshing]);
+  }, [tanggal, outlets, refreshing]);
 
   // Auto-refresh returGrid when penjualan saved from Laporan page
   // (triggered by custom event dispatched from outlet/admin)
@@ -1710,6 +1713,7 @@ export default function Produksi() {
       // snapshot directly — penjualanRef may be stale if React hasn't re-rendered.
       await fetchFromSupabase();
       const freshPenjualan = getDB().penjualan;
+      const freshPermohonan = getDB().permohonanStok;
 
       // Recalculate returGrid from latest penjualan data
       const rGrid: Record<string, Record<string, number>> = {};
@@ -1717,10 +1721,12 @@ export default function Produksi() {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
 
+      // Selalu load fresh dari permohonanStok — tidak bergantung distGrid state
+      const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
       const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = distGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {};
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {

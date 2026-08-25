@@ -217,23 +217,21 @@ export default function Distribusi() {
   }, [tanggal, outlets, penjualan, produksi, permohonanStok]);
 
   // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids maupun hasManualReturEdits ===
-  // Sync dari Supabase realtime harus selalu update returGrid meskipun admin
-  // pernah edit manual, agar data OH sisa outlet langsung tergambar di tabel.
+  // Selalu hitung ulang dari loadGridFromReqs (permohonanStok terbaru) + penjualan
+  // terbaru dari getDB() — tidak bergantung pada distGrid state yang bisa stale.
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
-    const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+    const freshPenjualan = getDB().penjualan;
+    const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
-    // Pastikan distGrid punya data — jika kosong, load dari permohonanStok
-    // agar returGrid bisa dihitung (mencegah returGrid selalu 0).
-    const activeDistGrid = Object.keys(distGrid).length > 0 ? distGrid : (() => {
-      const d = loadGridFromReqs(outlets, permohonanStok, tanggal);
-      setDistGrid(d);
-      return d;
-    })();
+    // Selalu load fresh dari permohonanStok — tidak bergantung distGrid state
+    // yang bisa stale (belum ter-update dari setDistGrid sebelumnya, atau terblokir
+    // hasUserModifiedGrids).
+    const freshDistGrid = loadGridFromReqs(outlets, permohonanStok, tanggal);
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
     outlets.forEach((o) => {
-      const sent = activeDistGrid[o.id] || {};
+      const sent = freshDistGrid[o.id] || {};
       if (!sent) return;
       const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
         const gramPerCup = baseId === "p-bubur" ? 118 : 108;
@@ -263,8 +261,8 @@ export default function Distribusi() {
       rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
     });
     setReturGrid(rGrid);
-    lastSyncedSalesRef.current = penjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
-  }, [tanggal, outlets, penjualan, distGrid, permohonanStok]);
+    lastSyncedSalesRef.current = freshPenjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + freshPenjualan.filter((p: any) => p.tanggal === tanggal).length;
+  }, [tanggal, outlets, penjualan, permohonanStok]);
 
   const handleDistChange = (outletId: string, field: string, val: number) => {
     hasUserModifiedGrids.current = true;
@@ -768,10 +766,13 @@ export default function Distribusi() {
       // — prevents stale closure when outlet saves before React re-renders
       await fetchFromSupabase();
       const freshPenjualan = getDB().penjualan;
+      const freshPermohonan = getDB().permohonanStok;
       const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
+      // Selalu load fresh dari permohonanStok — tidak bergantung distGrid state
+      const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = distGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {};
           if (!sent) return;
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
             const gramPerCup = baseId === "p-bubur" ? 118 : 108;
@@ -805,7 +806,7 @@ export default function Distribusi() {
       lastSyncedSalesRef.current = freshPenjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + freshPenjualan.filter((p: any) => p.tanggal === tanggal).length;
     } catch (err) { console.error("Auto-refresh returGrid failed:", err); }
     finally { setRefreshing(false); }
-  }, [tanggal, outlets, distGrid, refreshing]);
+  }, [tanggal, outlets, refreshing]);
 
   useEffect(() => {
     window.addEventListener("buba_penjualan_saved", handleAutoRefresh);
@@ -824,10 +825,13 @@ export default function Distribusi() {
       // — prevents stale closure when outlet saves before React re-renders
       await fetchFromSupabase();
       const freshPenjualan = getDB().penjualan;
+      const freshPermohonan = getDB().permohonanStok;
       const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
+      // Selalu load fresh dari permohonanStok — tidak bergantung distGrid state
+      const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = distGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {};
           if (!sent) return;
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
             const gramPerCup = baseId === "p-bubur" ? 118 : 108;

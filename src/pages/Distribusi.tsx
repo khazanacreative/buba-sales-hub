@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { db, useDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
+import { db, useDB, getDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { DateInput } from "@/components/DateInput";
 import { todayISO, rupiah } from "@/lib/format";
@@ -217,7 +217,7 @@ export default function Distribusi() {
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
     if (hasManualReturEdits.current) return;
-    const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
+    const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
@@ -249,7 +249,7 @@ export default function Distribusi() {
       rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
     });
     setReturGrid(rGrid);
-    lastSyncedSalesRef.current = penjualanRef.current.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualanRef.current.filter((p: any) => p.tanggal === tanggal).length;
+    lastSyncedSalesRef.current = penjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
   }, [tanggal, outlets, penjualan, distGrid]);
 
   const handleDistChange = (outletId: string, field: string, val: number) => {
@@ -458,14 +458,25 @@ export default function Distribusi() {
       for (const m of returMovs) {
         await supabase.from("stok_movement").delete().eq("id", m.id);
       }
-      const deletedCount = outSales.length + returMovs.length;
+      // Hapus penjualan auto-created (tanpa variant/sisaGram) yang dibuat
+      // oleh saveStep4 saat siklus ditutup sebelum outlet menginput sisa.
+      const stalePenjualan = (penjualan || []).filter(
+        (p: any) => p.tanggal === tanggal && (!p.variant || p.sisaGram == null)
+      );
+      for (const p of stalePenjualan) {
+        await supabase.from("penjualan").delete().eq("id", p.id);
+      }
+      const deletedCount = outSales.length + returMovs.length + stalePenjualan.length;
       // Lepas guard edit manual SEBELUM fetch agar grid di-reload dari data
       // terbaru DB & auto-sync penjualan dari outlet kembali aktif.
       hasUserModifiedGrids.current = false;
       hasManualReturEdits.current = false;
       await fetchFromSupabase();
-      if (deletedCount > 0) {
-        toast.success(`Siklus ${tanggal} dibuka (${deletedCount} record jurnal/stok dihapus) — penjualan bisa diedit ulang`);
+      const parts: string[] = [];
+      if (outSales.length + returMovs.length > 0) parts.push(`${outSales.length + returMovs.length} record jurnal/stok`);
+      if (stalePenjualan.length > 0) parts.push(`${stalePenjualan.length} penjualan auto`);
+      if (parts.length > 0) {
+        toast.success(`Siklus ${tanggal} dibuka (${parts.join(', ')} dihapus) — penjualan bisa diedit ulang`);
       } else {
         toast.info(`Tidak ada jurnal/retur siklus untuk ${tanggal} — siklus sudah terbuka`);
       }
@@ -738,8 +749,11 @@ export default function Distribusi() {
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
 
-      // Pakai ref agar selalu dpt data terbaru — mencegah stale closure
-      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
+      // Fetch fresh data from Supabase, then read latest store snapshot
+      // — prevents stale closure when outlet saves before React re-renders
+      await fetchFromSupabase();
+      const freshPenjualan = getDB().penjualan;
+      const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -770,7 +784,7 @@ export default function Distribusi() {
         });
       }
       setReturGrid(rGrid);
-      lastSyncedSalesRef.current = penjualanRef.current.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualanRef.current.filter((p: any) => p.tanggal === tanggal).length;
+      lastSyncedSalesRef.current = freshPenjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + freshPenjualan.filter((p: any) => p.tanggal === tanggal).length;
     } catch (err) { console.error("Auto-refresh returGrid failed:", err); }
     finally { setRefreshing(false); }
   }, [tanggal, outlets, distGrid, refreshing]);
@@ -788,8 +802,11 @@ export default function Distribusi() {
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
 
-      // Pakai ref agar selalu dpt data terbaru
-      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
+      // Fetch fresh data from Supabase, then read latest store snapshot
+      // — prevents stale closure when outlet saves before React re-renders
+      await fetchFromSupabase();
+      const freshPenjualan = getDB().penjualan;
+      const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -825,7 +842,8 @@ export default function Distribusi() {
       toast.error("Gagal memuat ulang data penjualan");
       console.error(err);
     } finally {
-      lastSyncedSalesRef.current = penjualanRef.current.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualanRef.current.length;
+      const syncPenjualan = getDB().penjualan;
+      lastSyncedSalesRef.current = syncPenjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + syncPenjualan.length;
       setRefreshing(false);
     }
   };

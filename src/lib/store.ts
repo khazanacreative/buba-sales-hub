@@ -182,6 +182,11 @@ function subscribe(l: () => void) {
 
 const getSnapshot = () => state;
 
+/** Return the latest store state snapshot (bypasses React render cycle). */
+export function getDB(): DB {
+  return state;
+}
+
 export function useDB(): DB {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { db, useDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
+import { db, useDB, getDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
 import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp, Copy, Package, LockOpen, Banknote, Loader2 } from "lucide-react";
@@ -588,14 +588,28 @@ export default function Produksi() {
       for (const m of returMovs) {
         await supabase.from("stok_movement").delete().eq("id", m.id);
       }
-      const deletedCount = outSales.length + returMovs.length;
+      // 3. Hapus penjualan auto-created (tanpa variant/sisaGram) yang dibuat
+      //    oleh saveStep4 saat siklus ditutup sebelum outlet menginput sisa.
+      //    Tanpa hapus ini, saveStep4 berikutnya skip auto-create (karena
+      //    existingPenjualan.length > 0) tapi calcRetur tetap gagal match
+      //    → returGrid menampilkan full distribusi (3540g bukan 164g).
+      const stalePenjualan = (dbState.penjualan || []).filter(
+        (p: any) => p.tanggal === tanggal && (!p.variant || p.sisaGram == null)
+      );
+      for (const p of stalePenjualan) {
+        await supabase.from("penjualan").delete().eq("id", p.id);
+      }
+      const deletedCount = outSales.length + returMovs.length + stalePenjualan.length;
       // Lepas guard edit manual SEBELUM fetch agar grid di-reload dari data
       // terbaru DB & auto-sync penjualan dari outlet kembali aktif.
       hasUserModifiedGrids.current = false;
       hasManualReturEdits.current = false;
       await fetchFromSupabase();
-      if (deletedCount > 0) {
-        toast.success(`Siklus ${tanggal} dibuka (${deletedCount} record jurnal/stok dihapus) — penjualan bisa diedit ulang`);
+      const parts: string[] = [];
+      if (outSales.length + returMovs.length > 0) parts.push(`${outSales.length + returMovs.length} record jurnal/stok`);
+      if (stalePenjualan.length > 0) parts.push(`${stalePenjualan.length} penjualan auto`);
+      if (parts.length > 0) {
+        toast.success(`Siklus ${tanggal} dibuka (${parts.join(', ')} dihapus) — penjualan bisa diedit ulang`);
       } else {
         toast.info(`Tidak ada jurnal/retur siklus untuk ${tanggal} — siklus sudah terbuka`);
       }
@@ -1595,9 +1609,11 @@ export default function Produksi() {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
 
-      // Pakai ref agar selalu dpt data terbaru — mencegah stale closure
-      // saat event buba_penjualan_saved fires sebelum Supabase real-time update
-      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
+      // Fetch fresh data from Supabase, then read latest store snapshot
+      // — prevents stale closure when event fires before React re-renders
+      await fetchFromSupabase();
+      const freshPenjualan = getDB().penjualan;
+      const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -1647,10 +1663,10 @@ export default function Produksi() {
 
       setReturGrid(rGrid);
 
-      lastSyncedSalesRef.current = penjualanRef.current
+      lastSyncedSalesRef.current = freshPenjualan
         .filter((p: any) => p.tanggal === tanggal)
         .reduce((s: number, p: any) => s + p.qty, 0)
-        .toString() + "-" + penjualanRef.current.filter((p: any) => p.tanggal === tanggal).length;
+        .toString() + "-" + freshPenjualan.filter((p: any) => p.tanggal === tanggal).length;
     } catch (err) {
       console.error("Auto-refresh returGrid failed:", err);
     } finally {
@@ -1675,14 +1691,18 @@ export default function Produksi() {
       hasUserModifiedGrids.current = false;
       hasManualReturEdits.current = false;
 
+      // Fetch fresh data from Supabase first, then read the latest store
+      // snapshot directly — penjualanRef may be stale if React hasn't re-rendered.
+      await fetchFromSupabase();
+      const freshPenjualan = getDB().penjualan;
+
       // Recalculate returGrid from latest penjualan data
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
 
-      // Pakai ref agar selalu dpt data terbaru
-      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
+      const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -1737,10 +1757,11 @@ export default function Produksi() {
       console.error(err);
     } finally {
       // Update sync signature
-      lastSyncedSalesRef.current = penjualanRef.current
+      const syncPenjualan = getDB().penjualan;
+      lastSyncedSalesRef.current = syncPenjualan
         .filter((p: any) => p.tanggal === tanggal)
         .reduce((s: number, p: any) => s + p.qty, 0)
-        .toString() + "-" + penjualanRef.current.length;
+        .toString() + "-" + syncPenjualan.length;
       setRefreshing(false);
     }
   };

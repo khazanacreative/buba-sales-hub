@@ -543,17 +543,17 @@ function SisaProduksiOH({
           // Oatmeal/Puding dalam cups, Abon dalam pcs
           const variantSale = existingSales.find((p: any) => p.variant === item.subId);
           if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
-            next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
+            next[key] = variantSale.sisaGram;
             return;
           }
           next[key] = 0; // default: 0 — user hanya input OH jika ada sisa penjualan
         } else {
           // For bubur/tim: try to read sisaGram from variant-specific penjualan record
-          // This preserves the EXACT grams entered by user per variant
+          // Always overwrite from DB when user hasn't modified (userModifiedSisa=false guarded above)
           const variantSale = existingSales.find((p: any) => p.variant === item.subId);
           if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
             // Found exact per-variant sisaGram — use it directly!
-            next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
+            next[key] = variantSale.sisaGram;
             return;
           }
           // Fallback: legacy data (no variant column) — distribute proportionally
@@ -565,7 +565,7 @@ function SisaProduksiOH({
               allSubIds.forEach(sid => { siblingTotal += distMap.get(sid) || 0; });
               const proportion = siblingTotal > 0 ? distQty / siblingTotal : 1;
               const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
-              next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;
+              next[key] = sisaGramVal;
               return;
             }
           }
@@ -1179,7 +1179,7 @@ function SisaProduksiAdminView({
             const variantSale = existingSales.find((p: any) => p.variant === subId);
             if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
               // Found exact per-variant sisaGram — use it directly!
-              next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
+              next[key] = variantSale.sisaGram;
               return;
             }
             // Fallback: legacy data (no variant column) — distribute proportionally
@@ -1194,7 +1194,7 @@ function SisaProduksiAdminView({
                 });
                 const proportion = siblingTotal > 0 ? info.distQty / siblingTotal : 1;
                 const sisaGramVal = Math.round(firstSale.sisaGram * proportion);
-                next[key] = prev[key] !== undefined ? prev[key] : sisaGramVal;
+                next[key] = sisaGramVal;
                 return;
               }
             }
@@ -1202,7 +1202,7 @@ function SisaProduksiAdminView({
             // For cup/pcs-based items (oatmeal, puding, abon): try to read sisaGram
             const variantSale = existingSales.find((p: any) => p.variant === subId);
             if (variantSale?.sisaGram !== undefined && variantSale?.sisaGram !== null) {
-              next[key] = prev[key] !== undefined ? prev[key] : variantSale.sisaGram;
+              next[key] = variantSale.sisaGram;
               return;
             }
           }

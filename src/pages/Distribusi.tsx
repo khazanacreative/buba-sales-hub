@@ -223,10 +223,17 @@ export default function Distribusi() {
     if (!tanggal || outlets.length === 0) return;
     const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
+    // Pastikan distGrid punya data — jika kosong, load dari permohonanStok
+    // agar returGrid bisa dihitung (mencegah returGrid selalu 0).
+    const activeDistGrid = Object.keys(distGrid).length > 0 ? distGrid : (() => {
+      const d = loadGridFromReqs(outlets, permohonanStok, tanggal);
+      setDistGrid(d);
+      return d;
+    })();
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
     outlets.forEach((o) => {
-      const sent = distGrid[o.id] || {};
+      const sent = activeDistGrid[o.id] || {};
       if (!sent) return;
       const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
         const gramPerCup = baseId === "p-bubur" ? 118 : 108;
@@ -257,7 +264,7 @@ export default function Distribusi() {
     });
     setReturGrid(rGrid);
     lastSyncedSalesRef.current = penjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
-  }, [tanggal, outlets, penjualan, distGrid]);
+  }, [tanggal, outlets, penjualan, distGrid, permohonanStok]);
 
   const handleDistChange = (outletId: string, field: string, val: number) => {
     hasUserModifiedGrids.current = true;

@@ -478,15 +478,23 @@ export default function Produksi() {
         if (dRec) rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
         if (iRec) rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
         if (!dRec && !iRec) {
-          const totalSent = dSent + iSent;
-          const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-          const totalRetur = Math.max(0, totalSent - sold);
-          if (totalSent > 0) {
-            const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-            const iReturCups = totalRetur - dReturCups;
-            rGrid[o.id][dField] = dReturCups * gramPerCup;
-            rGrid[o.id][iField] = iReturCups * gramPerCup;
+          // Only use fallback if outlet has penjualan records for this product
+          // (auto-created without variant/sisaGram). If no records at all,
+          // keep retur at 0 — outlet hasn't entered data yet.
+          const outletProdRecords = existingSales
+            .filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+          if (outletProdRecords.length > 0) {
+            const totalSent = dSent + iSent;
+            const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+            const totalRetur = Math.max(0, totalSent - sold);
+            if (totalSent > 0) {
+              const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+              const iReturCups = totalRetur - dReturCups;
+              rGrid[o.id][dField] = dReturCups * gramPerCup;
+              rGrid[o.id][iField] = iReturCups * gramPerCup;
+            }
           }
+          // else: no penjualan records → retur stays 0 (belum input)
         }
       };
       calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
@@ -3350,32 +3358,32 @@ export default function Produksi() {
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_d || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{row.bubur_d || 0}</span>
-                              <span className="text-muted-foreground/60"> retur</span>
+                              <span className="text-destructive">{Math.round((row.bubur_d || 0) / BUBUR_GRAM_PEMBULATAN)}</span>
+                              <span className="text-muted-foreground/60"> cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.bubur_d || 0, row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_i || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{row.bubur_i || 0}</span>
-                              <span className="text-muted-foreground/60"> retur</span>
+                              <span className="text-destructive">{Math.round((row.bubur_i || 0) / BUBUR_GRAM_PEMBULATAN)}</span>
+                              <span className="text-muted-foreground/60"> cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.bubur_i || 0, row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_d || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{row.tim_d || 0}</span>
-                              <span className="text-muted-foreground/60"> retur</span>
+                              <span className="text-destructive">{Math.round((row.tim_d || 0) / TIM_GRAM_PEMBULATAN)}</span>
+                              <span className="text-muted-foreground/60"> cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.tim_d || 0, row.tim_d || 0, TIM_GRAM_PEMBULATAN)} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_i || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{row.tim_i || 0}</span>
-                              <span className="text-muted-foreground/60"> retur</span>
+                              <span className="text-destructive">{Math.round((row.tim_i || 0) / TIM_GRAM_PEMBULATAN)}</span>
+                              <span className="text-muted-foreground/60"> cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.tim_i || 0, row.tim_i || 0, TIM_GRAM_PEMBULATAN)} cup</div>
                           </TableCell>

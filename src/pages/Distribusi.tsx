@@ -216,11 +216,14 @@ export default function Distribusi() {
     }
   }, [tanggal, outlets, penjualan, produksi, permohonanStok]);
 
-  // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids maupun hasManualReturEdits ===
+  // === RETUR-ONLY SYNC — terblokir hasManualReturEdits (editan admin dihormati)
   // Selalu hitung ulang dari loadGridFromReqs (permohonanStok terbaru) + penjualan
   // terbaru dari getDB() — tidak bergantung pada distGrid state yang bisa stale.
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
+    // Jangan overwrite returGrid jika admin sudah manual edit — editan dihormati
+    // sampai save (saveStep4) atau ganti tanggal.
+    if (hasManualReturEdits.current) return;
     const freshPenjualan = getDB().penjualan;
     const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
@@ -1116,8 +1119,17 @@ export default function Distribusi() {
                           )}
                         </div>
                         <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t">
-                          <span>Retur: <strong className="text-foreground">{returCups} {unitLabel}</strong></span>
-                          <span>Terjual: <strong className="text-primary">{sold} {unitLabel}</strong></span>
+                          {isBuburTim ? (
+                            <>
+                              <span>Retur: <strong className="text-foreground">{returVal}g</strong> <span className="text-muted-foreground">= {returCups} cup</span></span>
+                              <span>Terjual: <strong className="text-primary">{sold} cup</strong></span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Retur: <strong className="text-foreground">{returCups} {unitLabel}</strong></span>
+                              <span>Terjual: <strong className="text-primary">{sold} {unitLabel}</strong></span>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
@@ -1136,7 +1148,7 @@ export default function Distribusi() {
                   <TableHeader>
                     <TableRow className="bg-muted/40">
                       <TableHead>Outlet</TableHead>
-                      {["Bubur", "Tim", "Oatmeal", "Puding", "Abon"].map(h => <TableHead key={h} className="text-center font-bold text-xs">{h}</TableHead>)}
+                      {["Bubur (g)", "Tim (g)", "Oatmeal", "Puding", "Abon"].map(h => <TableHead key={h} className="text-center font-bold text-xs">{h}</TableHead>)}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1166,12 +1178,14 @@ export default function Distribusi() {
                         <TableRow key={o.id} onClick={() => setReturOutletId(o.id)} className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" : "hover:bg-muted/30"}`}>
                           <TableCell className="font-semibold py-3">{o.nama}</TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
-                            <span className="text-destructive">{buburRet}</span> / <span className="text-primary font-semibold">{buburTerjual}</span>
-                            <div className="text-[9px] text-muted-foreground">ret/terj</div>
+                            <span className="text-destructive font-semibold">{buburGram}g</span>
+                            <span className="text-muted-foreground"> = {buburRet} cup</span>
+                            <div className="text-[9px] text-primary font-semibold">terjual {buburTerjual} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
-                            <span className="text-destructive">{timRet}</span> / <span className="text-primary font-semibold">{timTerjual}</span>
-                            <div className="text-[9px] text-muted-foreground">ret/terj</div>
+                            <span className="text-destructive font-semibold">{timGram}g</span>
+                            <span className="text-muted-foreground"> = {timRet} cup</span>
+                            <div className="text-[9px] text-primary font-semibold">terjual {timTerjual} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
                             <span className="text-destructive">{oatRet}</span> / <span className="text-primary font-semibold">{calcSold(oatSent, oatRet)}</span>

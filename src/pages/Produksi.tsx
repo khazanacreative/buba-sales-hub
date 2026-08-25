@@ -454,11 +454,13 @@ export default function Produksi() {
     }
   }, [tanggal, outlets, penjualan, permohonanStok, produksi, bahan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
 
-  // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids maupun hasManualReturEdits ===
+  // === RETUR-ONLY SYNC — terblokir hasManualReturEdits (editan admin dihormati)
   // Selalu hitung ulang dari loadGridFromReqs (permohonanStok terbaru) + penjualan
   // terbaru dari getDB() — tidak bergantung pada distGrid state yang bisa stale.
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
+    // Jangan overwrite returGrid jika admin sudah manual edit
+    if (hasManualReturEdits.current) return;
     const freshPenjualan = getDB().penjualan;
     const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
@@ -3359,32 +3361,32 @@ export default function Produksi() {
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_d || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)}</span>
-                              <span className="text-muted-foreground/60"> cup</span>
+                              <span className="text-destructive">{row.bubur_d || 0}g</span>
+                              <span className="text-muted-foreground/60"> = {sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)} cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_d || 0) - Math.min(sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_i || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)}</span>
-                              <span className="text-muted-foreground/60"> cup</span>
+                              <span className="text-destructive">{row.bubur_i || 0}g</span>
+                              <span className="text-muted-foreground/60"> = {sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)} cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_i || 0) - Math.min(sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_i || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_d || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN)}</span>
-                              <span className="text-muted-foreground/60"> cup</span>
+                              <span className="text-destructive">{row.tim_d || 0}g</span>
+                              <span className="text-muted-foreground/60"> = {sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN)} cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_d || 0) - Math.min(sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN), sent.tim_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_i || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN)}</span>
-                              <span className="text-muted-foreground/60"> cup</span>
+                              <span className="text-destructive">{row.tim_i || 0}g</span>
+                              <span className="text-muted-foreground/60"> = {sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN)} cup</span>
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_i || 0) - Math.min(sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN), sent.tim_i || 0))} cup</div>
                           </TableCell>

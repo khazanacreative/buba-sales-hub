@@ -653,11 +653,13 @@ export function hitungOmzetHarian(opts: {
     const ret = { ...def, ...(returGrid[o.id] || {}) };
     const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
     if (buburSent > 0) {
-      total += hitungTerjualOh(buburSent, (ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN) * harga("p-bubur");
+      const buburRetCups = sisaGramToCups((ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN);
+      total += Math.max(0, buburSent - Math.min(buburRetCups, buburSent)) * harga("p-bubur");
     }
     const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
     if (timSent > 0) {
-      total += hitungTerjualOh(timSent, (ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN) * harga("p-nasitim");
+      const timRetCups = sisaGramToCups((ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN);
+      total += Math.max(0, timSent - Math.min(timRetCups, timSent)) * harga("p-nasitim");
     }
     const addSold = (baseId: string, subSent: number, subRetur: number) => {
       if (subSent <= 0) return;

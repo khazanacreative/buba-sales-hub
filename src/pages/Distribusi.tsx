@@ -540,8 +540,9 @@ export default function Distribusi() {
 
           const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
           if (buburSent > 0) {
-            // Pembulatan setelah gramasi (118 gr/cup): Terjual = (Stok gr − OH gr) ÷ 118
-            const buburSold = hitungTerjualOh(buburSent, (ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN);
+            // Terjual = distribusi − sisaOH (cup), sisaOH = sisaGramToCups
+            const buburRetCups = sisaGramToCups((ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN);
+            const buburSold = Math.max(0, buburSent - Math.min(buburRetCups, buburSent));
             if (buburSold > 0) {
               const prod = produk.find((p: any) => p.id === "p-bubur");
               penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-bubur", qty: buburSold, harga: prod?.harga || 0 });
@@ -550,8 +551,8 @@ export default function Distribusi() {
 
           const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
           if (timSent > 0) {
-            // Pembulatan setelah gramasi (108 gr/cup): Terjual = (Stok gr − OH gr) ÷ 108
-            const timSold = hitungTerjualOh(timSent, (ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN);
+            const timRetCups = sisaGramToCups((ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN);
+            const timSold = Math.max(0, timSent - Math.min(timRetCups, timSent));
             if (timSold > 0) {
               const prod = produk.find((p: any) => p.id === "p-nasitim");
               penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-nasitim", qty: timSold, harga: prod?.harga || 0 });
@@ -1088,10 +1089,9 @@ export default function Distribusi() {
                     const returVal = (row as any)[item.field] || 0;
                     const isBuburTim = ["bubur_d", "bubur_i", "tim_d", "tim_i"].includes(item.field);
                     // returGrid: Bubur/Tim dalam gram, Oatmeal/Puding dalam cup, Abon dalam pcs.
-                    // Pembulatan setelah gramasi (118 Bubur / 108 Tim): cup retur = round(gram ÷ gram/cup).
-                    const returCups = isBuburTim ? Math.round(returVal / item.roundGram) : returVal;
-                    // Pakai hitungTerjualOh agar sesuai dgn formula database (urutan pembulatan sama)
-                    const sold = isBuburTim ? hitungTerjualOh(item.sent, returVal, item.roundGram) : Math.max(0, item.sent - Math.min(returVal, item.sent));
+                    // Pembulatan sisa OH bubur/tim: floor(gram ÷ gpc) + (frac > 0.5 ? 1 : 0)
+                    const returCups = isBuburTim ? sisaGramToCups(returVal, item.roundGram) : returVal;
+                    const sold = Math.max(0, item.sent - Math.min(returCups, item.sent));
                     const unitLabel = item.field === "abon" ? "pcs" : "cup";
 
                     return (
@@ -1148,13 +1148,13 @@ export default function Distribusi() {
                       const calcSold = (sent: number, returCups: number) => Math.max(0, sent - Math.min(returCups, sent));
 
                       const buburGram = (row.bubur_d || 0) + (row.bubur_i || 0);
-                      const buburRet = Math.round(buburGram / BUBUR_GRAM_PEMBULATAN);
+                      const buburRet = sisaGramToCups(buburGram, BUBUR_GRAM_PEMBULATAN);
                       const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
-                      const buburTerjual = hitungTerjualOh(buburSent, buburGram, BUBUR_GRAM_PEMBULATAN);
+                      const buburTerjual = calcSold(buburSent, buburRet);
                       const timGram = (row.tim_d || 0) + (row.tim_i || 0);
-                      const timRet = Math.round(timGram / TIM_GRAM_PEMBULATAN);
+                      const timRet = sisaGramToCups(timGram, TIM_GRAM_PEMBULATAN);
                       const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
-                      const timTerjual = hitungTerjualOh(timSent, timGram, TIM_GRAM_PEMBULATAN);
+                      const timTerjual = calcSold(timSent, timRet);
                       const oatRet = row.oatmeal || 0; // returGrid menyimpan Oatmeal dalam cup
                       const oatSent = sent.oatmeal || 0;
                       const pudRet = row.puding || 0; // returGrid menyimpan Puding dalam cup

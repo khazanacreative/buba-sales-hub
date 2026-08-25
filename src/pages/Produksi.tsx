@@ -1267,8 +1267,9 @@ export default function Produksi() {
           // Merge D/I variants under same baseId for sold calculation
           const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
           if (buburSent > 0) {
-            // Pembulatan setelah gramasi (118 gr/cup): Terjual = (Stok gr − OH gr) ÷ 118
-            const buburSold = hitungTerjualOh(buburSent, (ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN);
+            // Terjual = distribusi − sisaOH (cup), sisaOH = sisaGramToCups
+            const buburRetCups = sisaGramToCups((ret.bubur_d || 0) + (ret.bubur_i || 0), BUBUR_GRAM_PEMBULATAN);
+            const buburSold = Math.max(0, buburSent - Math.min(buburRetCups, buburSent));
             if (buburSold > 0) {
               const prod = produk.find((p: any) => p.id === "p-bubur");
               penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-bubur", qty: buburSold, harga: prod?.harga || 0 });
@@ -1277,8 +1278,8 @@ export default function Produksi() {
 
           const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
           if (timSent > 0) {
-            // Pembulatan setelah gramasi (108 gr/cup): Terjual = (Stok gr − OH gr) ÷ 108
-            const timSold = hitungTerjualOh(timSent, (ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN);
+            const timRetCups = sisaGramToCups((ret.tim_d || 0) + (ret.tim_i || 0), TIM_GRAM_PEMBULATAN);
+            const timSold = Math.max(0, timSent - Math.min(timRetCups, timSent));
             if (timSold > 0) {
               const prod = produk.find((p: any) => p.id === "p-nasitim");
               penjualanBatch.push({ tanggal, outletId: o.id, produkId: "p-nasitim", qty: timSold, harga: prod?.harga || 0 });
@@ -3203,8 +3204,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.round((row.bubur_d || 0) / BUBUR_GRAM_PEMBULATAN)} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {hitungTerjualOh(sent.bubur_d || 0, row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)} cup ({(hitungTerjualOh(sent.bubur_d || 0, row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN) * BUBUR_GRAM_PEMBULATAN).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_d || 0) - Math.min(sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_d || 0))} cup ({(Math.max(0, (sent.bubur_d || 0) - Math.min(sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_d || 0)) * BUBUR_GRAM_PEMBULATAN).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Bubur ${bubur2Name} Retur`}>B. {bubur2Name}</Label>
@@ -3221,8 +3222,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.round((row.bubur_i || 0) / BUBUR_GRAM_PEMBULATAN)} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {hitungTerjualOh(sent.bubur_i || 0, row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)} cup ({(hitungTerjualOh(sent.bubur_i || 0, row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN) * BUBUR_GRAM_PEMBULATAN).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.bubur_i || 0) - Math.min(sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_i || 0))} cup ({(Math.max(0, (sent.bubur_i || 0) - Math.min(sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_i || 0)) * BUBUR_GRAM_PEMBULATAN).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-amber-500/5 p-2.5 rounded-xl border border-amber-300/30">
                     <Label className="text-[10px] font-bold text-amber-600 block truncate" title={`Tim ${tim1Name} Retur`}>T. {tim1Name}</Label>
@@ -3239,8 +3240,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-amber-300 focus-visible:ring-amber-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.round((row.tim_d || 0) / TIM_GRAM_PEMBULATAN)} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {hitungTerjualOh(sent.tim_d || 0, row.tim_d || 0, TIM_GRAM_PEMBULATAN)} cup ({(hitungTerjualOh(sent.tim_d || 0, row.tim_d || 0, TIM_GRAM_PEMBULATAN) * TIM_GRAM_PEMBULATAN).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_d || 0) - Math.min(sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN), sent.tim_d || 0))} cup ({(Math.max(0, (sent.tim_d || 0) - Math.min(sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN), sent.tim_d || 0)) * TIM_GRAM_PEMBULATAN).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-blue-500/5 p-2.5 rounded-xl border border-blue-300/30">
                     <Label className="text-[10px] font-bold text-blue-600 block truncate" title={`Tim ${tim2Name} Retur`}>T. {tim2Name}</Label>
@@ -3257,8 +3258,8 @@ export default function Produksi() {
                       className="h-9 text-xs text-center border-blue-300 focus-visible:ring-blue-500 font-semibold"
                       placeholder="Gram"
                     />
-                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {Math.round((row.tim_i || 0) / TIM_GRAM_PEMBULATAN)} cup retur</span>
-                    <span className="text-[9px] text-success block text-center">Terjual: {hitungTerjualOh(sent.tim_i || 0, row.tim_i || 0, TIM_GRAM_PEMBULATAN)} cup ({(hitungTerjualOh(sent.tim_i || 0, row.tim_i || 0, TIM_GRAM_PEMBULATAN) * TIM_GRAM_PEMBULATAN).toLocaleString()} g)</span>
+                    <span className="text-[11px] font-semibold text-emerald-600 block text-center mt-0.5">≈ {sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN)} cup retur</span>
+                    <span className="text-[9px] text-success block text-center">Terjual: {Math.max(0, (sent.tim_i || 0) - Math.min(sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN), sent.tim_i || 0))} cup ({(Math.max(0, (sent.tim_i || 0) - Math.min(sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN), sent.tim_i || 0)) * TIM_GRAM_PEMBULATAN).toLocaleString()} g)</span>
                   </div>
                   <div className="space-y-1 bg-card p-2.5 rounded-xl border">
                     <Label className="text-[10px] font-bold text-muted-foreground block truncate">Oatmeal Retur</Label>
@@ -3358,34 +3359,34 @@ export default function Produksi() {
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_d || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{Math.round((row.bubur_d || 0) / BUBUR_GRAM_PEMBULATAN)}</span>
+                              <span className="text-destructive">{sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)}</span>
                               <span className="text-muted-foreground/60"> cup</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.bubur_d || 0, row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_d || 0) - Math.min(sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_i || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{Math.round((row.bubur_i || 0) / BUBUR_GRAM_PEMBULATAN)}</span>
+                              <span className="text-destructive">{sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)}</span>
                               <span className="text-muted-foreground/60"> cup</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.bubur_i || 0, row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_i || 0) - Math.min(sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_i || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_d || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{Math.round((row.tim_d || 0) / TIM_GRAM_PEMBULATAN)}</span>
+                              <span className="text-destructive">{sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN)}</span>
                               <span className="text-muted-foreground/60"> cup</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.tim_d || 0, row.tim_d || 0, TIM_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_d || 0) - Math.min(sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN), sent.tim_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_i || 0} cup</div>
                             <div className="font-semibold text-xs">
-                              <span className="text-destructive">{Math.round((row.tim_i || 0) / TIM_GRAM_PEMBULATAN)}</span>
+                              <span className="text-destructive">{sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN)}</span>
                               <span className="text-muted-foreground/60"> cup</span>
                             </div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(sent.tim_i || 0, row.tim_i || 0, TIM_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_i || 0) - Math.min(sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN), sent.tim_i || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.oatmeal || 0} cup</div>
@@ -3436,22 +3437,22 @@ export default function Produksi() {
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.bubur_d || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.bubur_d || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(tSent.bubur_d || 0, tRow.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.bubur_d || 0) - Math.min(sisaGramToCups(tRow.bubur_d || 0, BUBUR_GRAM_PEMBULATAN), tSent.bubur_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-blue-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.bubur_i || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.bubur_i || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(tSent.bubur_i || 0, tRow.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.bubur_i || 0) - Math.min(sisaGramToCups(tRow.bubur_i || 0, BUBUR_GRAM_PEMBULATAN), tSent.bubur_i || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.tim_d || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.tim_d || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(tSent.tim_d || 0, tRow.tim_d || 0, TIM_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.tim_d || 0) - Math.min(sisaGramToCups(tRow.tim_d || 0, TIM_GRAM_PEMBULATAN), tSent.tim_d || 0))} cup</div>
                           </TableCell>
                           <TableCell className="bg-amber-500/5 text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.tim_i || 0} cup</div>
                             <div className="font-semibold text-xs"><span className="text-destructive">{tRow.tim_i || 0}</span><span className="text-muted-foreground/60"> retur</span></div>
-                            <div className="text-[9px] text-success">Terjual: {hitungTerjualOh(tSent.tim_i || 0, tRow.tim_i || 0, TIM_GRAM_PEMBULATAN)} cup</div>
+                            <div className="text-[9px] text-success">Terjual: {Math.max(0, (tSent.tim_i || 0) - Math.min(sisaGramToCups(tRow.tim_i || 0, TIM_GRAM_PEMBULATAN), tSent.tim_i || 0))} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2">
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {tSent.oatmeal || 0} cup</div>

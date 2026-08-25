@@ -25,7 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { computeIsLocked, DEFAULT_LOCK_DEADLINE, hitungTerjualOh } from "@/lib/produksi-utils";
+import { computeIsLocked, DEFAULT_LOCK_DEADLINE, hitungTerjualOh, sisaGramToCups } from "@/lib/produksi-utils";
 
 type Periode = "harian" | "mingguan" | "bulanan";
 
@@ -633,8 +633,8 @@ function SisaProduksiOH({
         sisaGram = sisaCups * item.gramPerCup;
       } else {
         sisaGram = storedVal; // stored in grams for bubur/tim
-        // Pembulatan SETELAH gramasi (aturan baru): sisa cup = round(sisa gr ÷ gram pembulatan)
-        sisaCups = item.gramPerCup > 0 ? Math.min(Math.round(sisaGram / item.gramPerCup), distQty) : 0;
+        // Pembulatan sisa OH bubur/tim: floor(gram ÷ gpc) + (frac > 0.5 ? 1 : 0)
+        sisaCups = item.gramPerCup > 0 ? Math.min(sisaGramToCups(sisaGram, item.gramPerCup), distQty) : 0;
       }
 
       // Omset SELARAS dgn tab Riwayat & Rekap: saat record penjualan sudah tersimpan
@@ -646,7 +646,8 @@ function SisaProduksiOH({
       const prod = produk.find((p: any) => p.id === item.baseId);
       const harga = existingSale?.harga ?? (prod?.harga || 0);
       const hasStored = !!existingSale;
-      const liveTerjual = distQty > 0 ? (isCupUnit ? Math.max(0, distQty - Math.min(sisaCups, distQty)) : hitungTerjualOh(distQty, sisaGram, item.gramPerCup)) : 0;
+      // Terjual = distribusi − sisaOH (seragam utk semua item: gram & cup/pcs)
+      const liveTerjual = distQty > 0 ? Math.max(0, distQty - Math.min(sisaCups, distQty)) : 0;
       const terjual = hasStored && !userModifiedSisa ? (existingSale.qty || 0) : liveTerjual;
       const belumInput = distQty > 0 && !hasStored && !userModifiedSisa;
       const omset = distQty > 0 && (hasStored || userModifiedSisa) ? terjual * harga : 0;
@@ -721,13 +722,10 @@ function SisaProduksiOH({
         if (row.distribusi <= 0) continue;
         if (!baseGroups.has(row.baseId)) baseGroups.set(row.baseId, []);
         baseGroups.get(row.baseId)!.push(row);
-      }
-
-      for (const [baseId, variantRows] of baseGroups) {
-        // Build variant records for atomic replace
-        const variants = variantRows.map((row) => {
-          const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
-          const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
+      }        for (const [baseId, variantRows] of baseGroups) {
+          // Build variant records for atomic replace
+          const variants = variantRows.map((row) => {
+            const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
           const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
           let sisaGramVal: number | undefined;
           if (isGramItem) {
@@ -1244,8 +1242,8 @@ function SisaProduksiAdminView({
             sisaGram = sisaCups * item.gramPerCup;
           } else {
             sisaGram = storedVal; // stored in grams
-            // Pembulatan SETELAH gramasi (aturan baru): sisa cup = round(sisa gr ÷ gram pembulatan)
-            sisaCups = item.gramPerCup > 0 ? Math.min(Math.round(sisaGram / item.gramPerCup), info.distQty) : 0;
+            // Pembulatan sisa OH bubur/tim: floor(gram ÷ gpc) + (frac > 0.5 ? 1 : 0)
+            sisaCups = item.gramPerCup > 0 ? Math.min(sisaGramToCups(sisaGram, item.gramPerCup), info.distQty) : 0;
           }
           // Omset SELARAS dgn tab Riwayat & Rekap: pakai qty & harga TERSIMPAN saat record
           // sudah ada & admin belum mengubah grid; hitung ulang hanya utk input baru.
@@ -1254,7 +1252,8 @@ function SisaProduksiAdminView({
           );
           const harga = existingSale?.harga ?? info.harga;
           const hasStored = !!existingSale;
-          const liveTerjual = isCupItemCheck ? Math.max(0, info.distQty - Math.min(sisaCups, info.distQty)) : hitungTerjualOh(info.distQty, sisaGram, item.gramPerCup);
+          // Terjual = distribusi − sisaOH (seragam utk semua item: gram & cup/pcs)
+          const liveTerjual = info.distQty > 0 ? Math.max(0, info.distQty - Math.min(sisaCups, info.distQty)) : 0;
           const terjual = hasStored && !userModifiedSisa ? (existingSale.qty || 0) : liveTerjual;
           const belumInput = !hasStored && !userModifiedSisa;
           const omset = hasStored || userModifiedSisa ? terjual * harga : 0;
@@ -1329,8 +1328,6 @@ function SisaProduksiAdminView({
           // Build variant records for atomic replace
           const variants = variantRows.map((row) => {
             const terjual = Math.max(0, row.distQty - Math.min(row.sisaCups, row.distQty));
-            const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
-            const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
             let sisaGramVal: number | undefined;
             if (isGramItem) {
               sisaGramVal = Math.min(row.sisaGram, row.distQty * row.gramPerCup);
@@ -2039,8 +2036,8 @@ function RiwayatTransaksiTab({
             dbSisaCups = dbRec.sisaGram;
             displayGr = dbSisaCups * gramPerCup;
           } else {
-            // sisaGram stores grams for bubur/tim — pembulatan setelah gramasi
-            dbSisaCups = gramPerCup > 0 ? Math.max(0, Math.round(dbRec.sisaGram / gramPerCup)) : 0;
+            // sisaGram stores grams for bubur/tim — pembulatan sisaOH: floor(gram/gpc) + (frac > 0.5 ? 1)
+            dbSisaCups = gramPerCup > 0 ? Math.max(0, sisaGramToCups(dbRec.sisaGram, gramPerCup)) : 0;
             displayGr = dbRec.sisaGram;
           }
         } else {

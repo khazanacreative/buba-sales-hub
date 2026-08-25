@@ -454,14 +454,13 @@ export default function Produksi() {
     }
   }, [tanggal, outlets, penjualan, permohonanStok, produksi, bahan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
 
-  // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids ===
+  // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids maupun hasManualReturEdits ===
   // useEffect utama terblokir saat admin mengedit grid (plan/dist/retur), sehingga
   // perubahan penjualan dari outlet TIDAK men-trigger reload returGrid.
-  // useEffect terpisah ini HANYA update returGrid dari penjualan terbaru,
-  // tanpa mengganggu grid lain yg sedang diedit admin.
+  // useEffect terpisah ini selalu update returGrid dari penjualan terbaru agar
+  // data OH sisa outlet langsung tergambar di tabel, tanpa mengganggu grid lain.
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
-    if (hasManualReturEdits.current) return; // hormati edit manual admin
     const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
     const rGrid: Record<string, Record<string, number>> = {};
@@ -1610,8 +1609,6 @@ export default function Produksi() {
   // Wrap handleRefreshStep4 so it doesn't trigger the toast on auto-refresh
   const handleAutoRefresh = useCallback(async () => {
     if (refreshing || !tanggal || outlets.length === 0) return;
-    // Hormati edit manual retur admin — tapi selalu update dari penjualan terbaru
-    if (hasManualReturEdits.current) return;
     setRefreshing(true);
 
     try {

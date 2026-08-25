@@ -216,10 +216,11 @@ export default function Distribusi() {
     }
   }, [tanggal, outlets, penjualan, produksi, permohonanStok]);
 
-  // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids ===
+  // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids maupun hasManualReturEdits ===
+  // Sync dari Supabase realtime harus selalu update returGrid meskipun admin
+  // pernah edit manual, agar data OH sisa outlet langsung tergambar di tabel.
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
-    if (hasManualReturEdits.current) return;
     const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
     const rGrid: Record<string, Record<string, number>> = {};
@@ -750,8 +751,6 @@ export default function Distribusi() {
   // Auto-refresh returGrid
   const handleAutoRefresh = useCallback(async () => {
     if (refreshing || !tanggal || outlets.length === 0) return;
-    // Hormati edit manual retur admin — tapi selalu update dari penjualan terbaru
-    if (hasManualReturEdits.current) return;
     setRefreshing(true);
     try {
       hasUserModifiedGrids.current = false;
@@ -1137,10 +1136,14 @@ export default function Distribusi() {
 
                       const calcSold = (sent: number, returCups: number) => Math.max(0, sent - Math.min(returCups, sent));
 
-                      const buburRet = Math.round(((row.bubur_d || 0) + (row.bubur_i || 0)) / BUBUR_GRAM_PEMBULATAN);
+                      const buburGram = (row.bubur_d || 0) + (row.bubur_i || 0);
+                      const buburRet = Math.round(buburGram / BUBUR_GRAM_PEMBULATAN);
                       const buburSent = (sent.bubur_d || 0) + (sent.bubur_i || 0);
-                      const timRet = Math.round(((row.tim_d || 0) + (row.tim_i || 0)) / TIM_GRAM_PEMBULATAN);
+                      const buburTerjual = hitungTerjualOh(buburSent, buburGram, BUBUR_GRAM_PEMBULATAN);
+                      const timGram = (row.tim_d || 0) + (row.tim_i || 0);
+                      const timRet = Math.round(timGram / TIM_GRAM_PEMBULATAN);
                       const timSent = (sent.tim_d || 0) + (sent.tim_i || 0);
+                      const timTerjual = hitungTerjualOh(timSent, timGram, TIM_GRAM_PEMBULATAN);
                       const oatRet = row.oatmeal || 0; // returGrid menyimpan Oatmeal dalam cup
                       const oatSent = sent.oatmeal || 0;
                       const pudRet = row.puding || 0; // returGrid menyimpan Puding dalam cup
@@ -1152,11 +1155,11 @@ export default function Distribusi() {
                         <TableRow key={o.id} onClick={() => setReturOutletId(o.id)} className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary" : "hover:bg-muted/30"}`}>
                           <TableCell className="font-semibold py-3">{o.nama}</TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
-                            <span className="text-destructive">{buburRet}</span> / <span className="text-primary font-semibold">{calcSold(buburSent, buburRet)}</span>
+                            <span className="text-destructive">{buburRet}</span> / <span className="text-primary font-semibold">{buburTerjual}</span>
                             <div className="text-[9px] text-muted-foreground">ret/terj</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
-                            <span className="text-destructive">{timRet}</span> / <span className="text-primary font-semibold">{calcSold(timSent, timRet)}</span>
+                            <span className="text-destructive">{timRet}</span> / <span className="text-primary font-semibold">{timTerjual}</span>
                             <div className="text-[9px] text-muted-foreground">ret/terj</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">

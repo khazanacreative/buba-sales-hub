@@ -726,6 +726,7 @@ function SisaProduksiOH({
           // Build variant records for atomic replace
           const variants = variantRows.map((row) => {
             const terjual = Math.max(0, row.distribusi - Math.min(row.sisaCups, row.distribusi));
+          const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
           const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
           let sisaGramVal: number | undefined;
           if (isGramItem) {
@@ -1328,6 +1329,8 @@ function SisaProduksiAdminView({
           // Build variant records for atomic replace
           const variants = variantRows.map((row) => {
             const terjual = Math.max(0, row.distQty - Math.min(row.sisaCups, row.distQty));
+            const isGramItem = row.baseId === "p-bubur" || row.baseId === "p-nasitim";
+            const isCupItem = row.subId === "oatmeal" || row.subId === "puding" || row.subId === "abon";
             let sisaGramVal: number | undefined;
             if (isGramItem) {
               sisaGramVal = Math.min(row.sisaGram, row.distQty * row.gramPerCup);

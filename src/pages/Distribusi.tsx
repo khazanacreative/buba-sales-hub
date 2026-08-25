@@ -216,14 +216,11 @@ export default function Distribusi() {
     }
   }, [tanggal, outlets, penjualan, produksi, permohonanStok]);
 
-  // === RETUR-ONLY SYNC — terblokir hasManualReturEdits (editan admin dihormati)
-  // Selalu hitung ulang dari loadGridFromReqs (permohonanStok terbaru) + penjualan
-  // terbaru dari getDB() — tidak bergantung pada distGrid state yang bisa stale.
+  // === RETUR-ONLY SYNC — SELALU recompute dari DB (sumber kebenaran)
+  // Hitung ulang dari loadGridFromReqs + penjualan terbaru dari getDB().
+  // Tidak terblokir hasManualReturEdits — data DB harus selalu tercermin di UI.
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
-    // Jangan overwrite returGrid jika admin sudah manual edit — editan dihormati
-    // sampai save (saveStep4) atau ganti tanggal.
-    if (hasManualReturEdits.current) return;
     const freshPenjualan = getDB().penjualan;
     const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;

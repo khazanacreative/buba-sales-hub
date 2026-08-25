@@ -454,13 +454,10 @@ export default function Produksi() {
     }
   }, [tanggal, outlets, penjualan, permohonanStok, produksi, bahan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
 
-  // === RETUR-ONLY SYNC — terblokir hasManualReturEdits (editan admin dihormati)
-  // Selalu hitung ulang dari loadGridFromReqs (permohonanStok terbaru) + penjualan
-  // terbaru dari getDB() — tidak bergantung pada distGrid state yang bisa stale.
+  // === RETUR-ONLY SYNC — SELALU recompute dari DB (sumber kebenaran)
+  // Hitung ulang dari loadGridFromReqs + penjualan terbaru dari getDB().
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
-    // Jangan overwrite returGrid jika admin sudah manual edit
-    if (hasManualReturEdits.current) return;
     const freshPenjualan = getDB().penjualan;
     const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;

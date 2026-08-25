@@ -448,6 +448,55 @@ export default function Produksi() {
     }
   }, [tanggal, outlets, penjualan, permohonanStok, produksi, bahan]); // penjualan included so Step 5 returGrid auto-syncs when outlet saves sisa
 
+  // === RETUR-ONLY SYNC — tidak terblokir hasUserModifiedGrids ===
+  // useEffect utama terblokir saat admin mengedit grid (plan/dist/retur), sehingga
+  // perubahan penjualan dari outlet TIDAK men-trigger reload returGrid.
+  // useEffect terpisah ini HANYA update returGrid dari penjualan terbaru,
+  // tanpa mengganggu grid lain yg sedang diedit admin.
+  useEffect(() => {
+    if (!tanggal || outlets.length === 0) return;
+    if (hasManualReturEdits.current) return; // hormati edit manual admin
+    const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+    if (existingSales.length === 0) return;
+    const rGrid: Record<string, Record<string, number>> = {};
+    outlets.forEach(o => {
+      rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+    });
+    // Pakai distGrid saat ini (bisa dari edit admin atau load DB)
+    outlets.forEach((o) => {
+      const sent = distGrid[o.id] || {};
+      if (!sent) return;
+      const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
+        const gramPerCup = baseId === "p-bubur" ? 118 : 108;
+        const dRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === dField && p.sisaGram != null);
+        const iRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === baseId && p.variant === iField && p.sisaGram != null);
+        if (dRec) rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
+        if (iRec) rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
+        if (!dRec && !iRec) {
+          const totalSent = dSent + iSent;
+          const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
+          const totalRetur = Math.max(0, totalSent - sold);
+          if (totalSent > 0) {
+            const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+            const iReturCups = totalRetur - dReturCups;
+            rGrid[o.id][dField] = dReturCups * gramPerCup;
+            rGrid[o.id][iField] = iReturCups * gramPerCup;
+          }
+        }
+      };
+      calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
+      calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
+      rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
+      rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
+      rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+    });
+    setReturGrid(rGrid);
+    lastSyncedSalesRef.current = penjualanRef.current
+      .filter((p: any) => p.tanggal === tanggal)
+      .reduce((s: number, p: any) => s + p.qty, 0)
+      .toString() + "-" + penjualanRef.current.filter((p: any) => p.tanggal === tanggal).length;
+  }, [tanggal, outlets, penjualan, distGrid]);
+
   const handlePlanChange = (outletId: string, field: string, val: number) => {
     if (isReadOnlyGudang) return;
     hasUserModifiedGrids.current = true;

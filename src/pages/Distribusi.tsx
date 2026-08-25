@@ -1179,12 +1179,10 @@ export default function Distribusi() {
                           <TableCell className="font-semibold py-3">{o.nama}</TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
                             <span className="text-destructive font-semibold">{buburGram}g</span>
-                            {buburGram > 0 && <span className="text-muted-foreground"> = {buburRet} cup</span>}
                             <div className="text-[9px] text-primary font-semibold">terjual {buburTerjual} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
                             <span className="text-destructive font-semibold">{timGram}g</span>
-                            {timGram > 0 && <span className="text-muted-foreground"> = {timRet} cup</span>}
                             <div className="text-[9px] text-primary font-semibold">terjual {timTerjual} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">

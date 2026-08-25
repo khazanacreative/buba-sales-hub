@@ -3362,7 +3362,6 @@ export default function Produksi() {
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_d || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.bubur_d || 0}g</span>
-                              {(row.bubur_d || 0) > 0 && <span className="text-muted-foreground/60"> = {sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN)} cup</span>}
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_d || 0) - Math.min(sisaGramToCups(row.bubur_d || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_d || 0))} cup</div>
                           </TableCell>
@@ -3370,7 +3369,6 @@ export default function Produksi() {
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.bubur_i || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.bubur_i || 0}g</span>
-                              {(row.bubur_i || 0) > 0 && <span className="text-muted-foreground/60"> = {sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN)} cup</span>}
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.bubur_i || 0) - Math.min(sisaGramToCups(row.bubur_i || 0, BUBUR_GRAM_PEMBULATAN), sent.bubur_i || 0))} cup</div>
                           </TableCell>
@@ -3378,7 +3376,6 @@ export default function Produksi() {
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_d || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_d || 0}g</span>
-                              {(row.tim_d || 0) > 0 && <span className="text-muted-foreground/60"> = {sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN)} cup</span>}
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_d || 0) - Math.min(sisaGramToCups(row.tim_d || 0, TIM_GRAM_PEMBULATAN), sent.tim_d || 0))} cup</div>
                           </TableCell>
@@ -3386,7 +3383,6 @@ export default function Produksi() {
                             <div className="text-[10px] font-semibold text-primary">Dikirim: {sent.tim_i || 0} cup</div>
                             <div className="font-semibold text-xs">
                               <span className="text-destructive">{row.tim_i || 0}g</span>
-                              {(row.tim_i || 0) > 0 && <span className="text-muted-foreground/60"> = {sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN)} cup</span>}
                             </div>
                             <div className="text-[9px] text-success">Terjual: {Math.max(0, (sent.tim_i || 0) - Math.min(sisaGramToCups(row.tim_i || 0, TIM_GRAM_PEMBULATAN), sent.tim_i || 0))} cup</div>
                           </TableCell>

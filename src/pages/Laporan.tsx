@@ -25,7 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { computeIsLocked, DEFAULT_LOCK_DEADLINE } from "@/lib/produksi-utils";
+import { computeIsLocked, DEFAULT_LOCK_DEADLINE, hitungTerjualOh } from "@/lib/produksi-utils";
 
 type Periode = "harian" | "mingguan" | "bulanan";
 
@@ -646,7 +646,7 @@ function SisaProduksiOH({
       const prod = produk.find((p: any) => p.id === item.baseId);
       const harga = existingSale?.harga ?? (prod?.harga || 0);
       const hasStored = !!existingSale;
-      const liveTerjual = distQty > 0 ? Math.max(0, distQty - Math.min(sisaCups, distQty)) : 0;
+      const liveTerjual = distQty > 0 ? (isCupUnit ? Math.max(0, distQty - Math.min(sisaCups, distQty)) : hitungTerjualOh(distQty, sisaGram, item.gramPerCup)) : 0;
       const terjual = hasStored && !userModifiedSisa ? (existingSale.qty || 0) : liveTerjual;
       const belumInput = distQty > 0 && !hasStored && !userModifiedSisa;
       const omset = distQty > 0 && (hasStored || userModifiedSisa) ? terjual * harga : 0;
@@ -1254,7 +1254,7 @@ function SisaProduksiAdminView({
           );
           const harga = existingSale?.harga ?? info.harga;
           const hasStored = !!existingSale;
-          const liveTerjual = Math.max(0, info.distQty - Math.min(sisaCups, info.distQty));
+          const liveTerjual = isCupItemCheck ? Math.max(0, info.distQty - Math.min(sisaCups, info.distQty)) : hitungTerjualOh(info.distQty, sisaGram, item.gramPerCup);
           const terjual = hasStored && !userModifiedSisa ? (existingSale.qty || 0) : liveTerjual;
           const belumInput = !hasStored && !userModifiedSisa;
           const omset = hasStored || userModifiedSisa ? terjual * harga : 0;

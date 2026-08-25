@@ -98,6 +98,9 @@ export default function Distribusi() {
   const [bukaSiklusOpen, setBukaSiklusOpen] = useState(false);
   const [bukaSiklusLoading, setBukaSiklusLoading] = useState(false);
   const lastSyncedSalesRef = useRef<string>("");
+  // Ref untuk selalu akses penjualan terbaru — mencegah stale closure
+  const penjualanRef = useRef(penjualan);
+  penjualanRef.current = penjualan;
 
   // Actual cups from produksi table
   const [actualCups, setActualCups] = useState({
@@ -696,7 +699,8 @@ export default function Distribusi() {
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
 
-      const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+      // Pakai ref agar selalu dpt data terbaru — mencegah stale closure
+      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -727,10 +731,10 @@ export default function Distribusi() {
         });
       }
       setReturGrid(rGrid);
-      lastSyncedSalesRef.current = penjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
+      lastSyncedSalesRef.current = penjualanRef.current.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualanRef.current.filter((p: any) => p.tanggal === tanggal).length;
     } catch (err) { console.error("Auto-refresh returGrid failed:", err); }
     finally { setRefreshing(false); }
-  }, [tanggal, outlets, penjualan, distGrid, refreshing]);
+  }, [tanggal, outlets, distGrid, refreshing]);
 
   useEffect(() => {
     window.addEventListener("buba_penjualan_saved", handleAutoRefresh);
@@ -745,7 +749,8 @@ export default function Distribusi() {
       const rGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
 
-      const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+      // Pakai ref agar selalu dpt data terbaru
+      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -781,7 +786,7 @@ export default function Distribusi() {
       toast.error("Gagal memuat ulang data penjualan");
       console.error(err);
     } finally {
-      lastSyncedSalesRef.current = penjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualan.length;
+      lastSyncedSalesRef.current = penjualanRef.current.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + penjualanRef.current.length;
       setRefreshing(false);
     }
   };

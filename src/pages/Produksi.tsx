@@ -228,6 +228,11 @@ export default function Produksi() {
   const [refreshing, setRefreshing] = useState(false);
   // Track last synced penjualan signature for the new-data indicator
   const lastSyncedSalesRef = useRef<string>("");
+  // Ref untuk selalu akses penjualan terbaru — mencegah stale closure
+  // di handleAutoRefresh/handleRefreshStep4 saat event buba_penjualan_saved fires
+  // sebelum Supabase real-time update React state.
+  const penjualanRef = useRef(penjualan);
+  penjualanRef.current = penjualan;
 
   // Parse [D:X, I:Y] split from catatan
   const parseSplit = (catatan: string) => {
@@ -1541,7 +1546,9 @@ export default function Produksi() {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
 
-      const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+      // Pakai ref agar selalu dpt data terbaru — mencegah stale closure
+      // saat event buba_penjualan_saved fires sebelum Supabase real-time update
+      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -1591,16 +1598,16 @@ export default function Produksi() {
 
       setReturGrid(rGrid);
 
-      lastSyncedSalesRef.current = penjualan
+      lastSyncedSalesRef.current = penjualanRef.current
         .filter((p: any) => p.tanggal === tanggal)
         .reduce((s: number, p: any) => s + p.qty, 0)
-        .toString() + "-" + penjualan.filter((p: any) => p.tanggal === tanggal).length;
+        .toString() + "-" + penjualanRef.current.filter((p: any) => p.tanggal === tanggal).length;
     } catch (err) {
       console.error("Auto-refresh returGrid failed:", err);
     } finally {
       setRefreshing(false);
     }
-  }, [tanggal, outlets, penjualan, distGrid, refreshing]);
+  }, [tanggal, outlets, distGrid, refreshing]);
 
   // Auto-refresh returGrid when penjualan saved from Laporan page
   // (triggered by custom event dispatched from outlet/admin)
@@ -1625,7 +1632,8 @@ export default function Produksi() {
         rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
 
-      const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
+      // Pakai ref agar selalu dpt data terbaru
+      const existingSales = penjualanRef.current.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
           const sent = distGrid[o.id] || {};
@@ -1680,10 +1688,10 @@ export default function Produksi() {
       console.error(err);
     } finally {
       // Update sync signature
-      lastSyncedSalesRef.current = penjualan
+      lastSyncedSalesRef.current = penjualanRef.current
         .filter((p: any) => p.tanggal === tanggal)
         .reduce((s: number, p: any) => s + p.qty, 0)
-        .toString() + "-" + penjualan.length;
+        .toString() + "-" + penjualanRef.current.length;
       setRefreshing(false);
     }
   };

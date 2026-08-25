@@ -1121,7 +1121,7 @@ export default function Distribusi() {
                         <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t">
                           {isBuburTim ? (
                             <>
-                              <span>Retur: <strong className="text-foreground">{returVal}g</strong> <span className="text-muted-foreground">= {returCups} cup</span></span>
+                              <span>Retur: <strong className="text-foreground">{returVal}g</strong>{returVal > 0 && <span className="text-muted-foreground"> = {returCups} cup</span>}</span>
                               <span>Terjual: <strong className="text-primary">{sold} cup</strong></span>
                             </>
                           ) : (
@@ -1179,12 +1179,12 @@ export default function Distribusi() {
                           <TableCell className="font-semibold py-3">{o.nama}</TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
                             <span className="text-destructive font-semibold">{buburGram}g</span>
-                            <span className="text-muted-foreground"> = {buburRet} cup</span>
+                            {buburGram > 0 && <span className="text-muted-foreground"> = {buburRet} cup</span>}
                             <div className="text-[9px] text-primary font-semibold">terjual {buburTerjual} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">
                             <span className="text-destructive font-semibold">{timGram}g</span>
-                            <span className="text-muted-foreground"> = {timRet} cup</span>
+                            {timGram > 0 && <span className="text-muted-foreground"> = {timRet} cup</span>}
                             <div className="text-[9px] text-primary font-semibold">terjual {timTerjual} cup</div>
                           </TableCell>
                           <TableCell className="text-center py-2.5 text-xs">

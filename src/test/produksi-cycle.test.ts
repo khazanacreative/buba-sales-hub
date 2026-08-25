@@ -407,9 +407,10 @@ describe("Buka Siklus — edit retur manual admin dihormati (saveStep5)", () => 
     expect(fresh.o1.oatmeal).toBe(5);
     // o1 abon: terkirim 5 - terjual 3 = 2 pcs sisa
     expect(fresh.o1.abon).toBe(2);
-    // o2 belum input penjualan → semua terkirim dianggap retur:
-    // tim_d 15 cup * 108 g = 1620 g; puding 20 cup
-    expect(fresh.o2.tim_d).toBe(15 * 108);
+    // o2 belum input penjualan → retur tetap 0 (belum input)
+    expect(fresh.o2.tim_d).toBe(0);
+    // o2 puding: tidak ada penjualan → sent (20) masih ditampilkan sebagai retur
+    // (puding menggunakan sent - sold, bukan gram-based calcRetur)
     expect(fresh.o2.puding).toBe(20);
   });
 

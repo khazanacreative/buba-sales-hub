@@ -406,17 +406,23 @@ export default function Produksi() {
               rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingSales
-                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-                .reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                rGrid[o.id][dField] = dReturCups * gramPerCup;
-                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              // Only use fallback if outlet has penjualan records for this product
+              // (auto-created without variant/sisaGram). If no records at all,
+              // keep retur at 0 — outlet hasn't entered data yet.
+              const outletProdRecords = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+              if (outletProdRecords.length > 0) {
+                const totalSent = dSent + iSent;
+                const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+                const totalRetur = Math.max(0, totalSent - sold);
+                if (totalSent > 0) {
+                  const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                  const iReturCups = totalRetur - dReturCups;
+                  rGrid[o.id][dField] = dReturCups * gramPerCup;
+                  rGrid[o.id][iField] = iReturCups * gramPerCup;
+                }
               }
+              // else: no penjualan records → retur stays 0 (belum input)
             }
           };
 
@@ -1137,17 +1143,23 @@ export default function Produksi() {
               rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingSales
-                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-                .reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                rGrid[o.id][dField] = dReturCups * gramPerCup;
-                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              // Only use fallback if outlet has penjualan records for this product
+              // (auto-created without variant/sisaGram). If no records at all,
+              // keep retur at 0 — outlet hasn't entered data yet.
+              const outletProdRecords = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+              if (outletProdRecords.length > 0) {
+                const totalSent = dSent + iSent;
+                const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+                const totalRetur = Math.max(0, totalSent - sold);
+                if (totalSent > 0) {
+                  const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                  const iReturCups = totalRetur - dReturCups;
+                  rGrid[o.id][dField] = dReturCups * gramPerCup;
+                  rGrid[o.id][iField] = iReturCups * gramPerCup;
+                }
               }
+              // else: no penjualan records → retur stays 0 (belum input)
             }
           };
 
@@ -1630,17 +1642,23 @@ export default function Produksi() {
               rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingSales
-                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-                .reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                rGrid[o.id][dField] = dReturCups * gramPerCup;
-                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              // Only use fallback if outlet has penjualan records for this product
+              // (auto-created without variant/sisaGram). If no records at all,
+              // keep retur at 0 — outlet hasn't entered data yet.
+              const outletProdRecords = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+              if (outletProdRecords.length > 0) {
+                const totalSent = dSent + iSent;
+                const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+                const totalRetur = Math.max(0, totalSent - sold);
+                if (totalSent > 0) {
+                  const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                  const iReturCups = totalRetur - dReturCups;
+                  rGrid[o.id][dField] = dReturCups * gramPerCup;
+                  rGrid[o.id][iField] = iReturCups * gramPerCup;
+                }
               }
+              // else: no penjualan records → retur stays 0 (belum input)
             }
           };
 
@@ -1719,17 +1737,23 @@ export default function Produksi() {
               rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingSales
-                .filter((p: any) => p.outletId === o.id && p.produkId === baseId)
-                .reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                rGrid[o.id][dField] = dReturCups * gramPerCup;
-                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              // Only use fallback if outlet has penjualan records for this product
+              // (auto-created without variant/sisaGram). If no records at all,
+              // keep retur at 0 — outlet hasn't entered data yet.
+              const outletProdRecords = existingSales
+                .filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+              if (outletProdRecords.length > 0) {
+                const totalSent = dSent + iSent;
+                const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+                const totalRetur = Math.max(0, totalSent - sold);
+                if (totalSent > 0) {
+                  const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                  const iReturCups = totalRetur - dReturCups;
+                  rGrid[o.id][dField] = dReturCups * gramPerCup;
+                  rGrid[o.id][iField] = iReturCups * gramPerCup;
+                }
               }
+              // else: no penjualan records → retur stays 0 (belum input)
             }
           };
 

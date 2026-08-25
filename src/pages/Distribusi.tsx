@@ -189,14 +189,17 @@ export default function Distribusi() {
               rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             }
             if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                rGrid[o.id][dField] = dReturCups * gramPerCup;
-                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              const outletProdRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+              if (outletProdRecords.length > 0) {
+                const totalSent = dSent + iSent;
+                const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+                const totalRetur = Math.max(0, totalSent - sold);
+                if (totalSent > 0) {
+                  const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                  const iReturCups = totalRetur - dReturCups;
+                  rGrid[o.id][dField] = dReturCups * gramPerCup;
+                  rGrid[o.id][iField] = iReturCups * gramPerCup;
+                }
               }
             }
           };
@@ -231,14 +234,17 @@ export default function Distribusi() {
         if (dRec) rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
         if (iRec) rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
         if (!dRec && !iRec) {
-          const totalSent = dSent + iSent;
-          const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-          const totalRetur = Math.max(0, totalSent - sold);
-          if (totalSent > 0) {
-            const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-            const iReturCups = totalRetur - dReturCups;
-            rGrid[o.id][dField] = dReturCups * gramPerCup;
-            rGrid[o.id][iField] = iReturCups * gramPerCup;
+          const outletProdRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+          if (outletProdRecords.length > 0) {
+            const totalSent = dSent + iSent;
+            const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+            const totalRetur = Math.max(0, totalSent - sold);
+            if (totalSent > 0) {
+              const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+              const iReturCups = totalRetur - dReturCups;
+              rGrid[o.id][dField] = dReturCups * gramPerCup;
+              rGrid[o.id][iField] = iReturCups * gramPerCup;
+            }
           }
         }
       };
@@ -403,14 +409,17 @@ export default function Distribusi() {
             rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
           }
           if (!dRec && !iRec) {
-            const totalSent = dSent + iSent;
-            const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-            const totalRetur = Math.max(0, totalSent - sold);
-            if (totalSent > 0) {
-              const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-              const iReturCups = totalRetur - dReturCups;
-              rGrid[o.id][dField] = dReturCups * gramPerCup;
-              rGrid[o.id][iField] = iReturCups * gramPerCup;
+            const outletProdRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+            if (outletProdRecords.length > 0) {
+              const totalSent = dSent + iSent;
+              const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+              const totalRetur = Math.max(0, totalSent - sold);
+              if (totalSent > 0) {
+                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                const iReturCups = totalRetur - dReturCups;
+                rGrid[o.id][dField] = dReturCups * gramPerCup;
+                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              }
             }
           }
         };
@@ -765,14 +774,17 @@ export default function Distribusi() {
             if (dRec) rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
             if (iRec) rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                rGrid[o.id][dField] = dReturCups * gramPerCup;
-                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              const outletProdRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+              if (outletProdRecords.length > 0) {
+                const totalSent = dSent + iSent;
+                const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+                const totalRetur = Math.max(0, totalSent - sold);
+                if (totalSent > 0) {
+                  const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                  const iReturCups = totalRetur - dReturCups;
+                  rGrid[o.id][dField] = dReturCups * gramPerCup;
+                  rGrid[o.id][iField] = iReturCups * gramPerCup;
+                }
               }
             }
           };
@@ -818,14 +830,17 @@ export default function Distribusi() {
             if (dRec) rGrid[o.id][dField] = Math.min(dRec.sisaGram, dSent * gramPerCup);
             if (iRec) rGrid[o.id][iField] = Math.min(iRec.sisaGram, iSent * gramPerCup);
             if (!dRec && !iRec) {
-              const totalSent = dSent + iSent;
-              const sold = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId).reduce((s: number, p: any) => s + p.qty, 0);
-              const totalRetur = Math.max(0, totalSent - sold);
-              if (totalSent > 0) {
-                const dReturCups = Math.round(totalRetur * (dSent / totalSent));
-                const iReturCups = totalRetur - dReturCups;
-                rGrid[o.id][dField] = dReturCups * gramPerCup;
-                rGrid[o.id][iField] = iReturCups * gramPerCup;
+              const outletProdRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === baseId);
+              if (outletProdRecords.length > 0) {
+                const totalSent = dSent + iSent;
+                const sold = outletProdRecords.reduce((s: number, p: any) => s + p.qty, 0);
+                const totalRetur = Math.max(0, totalSent - sold);
+                if (totalSent > 0) {
+                  const dReturCups = Math.round(totalRetur * (dSent / totalSent));
+                  const iReturCups = totalRetur - dReturCups;
+                  rGrid[o.id][dField] = dReturCups * gramPerCup;
+                  rGrid[o.id][iField] = iReturCups * gramPerCup;
+                }
               }
             }
           };

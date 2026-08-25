@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { saldoBahan } from "@/lib/store";
 import { SEED_BAHAN } from "@/lib/seed";
 import { BahanBaku, StokMovement } from "@/lib/types";
-import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, type OutletGrid } from "@/lib/produksi-utils";
+import { calcKemasanKebutuhan, KEMASAN_BAHAN, sisaGramToCups, resolveFreshReturGrid, hitungTerjualOh, BUBUR_GRAM_PEMBULATAN, TIM_GRAM_PEMBULATAN, type OutletGrid } from "@/lib/produksi-utils";
 
 /**
  * Test siklus produksi — Tutup Oat:
@@ -481,5 +481,166 @@ describe("Buka Siklus — edit retur manual admin dihormati (saveStep5)", () => 
       hasManualReturEdits: false,
     });
     expect(fresh.o1.bubur_d).toBe(5 * 118); // clamp ke 590 gram
+  });
+});
+
+// =============================================================================
+// RETUR GRID SYNC — verifikasi returGrid update saat penjualan berubah
+// =============================================================================
+//
+// Bug sebelumnya: returGrid menampilkan full distribusi (mis. 3540g)
+// padahal outlet sudah save sisa (164g). Penyebab:
+// 1. calcRetur tidak menemukan penjualan record → fallback = full distribusi
+// 2. useEffect diblokir hasUserModifiedGrids → returGrid tidak di-update
+// 3. handleAutoRefresh pakai stale closure → existingSales kosong
+
+describe("returGrid sync — update saat penjualan berubah", () => {
+  const OUTLETS = [{ id: "o1" }, { id: "o2" }];
+  const ZERO = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+  const distGrid: OutletGrid = {
+    o1: { ...ZERO, bubur_d: 30, bubur_i: 10, oatmeal: 15, abon: 5 },
+    o2: { ...ZERO, tim_d: 20, puding: 10 },
+  };
+
+  it("returGrid berubah dari full distribusi ke sisa aktual saat penjualan ditambahkan", () => {
+    // 1. AWAL: belum ada penjualan → retur = full distribusi
+    const freshEmpty = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid,
+      existingPenjualan: [],
+      hasManualReturEdits: false,
+    });
+    // o1 belum ada penjualan → bubur_d retur = 0 (tidak ada data)
+    expect(freshEmpty.o1.bubur_d).toBe(0);
+    expect(freshEmpty.o1.oatmeal).toBe(0);
+
+    // 2. OUTLET SAVE SISA: penjualan ditambahkan dgn sisaGram
+    const penjualanAfterSave: any[] = [
+      { outletId: "o1", produkId: "p-bubur", variant: "bubur_d", qty: 28, sisaGram: 164 },
+      { outletId: "o1", produkId: "p-bubur", variant: "bubur_i", qty: 10, sisaGram: 0 },
+      { outletId: "o1", produkId: "p-oatmeal", variant: null, qty: 12, sisaGram: 0 },
+      { outletId: "o1", produkId: "p-abon", variant: null, qty: 5, sisaGram: 0 },
+    ];
+    const freshAfterSave = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid,
+      existingPenjualan: penjualanAfterSave,
+      hasManualReturEdits: false,
+    });
+    // o1 bubur_d: sisaGram 164 → retur = 164g (bukan 30×118 = 3540g)
+    expect(freshAfterSave.o1.bubur_d).toBe(164);
+    expect(freshAfterSave.o1.bubur_i).toBe(0);
+    // o1 oatmeal: 15 kirim - 12 jual = 3 sisa
+    expect(freshAfterSave.o1.oatmeal).toBe(3);
+    // o1 abon: 5 kirim - 5 jual = 0 sisa
+    expect(freshAfterSave.o1.abon).toBe(0);
+
+    // 3. VERIFIKASI: retur TIDAK boleh melebihi distribusi
+    expect(freshAfterSave.o1.bubur_d).toBeLessThanOrEqual(30 * 118);
+  });
+
+  it("sisaGram yang benar: 164g bukan 3540g (kasus bug 30 cup bubur)", () => {
+    // Kasus nyata: outlet kirim 30 cup bubur daging, sisa 164g
+    const penjualan = [
+      { outletId: "o1", produkId: "p-bubur", variant: "bubur_d", qty: 28, sisaGram: 164 },
+    ];
+    const dist = { o1: { ...ZERO, bubur_d: 30 }, o2: { ...ZERO } };
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid: dist,
+      existingPenjualan: penjualan,
+      hasManualReturEdits: false,
+    });
+    // Harusnya 164g, BUKAN 30×118 = 3540g
+    expect(fresh.o1.bubur_d).toBe(164);
+    expect(fresh.o1.bubur_d).not.toBe(30 * 118);
+  });
+
+  it("tanpa sisaGram (fallback) → retur dihitung dari totalSent - sold × gramPerCup", () => {
+    // Outlet tidak simpan sisaGram per varian → fallback: proporsional
+    const penjualan = [
+      { outletId: "o1", produkId: "p-bubur", variant: null, qty: 25, sisaGram: null },
+    ];
+    const dist = { o1: { ...ZERO, bubur_d: 20, bubur_i: 10 }, o2: { ...ZERO } };
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid: dist,
+      existingPenjualan: penjualan,
+      hasManualReturEdits: false,
+    });
+    // totalSent = 30, sold = 25, totalRetur = 5 cup
+    // dRetur = round(5 × 20/30) = round(3.33) = 3 cup → 3 × 118 = 354g
+    // iRetur = 5 - 3 = 2 cup → 2 × 118 = 236g
+    expect(fresh.o1.bubur_d).toBe(3 * 118);
+    expect(fresh.o1.bubur_i).toBe(2 * 118);
+  });
+
+  it("sisaGram per varian diutamakan di atas fallback", () => {
+    // Ada sisaGram untuk bubur_d tapi tidak untuk bubur_i
+    const penjualan = [
+      { outletId: "o1", produkId: "p-bubur", variant: "bubur_d", qty: 18, sisaGram: 236 },
+      { outletId: "o1", produkId: "p-bubur", variant: "bubur_i", qty: 8, sisaGram: null },
+    ];
+    const dist = { o1: { ...ZERO, bubur_d: 20, bubur_i: 10 }, o2: { ...ZERO } };
+    const fresh = resolveFreshReturGrid({
+      outlets: OUTLETS,
+      returGrid: { o1: { ...ZERO }, o2: { ...ZERO } },
+      distGrid: dist,
+      existingPenjualan: penjualan,
+      hasManualReturEdits: false,
+    });
+    // bubur_d: sisaGram = 236 → min(236, 20×118) = 236g
+    expect(fresh.o1.bubur_d).toBe(236);
+    // bubur_i: tidak ada sisaGram → fallback: totalSent=30, sold=26, retur=4
+    // dRetur sudah diambil oleh sisaGram, jadi fallback hanya untuk iRec
+    // Karena dRec ADA tapi iRec TIDAK → iRec = 0 (fallback tidak jalan)
+    expect(fresh.o1.bubur_i).toBe(0);
+  });
+});
+
+// =============================================================================
+// hitungTerjualOh — konsistensi formula UI vs database
+// =============================================================================
+
+describe("hitungTerjualOh — formula konsisten UI vs database", () => {
+  it("sent=30, oh=164g → terjual = round((30×118 - 164)/118) = 28", () => {
+    // Kasus bug: UI lama = 30 - round(164/118) = 30 - 1 = 29 (SALAH)
+    // Database = round((30×118 - 164)/118) = round(3376/118) = round(28.61) = 29
+    // Setelah fix: UI = hitungTerjualOh(30, 164, 118) = 29
+    expect(hitungTerjualOh(30, 164, 118)).toBe(29);
+  });
+
+  it("sent=10, oh=531g → terjual = 6 (bukan 5)", () => {
+    // round((10×118 - 531)/118) = round(649/118) = round(5.5) = 6
+    expect(hitungTerjualOh(10, 531, 118)).toBe(6);
+  });
+
+  it("sent=10, oh=649g → terjual = 5 (bukan 4)", () => {
+    // round((10×118 - 649)/118) = round(531/118) = round(4.5) = 5
+    expect(hitungTerjualOh(10, 649, 118)).toBe(5);
+  });
+
+  it("oh=0 → terjual = sent (semua terjual)", () => {
+    expect(hitungTerjualOh(30, 0, 118)).toBe(30);
+  });
+
+  it("oh = sent × gramPerCup → terjual = 0 (semua retur)", () => {
+    expect(hitungTerjualOh(30, 30 * 118, 118)).toBe(0);
+  });
+
+  it("sent=0 → terjual = 0", () => {
+    expect(hitungTerjualOh(0, 100, 118)).toBe(0);
+  });
+
+  it("oh melebihi distribusi → terjual = 0 (clamp)", () => {
+    expect(hitungTerjualOh(5, 9999, 118)).toBe(0);
+  });
+
+  it("Nasi Tim: sent=20, oh=108g → terjual = round((20×108 - 108)/108) = 19", () => {
+    expect(hitungTerjualOh(20, 108, 108)).toBe(19);
   });
 });

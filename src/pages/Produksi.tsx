@@ -506,9 +506,16 @@ export default function Produksi() {
       };
       calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
       calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
-      rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
-      rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
-      rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+      const getCupRetur = (produkId: string, sentQty: number) => {
+        const records = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === produkId);
+        const recordWithSisa = records.find((p: any) => p.sisaGram != null);
+        return recordWithSisa
+          ? Math.min(Number(recordWithSisa.sisaGram) || 0, sentQty)
+          : Math.max(0, sentQty - records.reduce((s: number, p: any) => s + p.qty, 0));
+      };
+      rGrid[o.id].oatmeal = getCupRetur("p-oatmeal", sent.oatmeal || 0);
+      rGrid[o.id].puding = getCupRetur("p-puding", sent.puding || 0);
+      rGrid[o.id].abon = getCupRetur("p-abon", sent.abon || 0);
     });
     setReturGrid(rGrid);
     lastSyncedSalesRef.current = freshPenjualan

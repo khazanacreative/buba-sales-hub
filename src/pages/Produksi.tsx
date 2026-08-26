@@ -357,7 +357,9 @@ export default function Produksi() {
       // Tidak ada lagi input manual berat matang. Distribusi di-load dari
       // permohonan_stok.qty = DISTRIBUSI AKTUAL bila siklus sudah disimpan (Langkah
       // 3), atau angka rencana bila belum — agar kapro tinggal menyesuaikan per outlet.
-      const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+      const dayReqs = permohonanStok.filter((r: any) =>
+        r.tanggalKirim === tanggal && r.status === "Disetujui"
+      );
       const dGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
         dGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
@@ -429,20 +431,23 @@ export default function Produksi() {
           calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
           calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
 
-          const oatSold = existingSales
-            .filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal")
-            .reduce((s: number, p: any) => s + p.qty, 0);
-          rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - oatSold);
+          const oatRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal");
+          const oatSisa = oatRecords.find((p: any) => p.sisaGram != null);
+          rGrid[o.id].oatmeal = oatSisa
+            ? Math.min(Number(oatSisa.sisaGram) || 0, sent.oatmeal || 0)
+            : Math.max(0, (sent.oatmeal || 0) - oatRecords.reduce((s: number, p: any) => s + p.qty, 0));
 
-          const pudSold = existingSales
-            .filter((p: any) => p.outletId === o.id && p.produkId === "p-puding")
-            .reduce((s: number, p: any) => s + p.qty, 0);
-          rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - pudSold);
+          const pudRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding");
+          const pudSisa = pudRecords.find((p: any) => p.sisaGram != null);
+          rGrid[o.id].puding = pudSisa
+            ? Math.min(Number(pudSisa.sisaGram) || 0, sent.puding || 0)
+            : Math.max(0, (sent.puding || 0) - pudRecords.reduce((s: number, p: any) => s + p.qty, 0));
 
-          const abonSold = existingSales
-            .filter((p: any) => p.outletId === o.id && p.produkId === "p-abon")
-            .reduce((s: number, p: any) => s + p.qty, 0);
-          rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - abonSold);
+          const abonRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon");
+          const abonSisa = abonRecords.find((p: any) => p.sisaGram != null);
+          rGrid[o.id].abon = abonSisa
+            ? Math.min(Number(abonSisa.sisaGram) || 0, sent.abon || 0)
+            : Math.max(0, (sent.abon || 0) - abonRecords.reduce((s: number, p: any) => s + p.qty, 0));
         });
       }
       setReturGrid(rGrid);

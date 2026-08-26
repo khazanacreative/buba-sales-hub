@@ -229,7 +229,9 @@ export function loadGridFromReqs(
   tanggal: string
 ): OutletGrid {
   const grid = createEmptyGrid(outlets);
-  const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);
+  const dayReqs = permohonanStok.filter((r: any) =>
+    r.tanggalKirim === tanggal && r.status === "Disetujui"
+  );
   dayReqs.forEach((r: any) => {
     if (!grid[r.outletId]) return;
     const split = parseSplit(r.catatan || "");

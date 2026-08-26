@@ -248,8 +248,8 @@ export async function fetchFromSupabase() {
       qty: p.qty,
       harga: p.harga,
       total: Number(p.total),
-      sisaGram: p.sisa_gram ?? undefined,
-      variant: p.variant ?? undefined
+      sisaGram: p.sisa_gram === null ? undefined : p.sisa_gram,
+      variant: p.variant === null ? undefined : p.variant
     })),
     produksi: (produksiRes.data || []).map((p: any) => ({
       id: p.id,

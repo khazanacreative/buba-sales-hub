@@ -468,8 +468,14 @@ export default function Produksi() {
 
   // === RETUR-ONLY SYNC — SELALU recompute dari DB (sumber kebenaran)
   // Hitung ulang dari loadGridFromReqs + penjualan terbaru dari getDB().
+  // ⚠️ Skip bila admin sedang/sudah mengedit retur manual (hasManualReturEdits):
+  // fetchFromSupabase berjalan tiap event realtime + polling 30s sehingga array
+  // penjualan/permohonanStok sering terganti identitas — tanpa guard ini, edit
+  // manual retur OH di Langkah 4 langsung tertimpa hasil hitungan DB lagi.
+  // Edit manual tetap bisa di-refresh lewat tombol "Refresh" (melepas guard).
   useEffect(() => {
     if (!tanggal || outlets.length === 0) return;
+    if (hasManualReturEdits.current) return;
     const freshPenjualan = getDB().penjualan;
     const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
@@ -1636,6 +1642,10 @@ export default function Produksi() {
   // Wrap handleRefreshStep4 so it doesn't trigger the toast on auto-refresh
   const handleAutoRefresh = useCallback(async () => {
     if (refreshing || !tanggal || outlets.length === 0) return;
+    // Jangan timpa edit manual admin (Langkah 4) secara otomatis — indikator
+    // "Data baru" tetap muncul dan admin bisa klik Refresh untuk memakai data
+    // terbaru (handleRefreshStep4 melepas guard hasManualReturEdits).
+    if (hasManualReturEdits.current) return;
     setRefreshing(true);
 
     try {

@@ -732,7 +732,7 @@ function SisaProduksiOH({
           if (isGramItem) {
             sisaGramVal = Math.min(row.sisa, row.distribusi * row.gramPerCup);
           } else if (isCupItem) {
-            sisaGramVal = row.sisaCups;
+            sisaGramVal = row.sisaCups ?? 0; // Ensure 0 is saved explicitly, not undefined/NULL
           }
           return { subId: row.subId, qty: terjual, harga: row.harga, sisaGram: sisaGramVal };
         });
@@ -1334,7 +1334,7 @@ function SisaProduksiAdminView({
             if (isGramItem) {
               sisaGramVal = Math.min(row.sisaGram, row.distQty * row.gramPerCup);
             } else if (isCupItem) {
-              sisaGramVal = row.sisaCups;
+              sisaGramVal = row.sisaCups ?? 0; // Ensure 0 is saved explicitly, not undefined/NULL
             }
             return { subId: row.subId, qty: terjual, harga: row.harga, sisaGram: sisaGramVal };
           });

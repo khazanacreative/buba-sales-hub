@@ -468,7 +468,10 @@ export default function Produksi() {
       rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
     });
     outlets.forEach((o) => {
-      const sent = freshDistGrid[o.id] || {};
+      const sent = freshDistGrid[o.id] || {
+        bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+        oatmeal: 0, puding: 0, abon: 0,
+      };
       if (!sent) return;
       const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
         const gramPerCup = baseId === "p-bubur" ? 118 : 108;
@@ -1636,7 +1639,10 @@ export default function Produksi() {
       const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = freshDistGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {
+            bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+            oatmeal: 0, puding: 0, abon: 0,
+          };
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
@@ -1734,7 +1740,10 @@ export default function Produksi() {
       const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = freshDistGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {
+            bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+            oatmeal: 0, puding: 0, abon: 0,
+          };
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {

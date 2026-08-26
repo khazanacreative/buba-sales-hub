@@ -470,11 +470,31 @@ export default function Distribusi() {
           }
         };
 
-        calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
-        calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
-        rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
-        rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
-        rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
+          calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
+          
+          // For oatmeal, puding, abon: use sisaGram from penjualan if available (stores cups/pcs directly)
+          const oatmealRec2 = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal" && p.sisaGram != null);
+          const pudingRec2 = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-puding" && p.sisaGram != null);
+          const abonRec2 = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-abon" && p.sisaGram != null);
+          
+          if (oatmealRec2) {
+            rGrid[o.id].oatmeal = Math.min(oatmealRec2.sisaGram, sent.oatmeal || 0);
+          } else {
+            rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (pudingRec2) {
+            rGrid[o.id].puding = Math.min(pudingRec2.sisaGram, sent.puding || 0);
+          } else {
+            rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (abonRec2) {
+            rGrid[o.id].abon = Math.min(abonRec2.sisaGram, sent.abon || 0);
+          } else {
+            rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          }
       });
     }
 
@@ -813,7 +833,10 @@ export default function Distribusi() {
       const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = freshDistGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {
+            bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+            oatmeal: 0, puding: 0, abon: 0,
+          };
           if (!sent) return;
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
             const gramPerCup = baseId === "p-bubur" ? 118 : 108;
@@ -838,9 +861,29 @@ export default function Distribusi() {
           };
           calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
           calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
-          rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
-          rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
-          rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          
+          // For oatmeal, puding, abon: use sisaGram from penjualan if available (stores cups/pcs directly)
+          const oatmealRec3 = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal" && p.sisaGram != null);
+          const pudingRec3 = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-puding" && p.sisaGram != null);
+          const abonRec3 = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-abon" && p.sisaGram != null);
+          
+          if (oatmealRec3) {
+            rGrid[o.id].oatmeal = Math.min(oatmealRec3.sisaGram, sent.oatmeal || 0);
+          } else {
+            rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (pudingRec3) {
+            rGrid[o.id].puding = Math.min(pudingRec3.sisaGram, sent.puding || 0);
+          } else {
+            rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (abonRec3) {
+            rGrid[o.id].abon = Math.min(abonRec3.sisaGram, sent.abon || 0);
+          } else {
+            rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          }
         });
       }
       setReturGrid(rGrid);
@@ -872,7 +915,10 @@ export default function Distribusi() {
       const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = freshDistGrid[o.id] || {};
+          const sent = freshDistGrid[o.id] || {
+            bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
+            oatmeal: 0, puding: 0, abon: 0,
+          };
           if (!sent) return;
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
             const gramPerCup = baseId === "p-bubur" ? 118 : 108;

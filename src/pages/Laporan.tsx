@@ -100,13 +100,24 @@ export default function Laporan() {
   const [range, setRange] = useState<DateRange>({});
 
   // ===== REKAP DATA =====
+  const distributedSalesKeys = useMemo(() => {
+    const keys = new Set<string>();
+    (permohonanStok || []).forEach((r: any) => {
+      if (r.status === "Disetujui" && PRODUCTION_PRODUCTS.includes(r.produkId)) {
+        keys.add(`${r.tanggalKirim}|${r.outletId}|${r.produkId}`);
+      }
+    });
+    return keys;
+  }, [permohonanStok]);
+
   const baseFiltered = useMemo(
     () =>
       penjualan
         .filter((p) => (isOutlet ? p.outletId === user!.outletId : true))
         .filter((p) => (outletId === "all" ? true : p.outletId === outletId))
+        .filter((p) => distributedSalesKeys.has(`${p.tanggal}|${p.outletId}|${p.produkId}`))
         .filter((p) => inRange(p.tanggal, range)),
-    [penjualan, outletId, range, isOutlet, user]
+    [penjualan, outletId, range, isOutlet, user, distributedSalesKeys]
   );
 
   const rekapRows = useMemo(() => {
@@ -1874,21 +1885,29 @@ function RiwayatTransaksiTab({
   const salesMap = useMemo(() => {
     const map = new Map<string, number>();
     (penjualan || []).forEach((p: any) => {
-      const matchOutlet = isOutlet ? p.outletId === user.outletId : true;
+      const matchOutlet = isOutlet
+        ? p.outletId === user.outletId
+        : outletId === "all"
+          ? true
+          : p.outletId === outletId;
       if (!matchOutlet) return;
       if (!inRange(p.tanggal, range)) return;
       const key = `${p.tanggal}-${p.outletId}-${p.produkId}`;
       map.set(key, (map.get(key) || 0) + p.qty);
     });
     return map;
-  }, [penjualan, user.outletId, range, isOutlet]);
+  }, [penjualan, user.outletId, outletId, range, isOutlet]);
 
   // Read per-variant record from penjualan: qty TERSIMPAN, harga TERSIMPAN, sisaGram
   // Harga & qty tersimpan = sumber kebenaran omzet (sama dgn tab Rekap), bukan harga master terkini
   const variantRecordMap = useMemo(() => {
     const map = new Map<string, { qty: number; harga: number; sisaGram?: number }>();
     (penjualan || []).forEach((p: any) => {
-      const matchOutlet = isOutlet ? p.outletId === user.outletId : true;
+      const matchOutlet = isOutlet
+        ? p.outletId === user.outletId
+        : outletId === "all"
+          ? true
+          : p.outletId === outletId;
       if (!matchOutlet) return;
       if (!inRange(p.tanggal, range)) return;
       const key = `${p.tanggal}-${p.outletId}-${p.produkId}-${p.variant || ""}`;
@@ -1898,7 +1917,7 @@ function RiwayatTransaksiTab({
       map.set(key, cur);
     });
     return map;
-  }, [penjualan, user.outletId, range, isOutlet]);
+  }, [penjualan, user.outletId, outletId, range, isOutlet]);
 
   // Expand distributions into individual variant rows (Bubur Daging, Bubur Ikan, etc.)
   const transaksiRows = useMemo(() => {

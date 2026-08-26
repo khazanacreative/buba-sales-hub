@@ -175,7 +175,7 @@ export default function Distribusi() {
       const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
       if (existingSales.length > 0) {
         outlets.forEach((o) => {
-          const sent = dGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
+          const sent = (dGrid[o.id] || { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }) as any;
           if (!sent) return;
 
           const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
@@ -206,9 +206,29 @@ export default function Distribusi() {
 
           calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
           calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
-          rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
-          rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
-          rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          
+          // For oatmeal, puding, abon: use sisaGram from penjualan if available (stores cups/pcs directly)
+          const oatmealRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal" && p.sisaGram != null);
+          const pudingRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-puding" && p.sisaGram != null);
+          const abonRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-abon" && p.sisaGram != null);
+          
+          if (oatmealRec) {
+            rGrid[o.id].oatmeal = Math.min(oatmealRec.sisaGram, sent.oatmeal || 0);
+          } else {
+            rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (pudingRec) {
+            rGrid[o.id].puding = Math.min(pudingRec.sisaGram, sent.puding || 0);
+          } else {
+            rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (abonRec) {
+            rGrid[o.id].abon = Math.min(abonRec.sisaGram, sent.abon || 0);
+          } else {
+            rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          }
         });
       }
       setReturGrid(rGrid);
@@ -231,7 +251,7 @@ export default function Distribusi() {
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => { rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 }; });
     outlets.forEach((o) => {
-      const sent = freshDistGrid[o.id] || {};
+      const sent = (freshDistGrid[o.id] || {}) as any;
       if (!sent) return;
       const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {
         const gramPerCup = baseId === "p-bubur" ? 118 : 108;
@@ -254,11 +274,31 @@ export default function Distribusi() {
           }
         }
       };
-      calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
-      calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
-      rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
-      rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
-      rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
+          calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
+          
+          // For oatmeal, puding, abon: use sisaGram from penjualan if available (stores cups/pcs directly)
+          const oatmealRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal" && p.sisaGram != null);
+          const pudingRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-puding" && p.sisaGram != null);
+          const abonRec = existingSales.find((p: any) => p.outletId === o.id && p.produkId === "p-abon" && p.sisaGram != null);
+          
+          if (oatmealRec) {
+            rGrid[o.id].oatmeal = Math.min(oatmealRec.sisaGram, sent.oatmeal || 0);
+          } else {
+            rGrid[o.id].oatmeal = Math.max(0, (sent.oatmeal || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (pudingRec) {
+            rGrid[o.id].puding = Math.min(pudingRec.sisaGram, sent.puding || 0);
+          } else {
+            rGrid[o.id].puding = Math.max(0, (sent.puding || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding").reduce((s: number, p: any) => s + p.qty, 0));
+          }
+          
+          if (abonRec) {
+            rGrid[o.id].abon = Math.min(abonRec.sisaGram, sent.abon || 0);
+          } else {
+            rGrid[o.id].abon = Math.max(0, (sent.abon || 0) - existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon").reduce((s: number, p: any) => s + p.qty, 0));
+          }
     });
     setReturGrid(rGrid);
     lastSyncedSalesRef.current = freshPenjualan.filter((p: any) => p.tanggal === tanggal).reduce((s: number, p: any) => s + p.qty, 0).toString() + "-" + freshPenjualan.filter((p: any) => p.tanggal === tanggal).length;
@@ -401,7 +441,7 @@ export default function Distribusi() {
     const existingSales = penjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length > 0) {
       outlets.forEach((o) => {
-        const sent = grid[o.id] || {};
+        const sent = (grid[o.id] || {}) as any;
         if (!sent) return;
 
         const calcRetur = (baseId: string, dField: string, iField: string, dSent: number, iSent: number) => {

@@ -230,7 +230,7 @@ export function loadGridFromReqs(
 ): OutletGrid {
   const grid = createEmptyGrid(outlets);
   const dayReqs = permohonanStok.filter((r: any) =>
-    r.tanggalKirim === tanggal && r.status === "Disetujui"
+    r.tanggalKirim === tanggal && (r.status == null || r.status === "Disetujui")
   );
   dayReqs.forEach((r: any) => {
     if (!grid[r.outletId]) return;
@@ -452,15 +452,16 @@ export function resolveFreshReturGrid(opts: {
       calcRetur("p-bubur", "bubur_d", "bubur_i", sent.bubur_d || 0, sent.bubur_i || 0);
       calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
 
-      row.oatmeal = Math.max(0, (sent.oatmeal || 0) - existingPenjualan
-        .filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal")
-        .reduce((s: number, p: any) => s + p.qty, 0));
-      row.puding = Math.max(0, (sent.puding || 0) - existingPenjualan
-        .filter((p: any) => p.outletId === o.id && p.produkId === "p-puding")
-        .reduce((s: number, p: any) => s + p.qty, 0));
-      row.abon = Math.max(0, (sent.abon || 0) - existingPenjualan
-        .filter((p: any) => p.outletId === o.id && p.produkId === "p-abon")
-        .reduce((s: number, p: any) => s + p.qty, 0));
+      const getCupRetur = (produkId: string, sentQty: number) => {
+        const records = existingPenjualan.filter((p: any) => p.outletId === o.id && p.produkId === produkId);
+        const recordWithSisa = records.find((p: any) => p.sisaGram != null && p.variant != null);
+        return recordWithSisa
+          ? Math.min(Number(recordWithSisa.sisaGram) || 0, sentQty)
+          : Math.max(0, sentQty - records.reduce((s: number, p: any) => s + p.qty, 0));
+      };
+      row.oatmeal = getCupRetur("p-oatmeal", sent.oatmeal || 0);
+      row.puding = getCupRetur("p-puding", sent.puding || 0);
+      row.abon = getCupRetur("p-abon", sent.abon || 0);
     });
   }
   return fresh;

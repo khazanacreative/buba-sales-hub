@@ -358,7 +358,7 @@ export default function Produksi() {
       // permohonan_stok.qty = DISTRIBUSI AKTUAL bila siklus sudah disimpan (Langkah
       // 3), atau angka rencana bila belum — agar kapro tinggal menyesuaikan per outlet.
       const dayReqs = permohonanStok.filter((r: any) =>
-        r.tanggalKirim === tanggal && r.status === "Disetujui"
+        r.tanggalKirim === tanggal && (r.status == null || r.status === "Disetujui")
       );
       const dGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {
@@ -432,19 +432,19 @@ export default function Produksi() {
           calcRetur("p-nasitim", "tim_d", "tim_i", sent.tim_d || 0, sent.tim_i || 0);
 
           const oatRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-oatmeal");
-          const oatSisa = oatRecords.find((p: any) => p.sisaGram != null);
+          const oatSisa = oatRecords.find((p: any) => p.sisaGram != null && p.variant != null);
           rGrid[o.id].oatmeal = oatSisa
             ? Math.min(Number(oatSisa.sisaGram) || 0, sent.oatmeal || 0)
             : Math.max(0, (sent.oatmeal || 0) - oatRecords.reduce((s: number, p: any) => s + p.qty, 0));
 
           const pudRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-puding");
-          const pudSisa = pudRecords.find((p: any) => p.sisaGram != null);
+          const pudSisa = pudRecords.find((p: any) => p.sisaGram != null && p.variant != null);
           rGrid[o.id].puding = pudSisa
             ? Math.min(Number(pudSisa.sisaGram) || 0, sent.puding || 0)
             : Math.max(0, (sent.puding || 0) - pudRecords.reduce((s: number, p: any) => s + p.qty, 0));
 
           const abonRecords = existingSales.filter((p: any) => p.outletId === o.id && p.produkId === "p-abon");
-          const abonSisa = abonRecords.find((p: any) => p.sisaGram != null);
+          const abonSisa = abonRecords.find((p: any) => p.sisaGram != null && p.variant != null);
           rGrid[o.id].abon = abonSisa
             ? Math.min(Number(abonSisa.sisaGram) || 0, sent.abon || 0)
             : Math.max(0, (sent.abon || 0) - abonRecords.reduce((s: number, p: any) => s + p.qty, 0));
@@ -3112,6 +3112,13 @@ export default function Produksi() {
   function renderStep4() {
     // "Semua Outlet" terpilih (default) → tampilkan total retur OH seluruh outlet sebagai ringkasan
     const isAllView = returOutletId === ALL_OUTLETS_ID || !outlets.some((o) => o.id === returOutletId);
+    const displayedReturGrid = resolveFreshReturGrid({
+      outlets,
+      returGrid,
+      distGrid,
+      existingPenjualan: penjualan.filter((p: any) => p.tanggal === tanggal),
+      hasManualReturEdits: hasManualReturEdits.current,
+    });
     return (
       <Card className="glass border-0 shadow-card">
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -3202,8 +3209,8 @@ export default function Produksi() {
             {(() => {
               // "Semua Outlet" → jumlahkan retur & kiriman seluruh outlet; selain itu nilai outlet terpilih
               const row = isAllView
-                ? sumGridRows(returGrid)
-                : (returGrid[returOutletId] || { ...ZERO_RETUR_ROW });
+                ? sumGridRows(displayedReturGrid)
+                : (displayedReturGrid[returOutletId] || { ...ZERO_RETUR_ROW });
               const sent = isAllView
                 ? sumGridRows(distGrid)
                 : (distGrid[returOutletId] || { ...ZERO_RETUR_ROW });
@@ -3351,7 +3358,7 @@ export default function Produksi() {
                   </TableHeader>
                   <TableBody>
                     {outlets.map((o) => {
-                      const row = returGrid[o.id] || {
+                      const row = displayedReturGrid[o.id] || {
                         bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0,
                         oatmeal: 0, puding: 0, abon: 0
                       };
@@ -3433,7 +3440,7 @@ export default function Produksi() {
                     })}
                     {/* Baris Total (Semua Outlet) — klik untuk kembali ke ringkasan total */}
                     {(() => {
-                      const tRow = sumGridRows(returGrid);
+                      const tRow = sumGridRows(displayedReturGrid);
                       const tSent = sumGridRows(distGrid);
                       return (
                         <TableRow

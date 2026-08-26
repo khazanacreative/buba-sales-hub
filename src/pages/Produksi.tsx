@@ -1831,6 +1831,17 @@ export default function Produksi() {
     return currentSig !== lastSyncedSalesRef.current && lastSyncedSalesRef.current !== "";
   }, [penjualan, tanggal]);
 
+  // Auto-pull data penjualan baru saat admin berada di Langkah 4.
+  // Event "buba_penjualan_saved" hanya fire di tab yang sama dengan yang menyimpan,
+  // jadi jika outlet submit dari perangkat lain, ringkasan retur bisa "membeku"
+  // pada nilai lama (mis. oatmeal masih 3 retur padahal outlet sudah kirim sisa 0).
+  // handleAutoRefresh menghitung ulang returGrid dari data Supabase terbaru tanpa toast;
+  // hanya aktif di Langkah 4 agar input admin di langkah lain tidak terganggu.
+  useEffect(() => {
+    if (!hasNewSalesData || refreshing || step !== 4) return;
+    handleAutoRefresh();
+  }, [hasNewSalesData, refreshing, step, handleAutoRefresh]);
+
   const filteredOutlets = useMemo(() => {
     if (!outletFilterId) return outlets;
     return outlets.filter(o => o.id === outletFilterId);

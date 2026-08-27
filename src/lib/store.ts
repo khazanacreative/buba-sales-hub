@@ -835,6 +835,19 @@ export const db = {
     await supabase.from("jurnal").delete().eq("id", id);
     fetchFromSupabase();
   },
+  async updateJurnal(id: string, j: Partial<Omit<Jurnal, "id">>) {
+    const mapped: any = {};
+    if (j.tanggal !== undefined) mapped.tanggal = j.tanggal;
+    if (j.ref !== undefined) mapped.ref = j.ref;
+    if (j.keterangan !== undefined) mapped.keterangan = j.keterangan;
+    if (j.kodeAkun !== undefined) mapped.kode_akun = j.kodeAkun;
+    if (j.akun !== undefined) mapped.akun = j.akun;
+    if (j.tipe !== undefined) mapped.tipe = j.tipe;
+    if (j.jumlah !== undefined) mapped.jumlah = j.jumlah;
+    if (j.kategori !== undefined) mapped.kategori = j.kategori;
+    await supabase.from("jurnal").update(mapped).eq("id", id);
+    fetchFromSupabase();
+  },
 
   async addBahan(b: Omit<BahanBaku, "id">) {
     const id = uid();

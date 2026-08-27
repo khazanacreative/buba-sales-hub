@@ -437,6 +437,9 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
 // by date range to stay under Supabase's 1000-row default limit.
 // Small reference tables (outlets, produk, coa, etc.) are fetched in full.
 export async function fetchFromSupabase() {
+  // Skip polling/realtime refresh while historical data is being fetched
+  // to prevent race condition that overwrites historical data
+  if (_historicalLoading) return;
   const range = PRODUCTION_RANGE();
   const [
     outletsRes,

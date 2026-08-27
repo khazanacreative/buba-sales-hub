@@ -195,9 +195,18 @@ export function useDB(): DB {
 // Supabase default select returns max 1000 rows. This function paginates
 // automatically when the result hits the limit, ensuring ALL records are loaded.
 const SUPABASE_PAGE_SIZE = 1000;
+
+/** Build a Supabase query with optional date range filter. */
+function buildQuery(table: string, dateCol?: string, from?: string, to?: string) {
+  let q = supabase.from(table).select("*");
+  if (dateCol && from) q = q.gte(dateCol, from);
+  if (dateCol && to) q = q.lte(dateCol, to);
+  return q;
+}
+
 async function safeFetch(table: string) {
   try {
-    const first = await supabase.from(table).select("*").range(0, SUPABASE_PAGE_SIZE - 1);
+    const first = await buildQuery(table).range(0, SUPABASE_PAGE_SIZE - 1);
     if (first.error) {
       console.warn(`safeFetch(${table}):`, first.error);
       return { data: null, error: first.error };
@@ -210,7 +219,7 @@ async function safeFetch(table: string) {
     let allData = [...first.data];
     let offset = SUPABASE_PAGE_SIZE;
     while (true) {
-      const page = await supabase.from(table).select("*").range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+      const page = await buildQuery(table).range(offset, offset + SUPABASE_PAGE_SIZE - 1);
       if (page.error || !page.data || page.data.length === 0) break;
       allData = allData.concat(page.data);
       if (page.data.length < SUPABASE_PAGE_SIZE) break;
@@ -223,41 +232,72 @@ async function safeFetch(table: string) {
   }
 }
 
-// Fetch all tables from Supabase and update state cache.
-// Each table is fetched independently — one failure does NOT block others.
-export async function fetchFromSupabase() {
-  const [
-    outletsRes,
-    produkRes,
-    penjualanRes,
-    produksiRes,
-    jurnalRes,
-    coaRes,
-    bahanRes,
-    stokMovRes,
-    karyawanRes,
-    absensiRes,
-    permohonanRes,
-    usersRes
-  ] = await Promise.all([
-    safeFetch("outlets"),
-    safeFetch("produk"),
-    safeFetch("penjualan"),
-    safeFetch("produksi"),
-    safeFetch("jurnal"),
-    safeFetch("coa"),
-    safeFetch("bahan_baku"),
-    safeFetch("stok_movement"),
-    safeFetch("karyawan"),
-    safeFetch("absensi"),
-    safeFetch("permohonan_stok"),
-    safeFetch("users")
-  ]);
+/** Fetch with date range filter + pagination. Used for large tables (penjualan,
+ *  permohonan_stok, etc.) to avoid loading all historical data at once. */
+async function safeFetchFiltered(table: string, dateCol: string, from: string, to: string) {
+  try {
+    const first = await buildQuery(table, dateCol, from, to).range(0, SUPABASE_PAGE_SIZE - 1);
+    if (first.error) {
+      console.warn(`safeFetchFiltered(${table}):`, first.error);
+      return { data: null, error: first.error };
+    }
+    if (!first.data || first.data.length < SUPABASE_PAGE_SIZE) {
+      return { data: first.data, error: null };
+    }
+    let allData = [...first.data];
+    let offset = SUPABASE_PAGE_SIZE;
+    while (true) {
+      const page = await buildQuery(table, dateCol, from, to).range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+      if (page.error || !page.data || page.data.length === 0) break;
+      allData = allData.concat(page.data);
+      if (page.data.length < SUPABASE_PAGE_SIZE) break;
+      offset += SUPABASE_PAGE_SIZE;
+    }
+    return { data: allData, error: null };
+  } catch (err) {
+    console.warn(`safeFetchFiltered(${table}) exception:`, err);
+    return { data: null, error: err };
+  }
+}
 
-  state = {
-    outlets: outletsRes.data || [],
-    produk: produkRes.data || [],
-    penjualan: (penjualanRes.data || []).map((p: any) => ({
+// Date helpers (inline to avoid circular import with format.ts)
+const _todayISO = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+const _daysAgoISO = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+const _plusDaysISO = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+
+// Date range for production flows — ±3 days from today covers
+// Langkah 1-5 (planning, distribution, returns) with margin.
+const PRODUCTION_RANGE = () => ({ from: _daysAgoISO(3), to: _plusDaysISO(1) });
+
+// Large tables that benefit from date filtering to avoid 1000-row limit.
+// Columns: penjualan → tanggal, permohonan_stok → tanggal_kirim,
+// stok_movement → tanggal, produksi → tanggal, jurnal → tanggal, absensi → tanggal
+const DATE_FILTERED_TABLES: Record<string, string> = {
+  penjualan: "tanggal",
+  permohonan_stok: "tanggal_kirim",
+  stok_movement: "tanggal",
+  produksi: "tanggal",
+  jurnal: "tanggal",
+  absensi: "tanggal",
+};
+
+/** Parse mapped state from raw Supabase data. Extracted for reuse. */
+function mapState(raw: Record<string, any[]>, usersData: any[]) {
+  return {
+    outlets: raw.outlets || [],
+    produk: raw.produk || [],
+    penjualan: (raw.penjualan || []).map((p: any) => ({
       id: p.id,
       tanggal: p.tanggal,
       outletId: p.outlet_id,
@@ -268,14 +308,14 @@ export async function fetchFromSupabase() {
       sisaGram: p.sisa_gram === null ? undefined : p.sisa_gram,
       variant: p.variant === null ? undefined : p.variant
     })),
-    produksi: (produksiRes.data || []).map((p: any) => ({
+    produksi: (raw.produksi || []).map((p: any) => ({
       id: p.id,
       tanggal: p.tanggal,
       produkId: p.produk_id,
       qtyRencana: p.qty_rencana,
       qtyRealisasi: p.qty_realisasi
     })),
-    jurnal: (jurnalRes.data || []).map((j: any) => ({
+    jurnal: (raw.jurnal || []).map((j: any) => ({
       id: j.id,
       tanggal: j.tanggal,
       ref: j.ref,
@@ -286,8 +326,8 @@ export async function fetchFromSupabase() {
       jumlah: Number(j.jumlah),
       kategori: j.kategori
     })),
-    coa: coaRes.data || [],
-    bahan: (bahanRes.data || []).map((b: any) => ({
+    coa: raw.coa || [],
+    bahan: (raw.bahan || []).map((b: any) => ({
       id: b.id,
       kode: b.kode,
       nama: b.nama,
@@ -297,7 +337,7 @@ export async function fetchFromSupabase() {
       hargaBeli: Number(b.harga_beli),
       konversiGram: b.konversi_gram ?? undefined
     })),
-    stokMov: (stokMovRes.data || []).map((m: any) => ({
+    stokMov: (raw.stokMov || []).map((m: any) => ({
       id: m.id,
       tanggal: m.tanggal,
       bahanId: m.bahan_id,
@@ -306,9 +346,8 @@ export async function fetchFromSupabase() {
       keterangan: m.keterangan,
       produksiId: m.produksi_id
     })),
-    karyawan: (karyawanRes.data || []).map((k: any) => {
-      // Find linked user account for role, username, password
-      const linkedUser = (usersRes.data || []).find((u: any) => u.karyawan_id === k.id);
+    karyawan: (raw.karyawan || []).map((k: any) => {
+      const linkedUser = (usersData || []).find((u: any) => u.karyawan_id === k.id);
       return {
         id: k.id,
         nama: k.nama,
@@ -327,7 +366,7 @@ export async function fetchFromSupabase() {
         password: linkedUser?.password || undefined
       };
     }),
-    absensi: (absensiRes.data || []).map((a: any) => ({
+    absensi: (raw.absensi || []).map((a: any) => ({
       id: a.id,
       tanggal: a.tanggal,
       karyawanId: a.karyawan_id,
@@ -339,7 +378,7 @@ export async function fetchFromSupabase() {
       tunjangan: a.tunjangan ? Number(a.tunjangan) : 0,
       overtime: a.overtime ? Number(a.overtime) : 0
     })),
-    permohonanStok: (permohonanRes.data || []).map((p: any) => ({
+    permohonanStok: (raw.permohonanStok || []).map((p: any) => ({
       id: p.id,
       tanggal: p.tanggal,
       tanggalKirim: p.tanggal_kirim,
@@ -348,11 +387,10 @@ export async function fetchFromSupabase() {
       qty: p.qty,
       status: p.status,
       catatan: p.catatan,
-      // Rencana Langkah 1 — fallback ke qty/catatan untuk data lama (kolom baru null)
       qtyRencana: p.qty_rencana != null ? p.qty_rencana : p.qty,
       catatanRencana: p.catatan_rencana || p.catatan || undefined
     })),
-    users: (usersRes.data || []).map((u: any) => ({
+    users: (raw.users || []).map((u: any) => ({
       username: u.username,
       password: u.password,
       nama: u.nama,
@@ -362,6 +400,130 @@ export async function fetchFromSupabase() {
     })),
     settings: getBubaSettings()
   };
+}
+
+// Fetch all tables from Supabase and update state cache.
+// Large tables (penjualan, permohonan_stok, stok_movement, etc.) are filtered
+// by date range to stay under Supabase's 1000-row default limit.
+// Small reference tables (outlets, produk, coa, etc.) are fetched in full.
+export async function fetchFromSupabase() {
+  const range = PRODUCTION_RANGE();
+  const [
+    outletsRes,
+    produkRes,
+    penjualanRes,
+    produksiRes,
+    jurnalRes,
+    coaRes,
+    bahanRes,
+    stokMovRes,
+    karyawanRes,
+    absensiRes,
+    permohonanRes,
+    usersRes
+  ] = await Promise.all([
+    safeFetch("outlets"),
+    safeFetch("produk"),
+    safeFetchFiltered("penjualan", "tanggal", range.from, range.to),
+    safeFetchFiltered("produksi", "tanggal", range.from, range.to),
+    safeFetchFiltered("jurnal", "tanggal", range.from, range.to),
+    safeFetch("coa"),
+    safeFetch("bahan_baku"),
+    safeFetchFiltered("stok_movement", "tanggal", range.from, range.to),
+    safeFetch("karyawan"),
+    safeFetchFiltered("absensi", "tanggal", range.from, range.to),
+    safeFetchFiltered("permohonan_stok", "tanggal_kirim", range.from, range.to),
+    safeFetch("users")
+  ]);
+
+  state = mapState({
+    outlets: outletsRes.data,
+    produk: produkRes.data,
+    penjualan: penjualanRes.data,
+    produksi: produksiRes.data,
+    jurnal: jurnalRes.data,
+    coa: coaRes.data,
+    bahan: bahanRes.data,
+    stokMov: stokMovRes.data,
+    karyawan: karyawanRes.data,
+    absensi: absensiRes.data,
+    permohonanStok: permohonanRes.data,
+    users: usersRes.data
+  }, usersRes.data || []);
+  notify();
+}
+
+// Fetch historical data for a specific date range. Used by Laporan, Keuangan,
+// StokGudang, and Absensi pages when the user selects a range outside the
+// default production range (±3 days). Merges fetched data into state without
+// losing recent data already loaded.
+export async function fetchHistoricalData(from: string, to: string) {
+  const [
+    penjualanRes,
+    produksiRes,
+    jurnalRes,
+    stokMovRes,
+    absensiRes,
+    permohonanRes
+  ] = await Promise.all([
+    safeFetchFiltered("penjualan", "tanggal", from, to),
+    safeFetchFiltered("produksi", "tanggal", from, to),
+    safeFetchFiltered("jurnal", "tanggal", from, to),
+    safeFetchFiltered("stok_movement", "tanggal", from, to),
+    safeFetchFiltered("absensi", "tanggal", from, to),
+    safeFetchFiltered("permohonan_stok", "tanggal_kirim", from, to)
+  ]);
+
+  // Merge: keep existing records, add/update with historical ones
+  const mergeById = <T extends { id: string }>(existing: T[], fresh: T[]): T[] => {
+    const map = new Map(existing.map(r => [r.id, r]));
+    (fresh || []).forEach(r => map.set(r.id, r));
+    return Array.from(map.values());
+  };
+
+  const raw = {
+    outlets: state.outlets,
+    produk: state.produk,
+    penjualan: mergeById(state.penjualan, (penjualanRes.data || []).map((p: any) => ({
+      id: p.id, tanggal: p.tanggal, outletId: p.outlet_id, produkId: p.produk_id,
+      qty: p.qty, harga: p.harga, total: Number(p.total),
+      sisaGram: p.sisa_gram === null ? undefined : p.sisa_gram,
+      variant: p.variant === null ? undefined : p.variant
+    }))),
+    produksi: mergeById(state.produksi, (produksiRes.data || []).map((p: any) => ({
+      id: p.id, tanggal: p.tanggal, produkId: p.produk_id,
+      qtyRencana: p.qty_rencana, qtyRealisasi: p.qty_realisasi
+    }))),
+    jurnal: mergeById(state.jurnal, (jurnalRes.data || []).map((j: any) => ({
+      id: j.id, tanggal: j.tanggal, ref: j.ref, keterangan: j.keterangan,
+      kodeAkun: j.kode_akun, akun: j.akun, tipe: j.tipe,
+      jumlah: Number(j.jumlah), kategori: j.kategori
+    }))),
+    coa: state.coa,
+    bahan: state.bahan,
+    stokMov: mergeById(state.stokMov, (stokMovRes.data || []).map((m: any) => ({
+      id: m.id, tanggal: m.tanggal, bahanId: m.bahan_id, tipe: m.tipe,
+      qty: m.qty, keterangan: m.keterangan, produksiId: m.produksi_id
+    }))),
+    karyawan: state.karyawan,
+    absensi: mergeById(state.absensi, (absensiRes.data || []).map((a: any) => ({
+      id: a.id, tanggal: a.tanggal, karyawanId: a.karyawan_id,
+      jamMasuk: a.jam_masuk, jamPulang: a.jam_pulang, status: a.status,
+      catatan: a.catatan, bonus: a.bonus ? Number(a.bonus) : 0,
+      tunjangan: a.tunjangan ? Number(a.tunjangan) : 0, overtime: a.overtime ? Number(a.overtime) : 0
+    }))),
+    permohonanStok: mergeById(state.permohonanStok, (permohonanRes.data || []).map((p: any) => ({
+      id: p.id, tanggal: p.tanggal, tanggalKirim: p.tanggal_kirim,
+      outletId: p.outlet_id, produkId: p.produk_id, qty: p.qty, status: p.status,
+      catatan: p.catatan,
+      qtyRencana: p.qty_rencana != null ? p.qty_rencana : p.qty,
+      catatanRencana: p.catatan_rencana || p.catatan || undefined
+    }))),
+    users: state.users,
+    settings: state.settings
+  };
+
+  state = raw;
   notify();
 }
 

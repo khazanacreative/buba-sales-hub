@@ -192,14 +192,31 @@ export function useDB(): DB {
 }
 
 // Helper: fetch a single table and return { data, error }. Never throws.
+// Supabase default select returns max 1000 rows. This function paginates
+// automatically when the result hits the limit, ensuring ALL records are loaded.
+const SUPABASE_PAGE_SIZE = 1000;
 async function safeFetch(table: string) {
   try {
-    const res = await supabase.from(table).select("*");
-    if (res.error) {
-      console.warn(`safeFetch(${table}):`, res.error);
-      return { data: null, error: res.error };
+    const first = await supabase.from(table).select("*").range(0, SUPABASE_PAGE_SIZE - 1);
+    if (first.error) {
+      console.warn(`safeFetch(${table}):`, first.error);
+      return { data: null, error: first.error };
     }
-    return { data: res.data, error: null };
+    // If fewer than PAGE_SIZE rows returned, we have everything
+    if (!first.data || first.data.length < SUPABASE_PAGE_SIZE) {
+      return { data: first.data, error: null };
+    }
+    // Paginate: fetch remaining pages
+    let allData = [...first.data];
+    let offset = SUPABASE_PAGE_SIZE;
+    while (true) {
+      const page = await supabase.from(table).select("*").range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+      if (page.error || !page.data || page.data.length === 0) break;
+      allData = allData.concat(page.data);
+      if (page.data.length < SUPABASE_PAGE_SIZE) break;
+      offset += SUPABASE_PAGE_SIZE;
+    }
+    return { data: allData, error: null };
   } catch (err) {
     console.warn(`safeFetch(${table}) exception:`, err);
     return { data: null, error: err };

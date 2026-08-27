@@ -466,20 +466,30 @@ export async function fetchFromSupabase() {
     safeFetch("users")
   ]);
 
-  state = mapState({
+  // Merge with existing state to preserve historical data already loaded
+  // by fetchHistoricalData. Only overwrite with fresh production-range data;
+  // historical records outside the range stay in state.
+  const mergeById = <T extends { id: string }>(existing: T[], fresh: T[]): T[] => {
+    const map = new Map(existing.map(r => [r.id, r]));
+    (fresh || []).forEach(r => map.set(r.id, r));
+    return Array.from(map.values());
+  };
+
+  const raw = mapState({
     outlets: outletsRes.data,
     produk: produkRes.data,
-    penjualan: penjualanRes.data,
-    produksi: produksiRes.data,
-    jurnal: jurnalRes.data,
+    penjualan: mergeById(state.penjualan, penjualanRes.data || []),
+    produksi: mergeById(state.produksi, produksiRes.data || []),
+    jurnal: mergeById(state.jurnal, jurnalRes.data || []),
     coa: coaRes.data,
     bahan: bahanRes.data,
-    stokMov: stokMovRes.data,
+    stokMov: mergeById(state.stokMov, stokMovRes.data || []),
     karyawan: karyawanRes.data,
-    absensi: absensiRes.data,
-    permohonanStok: permohonanRes.data,
+    absensi: mergeById(state.absensi, absensiRes.data || []),
+    permohonanStok: mergeById(state.permohonanStok, permohonanRes.data || []),
     users: usersRes.data
   }, usersRes.data || []);
+  state = raw;
   notify();
 }
 

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { db, useDB, fetchFromSupabase, fetchHistoricalData } from "@/lib/store";
+import { db, useDB, fetchFromSupabase, fetchHistoricalData, useHistoricalLoading } from "@/lib/store";
 import { rupiah, monthKey, DateRange, inRange, todayISO } from "@/lib/format";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { DateInput } from "@/components/DateInput";
@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Save, Package, Edit3, Percent, TrendingUp, AlertTriangle, CheckCircle2, Clock, Lock } from "lucide-react";
+import { Save, Package, Edit3, Percent, TrendingUp, AlertTriangle, CheckCircle2, Clock, Lock, Loader2 } from "lucide-react";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import {
   Dialog,
@@ -89,6 +89,7 @@ const getVariantLabels = (permohonanStok: any[], tanggal?: string) => {
 
 export default function Laporan() {
   const { penjualan, outlets, produk, permohonanStok, jurnal } = useDB();
+  const histLoading = useHistoricalLoading();
   const { user } = useAuth();
   const isOutlet = user?.role === "outlet";
   const isProduksi = user?.role === "produksi";
@@ -195,6 +196,13 @@ export default function Laporan() {
           <p className="text-muted-foreground">Rekapitulasi dan riwayat transaksi penjualan terintegrasi</p>
         </div>
       </div>
+
+      {histLoading && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30 rounded-xl px-4 py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <span>Memuat data historis untuk rentang tanggal yang dipilih...</span>
+        </div>
+      )}
 
       <Tabs defaultValue={isOutlet || isProduksi || isGudang || isTl ? "sisa-produksi" : "riwayat"} className="space-y-6">
         <TabsList className={`grid w-full ${isProduksi ? "grid-cols-1" : "grid-cols-3"} gap-0`}>

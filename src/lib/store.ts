@@ -191,6 +191,35 @@ export function useDB(): DB {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
+// === HISTORICAL LOADING STATE ===
+// Lightweight reactive flag so pages can show a loading indicator while
+// fetchHistoricalData is in progress (without adding to the DB interface).
+let _historicalLoading = false;
+const _histListeners = new Set<() => void>();
+
+function setHistoricalLoading(v: boolean) {
+  _historicalLoading = v;
+  _histListeners.forEach(l => l());
+}
+
+/** Check if a historical data fetch is currently in progress. */
+export function isHistoricalLoading() { return _historicalLoading; }
+
+/** Subscribe to historical loading state changes. Returns unsubscribe fn. */
+export function onHistoricalLoadingChange(l: () => void) {
+  _histListeners.add(l);
+  return () => { _histListeners.delete(l); };
+}
+
+/** React hook for historical loading state. */
+export function useHistoricalLoading() {
+  return useSyncExternalStore(
+    (cb) => onHistoricalLoadingChange(cb),
+    () => _historicalLoading,
+    () => _historicalLoading
+  );
+}
+
 // Helper: fetch a single table and return { data, error }. Never throws.
 // Supabase default select returns max 1000 rows. This function paginates
 // automatically when the result hits the limit, ensuring ALL records are loaded.
@@ -276,9 +305,10 @@ const _plusDaysISO = (n: number) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
 
-// Date range for production flows — ±3 days from today covers
-// Langkah 1-5 (planning, distribution, returns) with margin.
-const PRODUCTION_RANGE = () => ({ from: _daysAgoISO(3), to: _plusDaysISO(1) });
+// Date range for production flows — ±7 days from today covers
+// Langkah 1-5 (planning, distribution, returns) + 1 week history.
+// With ~15-20 records/day per table, this stays well under 1000-row limit.
+const PRODUCTION_RANGE = () => ({ from: _daysAgoISO(7), to: _plusDaysISO(1) });
 
 // Large tables that benefit from date filtering to avoid 1000-row limit.
 // Columns: penjualan → tanggal, permohonan_stok → tanggal_kirim,
@@ -458,6 +488,8 @@ export async function fetchFromSupabase() {
 // default production range (±3 days). Merges fetched data into state without
 // losing recent data already loaded.
 export async function fetchHistoricalData(from: string, to: string) {
+  setHistoricalLoading(true);
+  try {
   const [
     penjualanRes,
     produksiRes,
@@ -525,6 +557,9 @@ export async function fetchHistoricalData(from: string, to: string) {
 
   state = raw;
   notify();
+  } finally {
+    setHistoricalLoading(false);
+  }
 }
 
 // Initial fetch when module loads

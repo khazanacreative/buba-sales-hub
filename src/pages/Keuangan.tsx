@@ -6,12 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { db, useDB, GRAM_EXCLUDED_BAHAN, fetchHistoricalData } from "@/lib/store";
+import { db, useDB, GRAM_EXCLUDED_BAHAN, fetchHistoricalData, useHistoricalLoading } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { Navigate } from "react-router-dom";
 import { rupiah, todayISO, DateRange, inRange, nilaiBahan } from "@/lib/format";
 import { AkunKategori } from "@/lib/types";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { DateInput } from "@/components/DateInput";
@@ -27,6 +27,7 @@ const KATEGORI: AkunKategori[] = ["Aset", "Kewajiban", "Ekuitas", "Pendapatan", 
 export default function Keuangan() {
   const { user } = useAuth();
   const { jurnal, penjualan, coa, bahan, stokMov } = useDB();
+  const histLoading = useHistoricalLoading();
   const [tanggal, setTanggal] = useState(todayISO());
   const [keterangan, setKeterangan] = useState("");
   const [kodeAkun, setKodeAkun] = useState(coa[0]?.kode ?? "");
@@ -259,6 +260,13 @@ export default function Keuangan() {
           <ImportExcelButton onData={onImport} />
         </div>
       </div>
+
+      {histLoading && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30 rounded-xl px-4 py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <span>Memuat data historis...</span>
+        </div>
+      )}
 
       <Tabs defaultValue="jurnal" className="w-full">
         <TabsList className="grid w-full grid-cols-4 gap-0">

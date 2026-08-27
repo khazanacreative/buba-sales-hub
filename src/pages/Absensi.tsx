@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { db, useDB } from "@/lib/store";
+import { db, useDB, fetchHistoricalData } from "@/lib/store";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
 import { Plus, Trash2, UserCheck, Users, CalendarCheck, CheckCircle2, Check, FileText, MapPin, Navigation, Loader2, Sparkles, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -74,6 +74,32 @@ export default function Absensi() {
   const [overtimeInput, setOvertimeInput] = useState(0);
   const [range, setRange] = useState<DateRange>({});
   const [editingAbsensi, setEditingAbsensi] = useState<any>(null);
+
+  // Auto-fetch historical data when user selects a date range outside ±3 days
+  const loadingHistoricalRef = useRef(false);
+  useEffect(() => {
+    if (!range.from && !range.to) return;
+    const from = range.from || todayISO();
+    const to = range.to || todayISO();
+    const today = new Date();
+    const threeDaysAgo = new Date(today);
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const fmt = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const loadedFrom = fmt(threeDaysAgo);
+    const loadedTo = fmt(tomorrow);
+    if (from < loadedFrom || to > loadedTo) {
+      const fetchFrom = from < loadedFrom ? from : loadedFrom;
+      const fetchTo = to > loadedTo ? to : loadedTo;
+      if (!loadingHistoricalRef.current) {
+        loadingHistoricalRef.current = true;
+        fetchHistoricalData(fetchFrom, fetchTo).finally(() => {
+          loadingHistoricalRef.current = false;
+        });
+      }
+    }
+  }, [range]);
 
   // GPS State
   const [gpsLoading, setGpsLoading] = useState(true);

@@ -1,10 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDB } from "@/lib/store";
+import { useDB, fetchHistoricalData } from "@/lib/store";
 import { rupiah, todayISO, monthKey, DateRange, inRange, daysAgoISO } from "@/lib/format";
 import { ShoppingCart, TrendingUp, ChefHat, Store } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 
 export default function Dashboard() {
@@ -13,6 +13,31 @@ export default function Dashboard() {
   const today = todayISO();
   const m = monthKey(today);
   const [range, setRange] = useState<DateRange>({ from: daysAgoISO(13), to: today });
+
+  // Auto-fetch historical data when user selects a date range outside ±3 days
+  const loadingHistoricalRef = useRef(false);
+  useEffect(() => {
+    if (!range.from && !range.to) return;
+    const from = range.from || todayISO();
+    const to = range.to || todayISO();
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const fmt = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const loadedFrom = fmt(threeDaysAgo);
+    const loadedTo = fmt(tomorrow);
+    if (from < loadedFrom || to > loadedTo) {
+      const fetchFrom = from < loadedFrom ? from : loadedFrom;
+      const fetchTo = to > loadedTo ? to : loadedTo;
+      if (!loadingHistoricalRef.current) {
+        loadingHistoricalRef.current = true;
+        fetchHistoricalData(fetchFrom, fetchTo).finally(() => {
+          loadingHistoricalRef.current = false;
+        });
+      }
+    }
+  }, [range]);
 
   // Scope penjualan by user role
   const scopedPenjualan = useMemo(

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { db, useDB, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
+import { db, useDB, GRAM_EXCLUDED_BAHAN, fetchHistoricalData } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { Navigate } from "react-router-dom";
 import { rupiah, todayISO, DateRange, inRange, nilaiBahan } from "@/lib/format";
@@ -33,6 +33,32 @@ export default function Keuangan() {
   const [tipe, setTipe] = useState<"Debit" | "Kredit">("Debit");
   const [jumlah, setJumlah] = useState("");
   const [range, setRange] = useState<DateRange>({});
+
+  // Auto-fetch historical data when user selects a date range outside ±3 days
+  const loadingHistoricalRef = useRef(false);
+  useEffect(() => {
+    if (!range.from && !range.to) return;
+    const from = range.from || todayISO();
+    const to = range.to || todayISO();
+    const today = new Date();
+    const threeDaysAgo = new Date(today);
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const fmt = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const loadedFrom = fmt(threeDaysAgo);
+    const loadedTo = fmt(tomorrow);
+    if (from < loadedFrom || to > loadedTo) {
+      const fetchFrom = from < loadedFrom ? from : loadedFrom;
+      const fetchTo = to > loadedTo ? to : loadedTo;
+      if (!loadingHistoricalRef.current) {
+        loadingHistoricalRef.current = true;
+        fetchHistoricalData(fetchFrom, fetchTo).finally(() => {
+          loadingHistoricalRef.current = false;
+        });
+      }
+    }
+  }, [range]);
 
   const akunObj = coa.find((a) => a.kode === kodeAkun);
 

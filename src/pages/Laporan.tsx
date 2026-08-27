@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { db, useDB, fetchFromSupabase } from "@/lib/store";
+import { db, useDB, fetchFromSupabase, fetchHistoricalData } from "@/lib/store";
 import { rupiah, monthKey, DateRange, inRange, todayISO } from "@/lib/format";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { DateInput } from "@/components/DateInput";
@@ -98,6 +98,36 @@ export default function Laporan() {
   const [periode, setPeriode] = useState<Periode>("harian");
   const [outletId, setOutletId] = useState<string>(isOutlet ? user!.outletId! : "all");
   const [range, setRange] = useState<DateRange>({});
+
+  // Auto-fetch historical data when user selects a date range outside ±3 days.
+  // fetchFromSupabase only loads ±3 days for performance; this useEffect ensures
+  // Laporan page has all data needed for the selected period.
+  const loadingHistoricalRef = useRef(false);
+  useEffect(() => {
+    if (!range.from && !range.to) return;
+    const from = range.from || todayISO();
+    const to = range.to || todayISO();
+    // Check if range extends beyond ±3 days from today
+    const today = new Date();
+    const threeDaysAgo = new Date(today);
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const fmt = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const loadedFrom = fmt(threeDaysAgo);
+    const loadedTo = fmt(tomorrow);
+    // If selected range extends beyond loaded data, fetch historical
+    if (from < loadedFrom || to > loadedTo) {
+      const fetchFrom = from < loadedFrom ? from : loadedFrom;
+      const fetchTo = to > loadedTo ? to : loadedTo;
+      if (!loadingHistoricalRef.current) {
+        loadingHistoricalRef.current = true;
+        fetchHistoricalData(fetchFrom, fetchTo).finally(() => {
+          loadingHistoricalRef.current = false;
+        });
+      }
+    }
+  }, [range]);
 
   // ===== REKAP DATA =====
   const distributedSalesKeys = useMemo(() => {

@@ -353,18 +353,25 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       qtyRencana: p.qty_rencana,
       qtyRealisasi: p.qty_realisasi
     })),
-    jurnal: (raw.jurnal || []).map((j: any) => ({
-      id: j.id,
-      tanggal: j.tanggal,
-      ref: j.ref,
-      keterangan: j.keterangan,
-      kodeAkun: j.kode_akun,
-      akun: j.akun,
-      tipe: j.tipe,
-      jumlah: Number(j.jumlah),
-      kategori: j.kategori,
-      kodeBantuId: j.kode_bantu_id === null ? undefined : j.kode_bantu_id
-    })),
+     jurnal: (raw.jurnal || []).map((j: any) => {
+       // Migrasi entry lama: jika field wajib kosong, lengkapi dari COA
+       const coaMatch = (raw.coa || []).find((c: any) => c.kode === j.kode_akun);
+       const kodeAkun = j.kode_akun ?? coaMatch?.kode ?? "";
+       const akun = j.akun ?? coaMatch?.nama ?? "(Akun tidak dikenal)";
+       const kategori = j.kategori ?? coaMatch?.kategori ?? "";
+       return {
+         id: j.id,
+         tanggal: j.tanggal,
+         ref: j.ref,
+         keterangan: j.keterangan ?? "",
+         kodeAkun,
+         akun,
+         tipe: j.tipe,
+         jumlah: Number(j.jumlah),
+         kategori,
+         kodeBantuId: j.kode_bantu_id === null ? undefined : j.kode_bantu_id
+       };
+     }),
     kodeBantu: (raw.kodeBantu || []).map((k: any) => ({
       id: k.id,
       kode: k.kode,

@@ -234,7 +234,7 @@ export function loadGridFromReqs(
 ): OutletGrid {
   const grid = createEmptyGrid(outlets);
   const dayReqs = permohonanStok.filter((r: any) =>
-    r.tanggalKirim === tanggal && statuses.includes(r.status)
+    r.tanggalKirim === tanggal && statuses.includes(r.status ?? null)
   );
   dayReqs.forEach((r: any) => {
     if (!grid[r.outletId]) return;

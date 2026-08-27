@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_LOCK_DEADLINE } from "./produksi-utils";
-import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu, HppConfig } from "./types";
+import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu, HppProduk, HppBahan, HppConsumable } from "./types";
 import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN, SEED_JURNAL, SEED_USERS } from "./seed";
 
 // =============================================================================
@@ -150,7 +150,9 @@ interface DB {
   permohonanStok: PermohonanStok[];
   users: UserAccount[];
   kodeBantu: KodeBantu[];
-  hppConfig: HppConfig[];
+  hppProduk: HppProduk[];
+  hppBahan: HppBahan[];
+  hppConsumable: HppConsumable[];
   settings: BubaSettings;
 }
 
@@ -168,7 +170,9 @@ const initial = (): DB => ({
   permohonanStok: [],
   users: SEED_USERS,
   kodeBantu: [],
-  hppConfig: [],
+  hppProduk: [],
+  hppBahan: [],
+  hppConsumable: [],
   settings: getBubaSettings(),
 });
 
@@ -369,17 +373,33 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       keterangan: k.keterangan === null ? undefined : k.keterangan,
       createdAt: k.created_at
     })),
-    hppConfig: (raw.hppConfig || []).map((h: any) => ({
+    hppProduk: (raw.hppProduk || []).map((h: any) => ({
       id: h.id,
       produkId: h.produk_id,
-      hppBahanPerCup: Number(h.hpp_bahan_per_cup),
-      hppPackagingPerCup: Number(h.hpp_packaging_per_cup),
-      hppOhPerCup: Number(h.hpp_oh_per_cup),
-      biayaTenagaKerjaPerCup: Number(h.biaya_tenaga_kerja_per_cup),
-      biayaLainPerCup: Number(h.biaya_lain_per_cup),
-      marginPersen: Number(h.margin_persen),
+      hargaJual: Number(h.harga_jual),
+      catatan: h.catatan === null ? undefined : h.catatan,
       aktif: !!h.aktif,
       updatedAt: h.updated_at
+    })),
+    hppBahan: (raw.hppBahan || []).map((b: any) => ({
+      id: b.id,
+      hppProdukId: b.hpp_produk_id,
+      namaItem: b.nama_item,
+      satuan: b.satuan,
+      berat: Number(b.berat),
+      harga: Number(b.harga),
+      jadi: Number(b.jadi),
+      urutan: Number(b.urutan)
+    })),
+    hppConsumable: (raw.hppConsumable || []).map((c: any) => ({
+      id: c.id,
+      hppProdukId: c.hpp_produk_id,
+      namaItem: c.nama_item,
+      satuan: c.satuan,
+      berat: Number(c.berat),
+      harga: Number(c.harga),
+      jumlah: Number(c.jumlah),
+      urutan: Number(c.urutan)
     })),
     coa: raw.coa || [],
     bahan: (raw.bahan || []).map((b: any) => ({
@@ -480,7 +500,9 @@ export async function fetchFromSupabase() {
     permohonanRes,
     usersRes,
     kodeBantuRes,
-    hppConfigRes
+    hppProdukRes,
+    hppBahanRes,
+    hppConsumableRes
   ] = await Promise.all([
     safeFetch("outlets"),
     safeFetch("produk"),
@@ -495,7 +517,9 @@ export async function fetchFromSupabase() {
     safeFetchFiltered("permohonan_stok", "tanggal_kirim", range.from, range.to),
     safeFetch("users"),
     safeFetch("kode_bantu"),
-    safeFetch("hpp_config")
+    safeFetch("hpp_produk"),
+    safeFetch("hpp_bahan"),
+    safeFetch("hpp_consumable")
   ]);
 
   // Merge with existing state to preserve historical data already loaded
@@ -520,7 +544,10 @@ export async function fetchFromSupabase() {
     absensi: mergeById(state.absensi, absensiRes.data || []),
     permohonanStok: mergeById(state.permohonanStok, permohonanRes.data || []),
     users: usersRes.data,
-    kodeBantu: kodeBantuRes.data || []
+    kodeBantu: kodeBantuRes.data || [],
+    hppProduk: hppProdukRes.data || [],
+    hppBahan: hppBahanRes.data || [],
+    hppConsumable: hppConsumableRes.data || []
   }, usersRes.data || []);
   state = raw;
   notify();
@@ -597,7 +624,9 @@ export async function fetchHistoricalData(from: string, to: string) {
     }))),
     users: state.users,
     kodeBantu: state.kodeBantu,
-    hppConfig: state.hppConfig,
+    hppProduk: state.hppProduk,
+    hppBahan: state.hppBahan,
+    hppConsumable: state.hppConsumable,
     settings: state.settings
   };
 
@@ -935,47 +964,133 @@ export const db = {
     await fetchFromSupabase();
   },
 
-  // ==================== HPP CONFIG CRUD ====================
-  async addHppConfig(h: Omit<HppConfig, "id" | "updatedAt"> & { id?: string }) {
-    const id = h.id ?? uid();
-    const { error } = await supabase.from("hpp_config").insert([{
+  // ==================== HPP PRODUK CRUD (Header 1 row per produk) ====================
+  // Tambah/get/update/delete HppProduk (header dengan hargaJual)
+  // Note: Auto-cascade ke hpp_bahan & hpp_consumable via FK ON DELETE CASCADE
+  async addHppProduk(p: Omit<HppProduk, "id" | "updatedAt"> & { id?: string }) {
+    const id = p.id ?? uid();
+    const { error } = await supabase.from("hpp_produk").insert([{
       id,
-      produk_id: h.produkId,
-      hpp_bahan_per_cup: h.hppBahanPerCup,
-      hpp_packaging_per_cup: h.hppPackagingPerCup,
-      hpp_oh_per_cup: h.hppOhPerCup,
-      biaya_tenaga_kerja_per_cup: h.biayaTenagaKerjaPerCup,
-      biaya_lain_per_cup: h.biayaLainPerCup,
-      margin_persen: h.marginPersen,
-      aktif: h.aktif
+      produk_id: p.produkId,
+      harga_jual: p.hargaJual,
+      catatan: p.catatan ?? null,
+      aktif: p.aktif
     }]);
     if (error) {
-      console.error(`addHppConfig error (produk=${h.produkId}):`, error);
+      console.error(`addHppProduk error (produk=${p.produkId}):`, error);
       throw error;
     }
     await fetchFromSupabase();
   },
-  async updateHppConfig(id: string, h: Partial<Omit<HppConfig, "id" | "updatedAt">>) {
+  async updateHppProduk(id: string, p: Partial<Omit<HppProduk, "id" | "updatedAt">>) {
     const mapped: any = {};
-    if (h.produkId !== undefined) mapped.produk_id = h.produkId;
-    if (h.hppBahanPerCup !== undefined) mapped.hpp_bahan_per_cup = h.hppBahanPerCup;
-    if (h.hppPackagingPerCup !== undefined) mapped.hpp_packaging_per_cup = h.hppPackagingPerCup;
-    if (h.hppOhPerCup !== undefined) mapped.hpp_oh_per_cup = h.hppOhPerCup;
-    if (h.biayaTenagaKerjaPerCup !== undefined) mapped.biaya_tenaga_kerja_per_cup = h.biayaTenagaKerjaPerCup;
-    if (h.biayaLainPerCup !== undefined) mapped.biaya_lain_per_cup = h.biayaLainPerCup;
-    if (h.marginPersen !== undefined) mapped.margin_persen = h.marginPersen;
-    if (h.aktif !== undefined) mapped.aktif = h.aktif;
-    const { error } = await supabase.from("hpp_config").update(mapped).eq("id", id);
+    if (p.produkId !== undefined) mapped.produk_id = p.produkId;
+    if (p.hargaJual !== undefined) mapped.harga_jual = p.hargaJual;
+    if (p.catatan !== undefined) mapped.catatan = p.catatan ?? null;
+    if (p.aktif !== undefined) mapped.aktif = p.aktif;
+    const { error } = await supabase.from("hpp_produk").update(mapped).eq("id", id);
     if (error) {
-      console.error(`updateHppConfig error (id=${id}):`, error);
+      console.error(`updateHppProduk error (id=${id}):`, error);
       throw error;
     }
     await fetchFromSupabase();
   },
-  async deleteHppConfig(id: string) {
-    const { error } = await supabase.from("hpp_config").delete().eq("id", id);
+  async deleteHppProduk(id: string) {
+    // ON DELETE CASCADE di FK hpp_bahan.hpp_produk_id & hpp_consumable.hpp_produk_id
+    // akan otomatis hapus semua bahan & consumable terkait.
+    const { error } = await supabase.from("hpp_produk").delete().eq("id", id);
     if (error) {
-      console.error(`deleteHppConfig error (id=${id}):`, error);
+      console.error(`deleteHppProduk error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+
+  // ==================== HPP BAHAN CRUD (Detail Bahan Baku) ====================
+  // Tambah/update/delete HppBahan. HPP = (berat × harga) / jadi (auto-calc di UI)
+  async addHppBahan(b: Omit<HppBahan, "id"> & { id?: string }) {
+    const id = b.id ?? uid();
+    const { error } = await supabase.from("hpp_bahan").insert([{
+      id,
+      hpp_produk_id: b.hppProdukId,
+      nama_item: b.namaItem,
+      satuan: b.satuan,
+      berat: b.berat,
+      harga: b.harga,
+      jadi: b.jadi,
+      urutan: b.urutan
+    }]);
+    if (error) {
+      console.error(`addHppBahan error (hppProdukId=${b.hppProdukId}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async updateHppBahan(id: string, b: Partial<Omit<HppBahan, "id">>) {
+    const mapped: any = {};
+    if (b.hppProdukId !== undefined) mapped.hpp_produk_id = b.hppProdukId;
+    if (b.namaItem !== undefined) mapped.nama_item = b.namaItem;
+    if (b.satuan !== undefined) mapped.satuan = b.satuan;
+    if (b.berat !== undefined) mapped.berat = b.berat;
+    if (b.harga !== undefined) mapped.harga = b.harga;
+    if (b.jadi !== undefined) mapped.jadi = b.jadi;
+    if (b.urutan !== undefined) mapped.urutan = b.urutan;
+    const { error } = await supabase.from("hpp_bahan").update(mapped).eq("id", id);
+    if (error) {
+      console.error(`updateHppBahan error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async deleteHppBahan(id: string) {
+    const { error } = await supabase.from("hpp_bahan").delete().eq("id", id);
+    if (error) {
+      console.error(`deleteHppBahan error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+
+  // ==================== HPP CONSUMABLE CRUD (Detail Packaging) ====================
+  // Tambah/update/delete HppConsumable. HPP = jumlah × harga (auto-calc di UI)
+  async addHppConsumable(c: Omit<HppConsumable, "id"> & { id?: string }) {
+    const id = c.id ?? uid();
+    const { error } = await supabase.from("hpp_consumable").insert([{
+      id,
+      hpp_produk_id: c.hppProdukId,
+      nama_item: c.namaItem,
+      satuan: c.satuan,
+      berat: c.berat,
+      harga: c.harga,
+      jumlah: c.jumlah,
+      urutan: c.urutan
+    }]);
+    if (error) {
+      console.error(`addHppConsumable error (hppProdukId=${c.hppProdukId}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async updateHppConsumable(id: string, c: Partial<Omit<HppConsumable, "id">>) {
+    const mapped: any = {};
+    if (c.hppProdukId !== undefined) mapped.hpp_produk_id = c.hppProdukId;
+    if (c.namaItem !== undefined) mapped.nama_item = c.namaItem;
+    if (c.satuan !== undefined) mapped.satuan = c.satuan;
+    if (c.berat !== undefined) mapped.berat = c.berat;
+    if (c.harga !== undefined) mapped.harga = c.harga;
+    if (c.jumlah !== undefined) mapped.jumlah = c.jumlah;
+    if (c.urutan !== undefined) mapped.urutan = c.urutan;
+    const { error } = await supabase.from("hpp_consumable").update(mapped).eq("id", id);
+    if (error) {
+      console.error(`updateHppConsumable error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async deleteHppConsumable(id: string) {
+    const { error } = await supabase.from("hpp_consumable").delete().eq("id", id);
+    if (error) {
+      console.error(`deleteHppConsumable error (id=${id}):`, error);
       throw error;
     }
     await fetchFromSupabase();

@@ -71,21 +71,53 @@ export interface KodeBantu {
   createdAt?: string;     // ISO date string
 }
 
-// === HPP Config (Master Data Perhitungan HPP per Produk) ===
-// Setiap produk punya konfigurasi HPP per cup yang dipakai untuk
-// menghitung total HPP pada Laporan HPP. Nilai disimpan sebagai
-// rupiah per CUP (satuan terkecil produk).
-export interface HppConfig {
+// === HPP PRODUK (Master Data Perhitungan HPP per Produk) ===
+// Struktur 3-tabel: HppProduk (header) → HppBahan (detail bahan baku)
+//                                    → HppConsumable (detail consumable/packaging)
+//
+// HPP Final dihitung otomatis:
+//   hpp = Σ(HPP Bahan Baku) + Σ(HPP Consumable)
+//   GPM = (hargaJual - hpp) / hargaJual × 100
+//
+// Tiap produk (Bubur, Nasi Tim, Oatmeal, Puding, Abon) punya 1 HppProduk
+// yang berisi daftar bahan baku + consumable.
+
+// Header — 1 row per produk
+export interface HppProduk {
   id: string;
-  produkId: string;        // FK ke produk.id (1:1)
-  hppBahanPerCup: number;   // HPP bahan utama per cup (akun 541000 HPP Bahan Utama)
-  hppPackagingPerCup: number; // HPP pendukung per cup (akun 542000 HPP Pendukung)
-  hppOhPerCup: number;      // Overhead per cup (akun 543000 OH)
-  biayaTenagaKerjaPerCup: number; // TK langsung per cup (akun 520001 GAJI)
-  biayaLainPerCup: number;  // Biaya lain per cup (default 0)
-  marginPersen: number;     // Target margin % untuk laporan
-  aktif: boolean;           // enable/disable
+  produkId: string;            // FK ke produk.id (1:1)
+  hargaJual: number;           // Harga jual (untuk hitung GPM)
+  catatan?: string;            // Catatan opsional
+  aktif: boolean;              // enable/disable
   updatedAt?: string;
+}
+
+// Detail Bahan Baku — N row per HppProduk
+// HPP = (berat / jadi) × harga
+export interface HppBahan {
+  id: string;
+  hppProdukId: string;         // FK ke hpp_produk.id
+  namaItem: string;            // Cth: Beras, Daging, Oatmeal, Keju, Puding
+  satuan: string;              // Cth: g, kg, ml, sachet
+  berat: number;               // Berat/Volume per satuan (numerator)
+  harga: number;               // Harga beli per satuan (Rp)
+  jadi: number;                // Hasil jadi dalam CUP (denominator)
+  // hpp = (berat * harga) / jadi  (auto-calc di UI, TIDAK disimpan)
+  urutan: number;              // Untuk display order
+}
+
+// Detail Consumable — N row per HppProduk
+// HPP = jumlah × harga
+export interface HppConsumable {
+  id: string;
+  hppProdukId: string;         // FK ke hpp_produk.id
+  namaItem: string;            // Cth: Cup, Tutup, Sendok, Stiker, Plastik
+  satuan: string;              // Cth: pcs, pack, rim
+  berat: number;               // Berat per pcs (untuk referensi)
+  harga: number;               // Harga beli per satuan (Rp)
+  jumlah: number;              // Jumlah pcs per batch cup (mis. 50 cup = 50 cup)
+  // hpp = jumlah * harga  (auto-calc di UI, TIDAK disimpan)
+  urutan: number;
 }
 
 export type Role = 'admin' | 'outlet' | 'produksi' | 'gudang' | 'tl';

@@ -50,7 +50,7 @@ const parseLokasi = (lokasiStr: string) => {
 
 export default function MasterData() {
   const { user } = useAuth();
-  const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [], hppConfig = [] } = useDB();
+  const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [], hppProduk = [], hppBahan = [], hppConsumable = [] } = useDB();
 
   const [outletSearch, setOutletSearch] = useState("");
   const [produkSearch, setProdukSearch] = useState("");
@@ -562,14 +562,19 @@ export default function MasterData() {
                 </div>
                 <div className="text-left">
                   <div className="font-semibold text-sm">HPP per Produk</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {hppConfig.length} dikonfigurasi
+                <div className="text-[11px] text-muted-foreground">
+                    {hppProduk.length} dikonfigurasi
                   </div>
                 </div>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
-              <HppConfigSection produk={produk} hppConfig={hppConfig} />
+              <HppConfigSection
+                produk={produk}
+                hppProduk={hppProduk}
+                hppBahan={hppBahan}
+                hppConsumable={hppConsumable}
+              />
             </AccordionContent>
           </AccordionItem>
           {/* KARYAWAN */}

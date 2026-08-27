@@ -19,7 +19,7 @@ import { useAutoHistoricalFetch } from "@/hooks/useAutoHistoricalFetch";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 import { rupiah, todayISO, DateRange, inRange } from "@/lib/format";
-import { AkunKategori, Jurnal, AkunCOA, KodeBantu, HppConfig, Produk } from "@/lib/types";
+import { AkunKategori, Jurnal, AkunCOA, KodeBantu, HppProduk, HppBahan, HppConsumable, Produk } from "@/lib/types";
 import { Plus, Pencil, Search } from "lucide-react";
 import { totalDebitKredit, aggregateByAkun, aggregateByKategori, computeArusKas, getTransaksiPerAkun, computeRunningBalance } from "@/lib/keuangan-utils";
 import ConfirmDeleteButton from "@/components/ConfirmDeleteButton";
@@ -44,7 +44,7 @@ function getKodeBantuPrefix(kodeAkun: string): "H" | "C" | null {
 
 export default function Keuangan() {
   const { user } = useAuth();
-  const { jurnal, penjualan, coa, bahan, kodeBantu, hppConfig = [], produk } = useDB();
+  const { jurnal, penjualan, coa, bahan, kodeBantu, hppProduk = [], hppBahan = [], hppConsumable = [], produk } = useDB();
   const [range, setRange] = useState<DateRange>({});
   useAutoHistoricalFetch(range);
 
@@ -73,7 +73,7 @@ export default function Keuangan() {
 
         <TabsContent value="jurnal"><JurnalUmumTab jurnal={jurnal} coa={coa} kodeBantu={kodeBantu} range={range} /></TabsContent>
         <TabsContent value="neraca"><NeracaTab jurnal={jurnal} coa={coa} range={range} /></TabsContent>
-        <TabsContent value="laporan-hpp"><LaporanHppTab jurnal={jurnal} penjualan={penjualan} coa={coa} produk={produk} hppConfig={hppConfig} range={range} /></TabsContent>
+        <TabsContent value="laporan-hpp"><LaporanHppTab jurnal={jurnal} penjualan={penjualan} coa={coa} produk={produk} hppProduk={hppProduk} hppBahan={hppBahan} hppConsumable={hppConsumable} range={range} /></TabsContent>
         <TabsContent value="lr"><LabaRugiTab jurnal={jurnal} penjualan={penjualan} coa={coa} range={range} /></TabsContent>
         <TabsContent value="kode-bantu"><KodeBantuTab kodeBantu={kodeBantu} jurnal={jurnal} /></TabsContent>
         <TabsContent value="buku-pembantu"><BukuPembantuTab jurnal={jurnal} coa={coa} kodeBantu={kodeBantu} range={range} /></TabsContent>
@@ -698,9 +698,56 @@ function NeracaTab({ jurnal, coa, range }: { jurnal: Jurnal[]; coa: AkunCOA[]; r
   );
 }
 
-function LaporanHppTab({ jurnal, penjualan, coa, produk, hppConfig, range }: {
-  jurnal: Jurnal[]; penjualan: any[]; coa: AkunCOA[]; produk: Produk[]; hppConfig: HppConfig[]; range: DateRange;
+function LaporanHppTab({ jurnal, penjualan, coa, produk, hppProduk, hppBahan, hppConsumable, range }: {
+  jurnal: Jurnal[]; penjualan: any[]; coa: AkunCOA[]; produk: Produk[];
+  hppProduk: HppProduk[]; hppBahan: HppBahan[]; hppConsumable: HppConsumable[]; range: DateRange;
 }) {
+  // Lookup helpers: HppProduk (header) → HppBahan/HppConsumable (detail)
+  // Untuk setiap row, kita cari HppProduk by produkId lalu kumpulkan bahan & consumable-nya.
+  const configByProduk = useMemo(() => {
+    const map = new Map<string, { produk: HppProduk; bahan: HppBahan[]; consumable: HppConsumable[] }>();
+    for (const p of hppProduk) {
+      map.set(p.produkId, {
+        produk: p,
+        bahan: hppBahan.filter((b) => b.hppProdukId === p.id).sort((a, b) => a.urutan - b.urutan),
+        consumable: hppConsumable.filter((c) => c.hppProdukId === p.id).sort((a, b) => a.urutan - b.urutan),
+      });
+    }
+    return map;
+  }, [hppProduk, hppBahan, hppConsumable]);
+
+  // Helper: hitung total HPP per cup dari bahan + consumable
+  // HPP Bahan = (berat × harga) / jadi
+  // HPP Consumable = jumlah × harga
+  const hitungHppPerCup = (cfg: { bahan: HppBahan[]; consumable: HppConsumable[] }) => {
+    const totalBahan = cfg.bahan.reduce((s, b) => s + (b.jadi > 0 ? (b.berat * b.harga) / b.jadi : 0), 0);
+    const totalConsumable = cfg.consumable.reduce((s, c) => s + c.jumlah * c.harga, 0);
+    return {
+      hppBahan: totalBahan,
+      hppPackaging: totalConsumable, // consumable = packaging
+      hppOh: 0,
+      hppTk: 0,
+      hppLain: 0,
+    };
+  };
+  // Untuk backward compat, hppConfig shape
+  const hppConfig = useMemo(() => {
+    return Array.from(configByProduk.entries()).map(([produkId, cfg]) => {
+      const h = hitungHppPerCup(cfg);
+      return {
+        id: cfg.produk.id,
+        produkId,
+        hppBahanPerCup: h.hppBahan,
+        hppPackagingPerCup: h.hppPackaging,
+        hppOhPerCup: 0,
+        biayaTenagaKerjaPerCup: 0,
+        biayaLainPerCup: 0,
+        marginPersen: 0,
+        aktif: cfg.produk.aktif,
+      };
+    });
+  }, [configByProduk]);
+
   // Filter penjualan & jurnal dalam range
   const filteredPenjualan = useMemo(
     () => penjualan.filter((p) => inRange(p.tanggal, range)),
@@ -749,9 +796,13 @@ function LaporanHppTab({ jurnal, penjualan, coa, produk, hppConfig, range }: {
   const totalHppAktual = Array.from(hppAktualPerAkun.values()).reduce((s, v) => s + v, 0);
 
   // Per produk: qty terjual × totalHppPerCup (dari hppConfig)
+  // Note: di sini kita pakai `config: any` karena LaporanHppTab logic original
+  // menggunakan HppConfig flat (interface lama). Sekarang data sumber adalah 3-tabel
+  // (HppProduk+HppBahan+HppConsumable) yg sudah di-aggregate ke shape hppConfig di atas.
+  // RowProduk: shape agregat yang dipakai oleh tabel laporan
   type RowProduk = {
     produk: Produk;
-    config: HppConfig | undefined;
+    config: any; // shape hppConfig agregat (bukan HppConfig interface dari types)
     qty: number;
     hppBahan: number;
     hppPackaging: number;

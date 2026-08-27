@@ -222,15 +222,19 @@ export function createEmptyGrid(outlets: { id: string }[]): OutletGrid {
   return grid;
 }
 
-// Load grid from permohonanStok records for a given date
+// Load grid from permohonanStok records for a given date.
+// `statuses` memungkinkan caller memuat record dengan status tertentu.
+// Default: [null, "Disetujui"] (untuk distGrid). loadRencanaGrid memakai
+// [null, "Pending", "Disetujui"] agar rencana Langkah 1 tetap tampil setelah save.
 export function loadGridFromReqs(
   outlets: { id: string }[],
   permohonanStok: any[],
-  tanggal: string
+  tanggal: string,
+  statuses: (string | null)[] = [null, "Pending", "Disetujui"]
 ): OutletGrid {
   const grid = createEmptyGrid(outlets);
   const dayReqs = permohonanStok.filter((r: any) =>
-    r.tanggalKirim === tanggal && (r.status == null || r.status === "Disetujui")
+    r.tanggalKirim === tanggal && statuses.includes(r.status)
   );
   dayReqs.forEach((r: any) => {
     if (!grid[r.outletId]) return;
@@ -258,6 +262,9 @@ export function loadGridFromReqs(
 // Load grid RENCANA (Langkah 1 / pemotongan bahan) — memakai qty_rencana &
 // catatan_rencana yang disimpan saat saveStep1 dan TIDAK ditimpa oleh distribusi
 // aktual (Langkah 3). Data lama (kolom null) di-fallback ke qty & catatan.
+// ⚠️ Memuat record "Pending" (belum disetujui distribusi) karena rencana
+// Langkah 1 selalu disimpan sebagai Pending. Tanpa ini, data hilang saat refresh
+// karena loadGridFromReqs default hanya memuat null / "Disetujui".
 export function loadRencanaGrid(
   outlets: { id: string }[],
   permohonanStok: any[],

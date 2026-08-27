@@ -364,8 +364,11 @@ export default function Produksi() {
       // Tidak ada lagi input manual berat matang. Distribusi di-load dari
       // permohonan_stok.qty = DISTRIBUSI AKTUAL bila siklus sudah disimpan (Langkah
       // 3), atau angka rencana bila belum — agar kapro tinggal menyesuaikan per outlet.
+      // Sertakan "Pending" agar rencana Langkah 1 (belum didistribusikan) tetap
+      // tampil sebagai nilai default distribusi saat refresh. tanpa ini, grid
+      // distGrid kosong karena saveStep1 menyimpan status "Pending".
       const dayReqs = permohonanStok.filter((r: any) =>
-        r.tanggalKirim === tanggal && (r.status == null || r.status === "Disetujui")
+        r.tanggalKirim === tanggal && (r.status == null || r.status === "Pending" || r.status === "Disetujui")
       );
       const dGrid: Record<string, Record<string, number>> = {};
       outlets.forEach(o => {

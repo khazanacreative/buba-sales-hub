@@ -152,6 +152,15 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
     setEditKeterangan(j.keterangan);
     setEditJumlah(String(j.jumlah));
     setEditKodeBantuId(j.kodeBantuId ?? "");
+    // Populate debit & kredit fields: current entry + its pair
+    const pair = findPair(j);
+    if (j.tipe === "Debit") {
+      setEditDebitKodeAkun(j.kodeAkun ?? "");
+      setEditKreditKodeAkun(pair?.kodeAkun ?? "");
+    } else {
+      setEditDebitKodeAkun(pair?.kodeAkun ?? "");
+      setEditKreditKodeAkun(j.kodeAkun ?? "");
+    }
   };
 
   // Untuk edit, kita perlu pasangan Debit-Kredit dengan id yang sama (sama-sama di-update)

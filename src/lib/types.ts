@@ -48,6 +48,7 @@ export interface Jurnal {
   tipe: 'Debit' | 'Kredit';
   jumlah: number;
   kategori: AkunKategori;
+  kodeBantuId?: string;   // Optional: link ke KodeBantu.id
 }
 
 export interface AkunCOA {
@@ -55,6 +56,19 @@ export interface AkunCOA {
   nama: string;
   tipe: string;
   kategori: AkunKategori;
+}
+
+// === Kode Bantu (Sub-account / Person tracking) ===
+// Digunakan untuk akun Hutang Usaha (210000) → "H-XXX" dan
+// Piutang Karyawan/Usaha (130000/131000) → "C-XXX".
+// Setiap kode bantu mewakili satu person/kreditur/debitur.
+export interface KodeBantu {
+  id: string;
+  kode: string;           // e.g. "H-001" (Hutang) atau "C-001" (Piutang/Customer)
+  kodeAkun: string;       // "210000" (Hutang Usaha) atau "130000"/"131000" (Piutang)
+  nama: string;           // Nama person / kreditur / debitur
+  keterangan?: string;    // Catatan tambahan (alamat, no HP, dll)
+  createdAt?: string;     // ISO date string
 }
 
 export type Role = 'admin' | 'outlet' | 'produksi' | 'gudang' | 'tl';

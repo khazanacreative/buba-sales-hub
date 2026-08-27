@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_LOCK_DEADLINE } from "./produksi-utils";
-import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount } from "./types";
+import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu } from "./types";
 import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN, SEED_JURNAL, SEED_USERS } from "./seed";
 
 // =============================================================================
@@ -149,6 +149,7 @@ interface DB {
   absensi: Absensi[];
   permohonanStok: PermohonanStok[];
   users: UserAccount[];
+  kodeBantu: KodeBantu[];
   settings: BubaSettings;
 }
 
@@ -165,6 +166,7 @@ const initial = (): DB => ({
   absensi: [],
   permohonanStok: [],
   users: SEED_USERS,
+  kodeBantu: [],
   settings: getBubaSettings(),
 });
 
@@ -354,7 +356,16 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       akun: j.akun,
       tipe: j.tipe,
       jumlah: Number(j.jumlah),
-      kategori: j.kategori
+      kategori: j.kategori,
+      kodeBantuId: j.kode_bantu_id === null ? undefined : j.kode_bantu_id
+    })),
+    kodeBantu: (raw.kodeBantu || []).map((k: any) => ({
+      id: k.id,
+      kode: k.kode,
+      kodeAkun: k.kode_akun,
+      nama: k.nama,
+      keterangan: k.keterangan === null ? undefined : k.keterangan,
+      createdAt: k.created_at
     })),
     coa: raw.coa || [],
     bahan: (raw.bahan || []).map((b: any) => ({
@@ -453,7 +464,8 @@ export async function fetchFromSupabase() {
     karyawanRes,
     absensiRes,
     permohonanRes,
-    usersRes
+    usersRes,
+    kodeBantuRes
   ] = await Promise.all([
     safeFetch("outlets"),
     safeFetch("produk"),
@@ -466,7 +478,8 @@ export async function fetchFromSupabase() {
     safeFetch("karyawan"),
     safeFetchFiltered("absensi", "tanggal", range.from, range.to),
     safeFetchFiltered("permohonan_stok", "tanggal_kirim", range.from, range.to),
-    safeFetch("users")
+    safeFetch("users"),
+    safeFetch("kode_bantu")
   ]);
 
   // Merge with existing state to preserve historical data already loaded
@@ -490,7 +503,8 @@ export async function fetchFromSupabase() {
     karyawan: karyawanRes.data,
     absensi: mergeById(state.absensi, absensiRes.data || []),
     permohonanStok: mergeById(state.permohonanStok, permohonanRes.data || []),
-    users: usersRes.data
+    users: usersRes.data,
+    kodeBantu: kodeBantuRes.data || []
   }, usersRes.data || []);
   state = raw;
   notify();
@@ -542,7 +556,8 @@ export async function fetchHistoricalData(from: string, to: string) {
     jurnal: mergeById(state.jurnal, (jurnalRes.data || []).map((j: any) => ({
       id: j.id, tanggal: j.tanggal, ref: j.ref, keterangan: j.keterangan,
       kodeAkun: j.kode_akun, akun: j.akun, tipe: j.tipe,
-      jumlah: Number(j.jumlah), kategori: j.kategori
+      jumlah: Number(j.jumlah), kategori: j.kategori,
+      kodeBantuId: j.kode_bantu_id === null ? undefined : j.kode_bantu_id
     }))),
     coa: state.coa,
     bahan: state.bahan,
@@ -565,6 +580,7 @@ export async function fetchHistoricalData(from: string, to: string) {
       catatanRencana: p.catatan_rencana || p.catatan || undefined
     }))),
     users: state.users,
+    kodeBantu: state.kodeBantu,
     settings: state.settings
   };
 
@@ -812,7 +828,8 @@ export const db = {
       akun: j.akun,
       tipe: j.tipe,
       jumlah: j.jumlah,
-      kategori: j.kategori
+      kategori: j.kategori,
+      kode_bantu_id: j.kodeBantuId ?? null
     }]);
     fetchFromSupabase();
   },
@@ -826,7 +843,8 @@ export const db = {
       akun: j.akun,
       tipe: j.tipe,
       jumlah: j.jumlah,
-      kategori: j.kategori
+      kategori: j.kategori,
+      kode_bantu_id: j.kodeBantuId ?? null
     }));
     await supabase.from("jurnal").insert(records);
     fetchFromSupabase();
@@ -845,8 +863,59 @@ export const db = {
     if (j.tipe !== undefined) mapped.tipe = j.tipe;
     if (j.jumlah !== undefined) mapped.jumlah = j.jumlah;
     if (j.kategori !== undefined) mapped.kategori = j.kategori;
+    if (j.kodeBantuId !== undefined) mapped.kode_bantu_id = j.kodeBantuId ?? null;
     await supabase.from("jurnal").update(mapped).eq("id", id);
     fetchFromSupabase();
+  },
+
+  // ==================== KODE BANTU CRUD ====================
+  // Generate next available code for given prefix ("H-" or "C-")
+  generateKodeBantuNext(prefix: "H" | "C"): string {
+    const existing = state.kodeBantu
+      .filter((k) => k.kode.startsWith(prefix + "-"))
+      .map((k) => {
+        const m = k.kode.match(new RegExp(`^${prefix}-(\\d+)$`));
+        return m ? parseInt(m[1], 10) : 0;
+      });
+    const maxN = existing.length > 0 ? Math.max(...existing) : 0;
+    return `${prefix}-${String(maxN + 1).padStart(3, "0")}`;
+  },
+  async addKodeBantu(k: Omit<KodeBantu, "id" | "createdAt"> & { id?: string }) {
+    const id = k.id ?? uid();
+    const { error } = await supabase.from("kode_bantu").insert([{
+      id,
+      kode: k.kode,
+      kode_akun: k.kodeAkun,
+      nama: k.nama,
+      keterangan: k.keterangan ?? null
+    }]);
+    if (error) {
+      console.error(`addKodeBantu error (kode=${k.kode}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async updateKodeBantu(id: string, k: Partial<Omit<KodeBantu, "id" | "createdAt">>) {
+    const mapped: any = {};
+    if (k.kode !== undefined) mapped.kode = k.kode;
+    if (k.kodeAkun !== undefined) mapped.kode_akun = k.kodeAkun;
+    if (k.nama !== undefined) mapped.nama = k.nama;
+    if (k.keterangan !== undefined) mapped.keterangan = k.keterangan ?? null;
+    const { error } = await supabase.from("kode_bantu").update(mapped).eq("id", id);
+    if (error) {
+      console.error(`updateKodeBantu error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async deleteKodeBantu(id: string) {
+    // Set jurnal.kode_bantu_id = NULL via FK ON DELETE SET NULL, then delete kode_bantu
+    const { error } = await supabase.from("kode_bantu").delete().eq("id", id);
+    if (error) {
+      console.error(`deleteKodeBantu error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
   },
 
   async addBahan(b: Omit<BahanBaku, "id">) {

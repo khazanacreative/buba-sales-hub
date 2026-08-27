@@ -19,7 +19,7 @@ import { useAutoHistoricalFetch } from "@/hooks/useAutoHistoricalFetch";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 import { rupiah, todayISO, DateRange, inRange } from "@/lib/format";
-import { AkunKategori, Jurnal, AkunCOA, KodeBantu } from "@/lib/types";
+import { AkunKategori, Jurnal, AkunCOA, KodeBantu, HppConfig, Produk } from "@/lib/types";
 import { Plus, Pencil, Search } from "lucide-react";
 import { totalDebitKredit, aggregateByAkun, aggregateByKategori, computeArusKas, getTransaksiPerAkun, computeRunningBalance } from "@/lib/keuangan-utils";
 import ConfirmDeleteButton from "@/components/ConfirmDeleteButton";
@@ -44,7 +44,7 @@ function getKodeBantuPrefix(kodeAkun: string): "H" | "C" | null {
 
 export default function Keuangan() {
   const { user } = useAuth();
-  const { jurnal, penjualan, coa, bahan, stokMov, kodeBantu } = useDB();
+  const { jurnal, penjualan, coa, bahan, kodeBantu, hppConfig = [], produk } = useDB();
   const [range, setRange] = useState<DateRange>({});
   useAutoHistoricalFetch(range);
 
@@ -63,7 +63,7 @@ export default function Keuangan() {
         <TabsList className="grid w-full grid-cols-8 gap-0">
           <TabsTrigger value="jurnal" className="font-semibold">Jurnal Umum</TabsTrigger>
           <TabsTrigger value="neraca" className="font-semibold">Neraca</TabsTrigger>
-          <TabsTrigger value="stok" className="font-semibold">Stok</TabsTrigger>
+          <TabsTrigger value="laporan-hpp" className="font-semibold">Laporan HPP</TabsTrigger>
           <TabsTrigger value="lr" className="font-semibold">Laba Rugi</TabsTrigger>
           <TabsTrigger value="kode-bantu" className="font-semibold">Kode Bantu</TabsTrigger>
           <TabsTrigger value="buku-pembantu" className="font-semibold">Buku Pembantu</TabsTrigger>
@@ -73,7 +73,7 @@ export default function Keuangan() {
 
         <TabsContent value="jurnal"><JurnalUmumTab jurnal={jurnal} coa={coa} kodeBantu={kodeBantu} range={range} /></TabsContent>
         <TabsContent value="neraca"><NeracaTab jurnal={jurnal} coa={coa} range={range} /></TabsContent>
-        <TabsContent value="stok"><StokTab stokMov={stokMov} bahan={bahan} range={range} /></TabsContent>
+        <TabsContent value="laporan-hpp"><LaporanHppTab jurnal={jurnal} penjualan={penjualan} coa={coa} produk={produk} hppConfig={hppConfig} range={range} /></TabsContent>
         <TabsContent value="lr"><LabaRugiTab jurnal={jurnal} penjualan={penjualan} coa={coa} range={range} /></TabsContent>
         <TabsContent value="kode-bantu"><KodeBantuTab kodeBantu={kodeBantu} jurnal={jurnal} /></TabsContent>
         <TabsContent value="buku-pembantu"><BukuPembantuTab jurnal={jurnal} coa={coa} kodeBantu={kodeBantu} range={range} /></TabsContent>
@@ -698,23 +698,250 @@ function NeracaTab({ jurnal, coa, range }: { jurnal: Jurnal[]; coa: AkunCOA[]; r
   );
 }
 
-function StokTab({ stokMov, bahan, range }: { stokMov: any[]; bahan: any[]; range: DateRange }) {
-  const filtered = useMemo(() => stokMov.filter((m) => (!range.from || m.tanggal >= range.from) && (!range.to || m.tanggal <= range.to)).sort((a, b) => b.tanggal.localeCompare(a.tanggal)), [stokMov, range]);
-  const { paged, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
+function LaporanHppTab({ jurnal, penjualan, coa, produk, hppConfig, range }: {
+  jurnal: Jurnal[]; penjualan: any[]; coa: AkunCOA[]; produk: Produk[]; hppConfig: HppConfig[]; range: DateRange;
+}) {
+  // Filter penjualan & jurnal dalam range
+  const filteredPenjualan = useMemo(
+    () => penjualan.filter((p) => inRange(p.tanggal, range)),
+    [penjualan, range]
+  );
+  const filteredJurnal = useMemo(
+    () => jurnal.filter((j) => inRange(j.tanggal, range)),
+    [jurnal, range]
+  );
+
+  // Hitung qty terjual per produk
+  const qtyTerjualMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of filteredPenjualan) {
+      map.set(p.produkId, (map.get(p.produkId) ?? 0) + p.qty);
+    }
+    return map;
+  }, [filteredPenjualan]);
+
+  // Hitung pendapatan per produk
+  const pendapatanMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of filteredPenjualan) {
+      map.set(p.produkId, (map.get(p.produkId) ?? 0) + p.total);
+    }
+    return map;
+  }, [filteredPenjualan]);
+
+  // Akun COA yang relevan untuk HPP
+  const akunHpp = useMemo(() => {
+    const set = new Set<string>(["540000", "541000", "542000", "543000", "520001", "570000", "510021"]);
+    return new Map(coa.filter((a) => set.has(a.kode)).map((a) => [a.kode, a]));
+  }, [coa]);
+
+  // HPP aktual dari jurnal dalam range (kredit akun HPP)
+  const hppAktualPerAkun = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const j of filteredJurnal) {
+      if (j.tipe !== "Kredit") continue; // HPP normal = Kredit (kewajiban bertambah) atau Debit (expense)
+      if (!akunHpp.has(j.kodeAkun ?? "")) continue;
+      map.set(j.kodeAkun!, (map.get(j.kodeAkun!) ?? 0) + j.jumlah);
+    }
+    return map;
+  }, [filteredJurnal, akunHpp]);
+
+  const totalHppAktual = Array.from(hppAktualPerAkun.values()).reduce((s, v) => s + v, 0);
+
+  // Per produk: qty terjual × totalHppPerCup (dari hppConfig)
+  type RowProduk = {
+    produk: Produk;
+    config: HppConfig | undefined;
+    qty: number;
+    hppBahan: number;
+    hppPackaging: number;
+    hppOh: number;
+    hppTk: number;
+    hppLain: number;
+    totalHppPerCup: number;
+    totalHpp: number;
+    pendapatan: number;
+    margin: number;
+    marginPersen: number;
+  };
+
+  const rows: RowProduk[] = useMemo(() => {
+    return produk
+      .map((p) => {
+        const cfg = hppConfig.find((h) => h.produkId === p.id && h.aktif);
+        const qty = qtyTerjualMap.get(p.id) ?? 0;
+        const hppBahan = cfg?.hppBahanPerCup ?? 0;
+        const hppPackaging = cfg?.hppPackagingPerCup ?? 0;
+        const hppOh = cfg?.hppOhPerCup ?? 0;
+        const hppTk = cfg?.biayaTenagaKerjaPerCup ?? 0;
+        const hppLain = cfg?.biayaLainPerCup ?? 0;
+        const totalHppPerCup = hppBahan + hppPackaging + hppOh + hppTk + hppLain;
+        const totalHpp = qty * totalHppPerCup;
+        const pendapatan = pendapatanMap.get(p.id) ?? 0;
+        const margin = pendapatan - totalHpp;
+        const marginPersen = pendapatan > 0 ? (margin / pendapatan) * 100 : 0;
+        return { produk: p, config: cfg, qty, hppBahan, hppPackaging, hppOh, hppTk, hppLain, totalHppPerCup, totalHpp, pendapatan, margin, marginPersen };
+      })
+      .filter((r) => r.qty > 0 || r.config)
+      .sort((a, b) => b.pendapatan - a.pendapatan);
+  }, [produk, hppConfig, qtyTerjualMap, pendapatanMap]);
+
+  const totalQty = rows.reduce((s, r) => s + r.qty, 0);
+  const totalHppPerCup = rows.reduce((s, r) => s + r.hppBahan + r.hppPackaging + r.hppOh + r.hppTk + r.hppLain, 0);
+  const totalHpp = rows.reduce((s, r) => s + r.totalHpp, 0);
+  const totalPendapatan = rows.reduce((s, r) => s + r.pendapatan, 0);
+  const totalMargin = totalPendapatan - totalHpp;
+  const totalMarginPersen = totalPendapatan > 0 ? (totalMargin / totalPendapatan) * 100 : 0;
+  const totalHppBahan = rows.reduce((s, r) => s + r.qty * r.hppBahan, 0);
+  const totalHppPackaging = rows.reduce((s, r) => s + r.qty * r.hppPackaging, 0);
+  const totalHppOh = rows.reduce((s, r) => s + r.qty * r.hppOh, 0);
+  const totalHppTk = rows.reduce((s, r) => s + r.qty * r.hppTk, 0);
+  const totalHppLain = rows.reduce((s, r) => s + r.qty * r.hppLain, 0);
+
   return (
-    <Card>
-      <CardHeader><CardTitle>Mutasi Stok</CardTitle></CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto"><Table>
-          <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Bahan</TableHead><TableHead>Tipe</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Nilai</TableHead></TableRow></TableHeader>
-          <TableBody>{filtered.length === 0 ? (<TableRow><TableCell colSpan={5} className="text-center">Tidak ada data</TableCell></TableRow>) :
-            paged.map(m => (<TableRow key={m.id}>
-              <TableCell>{m.tanggal}</TableCell><TableCell>{bahan.find((b) => b.id === m.bahanId)?.nama ?? m.bahanId}</TableCell>
-              <TableCell>{m.tipe}</TableCell><TableCell className="text-right">{m.qty}</TableCell><TableCell className="text-right">{rupiah(m.qty * 5000)}</TableCell>
-            </TableRow>))}</TableBody>
-        </Table></div>
-      <TablePagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} /></CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Laporan HPP (Harga Pokok Penjualan)</CardTitle>
+          <div className="text-sm text-muted-foreground">
+            HPP dihitung otomatis dari <strong>Master Data HPP per Produk</strong> dikalikan qty terjual.
+            {hppConfig.length === 0 && (
+              <span className="text-destructive"> ⚠️ Belum ada konfigurasi HPP — tambahkan di Master Data.</span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Ringkasan */}
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Total Qty Terjual</div>
+              <div className="text-lg font-bold">{totalQty.toLocaleString("id-ID")} cup</div>
+            </div>
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Total Pendapatan</div>
+              <div className="text-lg font-bold text-success">{rupiah(totalPendapatan)}</div>
+            </div>
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Total HPP (dari Master Data)</div>
+              <div className="text-lg font-bold text-destructive">{rupiah(totalHpp)}</div>
+            </div>
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Margin Kotor</div>
+              <div className={`text-lg font-bold ${totalMargin >= 0 ? "text-success" : "text-destructive"}`}>
+                {rupiah(totalMargin)} ({totalMarginPersen.toFixed(1)}%)
+              </div>
+            </div>
+          </div>
+
+          {/* Tabel HPP per Produk */}
+          <div className="rounded-2xl border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produk</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Bahan</TableHead>
+                    <TableHead className="text-right">Pack</TableHead>
+                    <TableHead className="text-right">OH</TableHead>
+                    <TableHead className="text-right">TK</TableHead>
+                    <TableHead className="text-right">Lain</TableHead>
+                    <TableHead className="text-right">HPP/Cup</TableHead>
+                    <TableHead className="text-right">Total HPP</TableHead>
+                    <TableHead className="text-right">Pendapatan</TableHead>
+                    <TableHead className="text-right">Margin</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.length === 0 ? (
+                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground">
+                      Belum ada data penjualan dalam rentang tanggal ini.
+                    </TableCell></TableRow>
+                  ) : rows.map((r) => (
+                    <TableRow key={r.produk.id}>
+                      <TableCell>
+                        <div className="font-medium">{r.produk.nama}</div>
+                        {!r.config && <div className="text-xs text-destructive">⚠️ Belum ada HPP config</div>}
+                      </TableCell>
+                      <TableCell className="text-right">{r.qty.toLocaleString("id-ID")}</TableCell>
+                      <TableCell className="text-right">{r.hppBahan ? rupiah(r.hppBahan) : "-"}</TableCell>
+                      <TableCell className="text-right">{r.hppPackaging ? rupiah(r.hppPackaging) : "-"}</TableCell>
+                      <TableCell className="text-right">{r.hppOh ? rupiah(r.hppOh) : "-"}</TableCell>
+                      <TableCell className="text-right">{r.hppTk ? rupiah(r.hppTk) : "-"}</TableCell>
+                      <TableCell className="text-right">{r.hppLain ? rupiah(r.hppLain) : "-"}</TableCell>
+                      <TableCell className="text-right font-medium">{r.totalHppPerCup ? rupiah(r.totalHppPerCup) : "-"}</TableCell>
+                      <TableCell className="text-right font-medium text-destructive">{r.totalHpp ? rupiah(r.totalHpp) : "-"}</TableCell>
+                      <TableCell className="text-right text-success">{r.pendapatan ? rupiah(r.pendapatan) : "-"}</TableCell>
+                      <TableCell className={`text-right font-medium ${r.margin >= 0 ? "text-success" : "text-destructive"}`}>
+                        {r.margin !== 0 ? `${rupiah(r.margin)} (${r.marginPersen.toFixed(1)}%)` : "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {rows.length > 0 && (
+                    <TableRow className="font-bold bg-muted/50">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right">{totalQty.toLocaleString("id-ID")}</TableCell>
+                      <TableCell className="text-right">{rupiah(totalHppBahan)}</TableCell>
+                      <TableCell className="text-right">{rupiah(totalHppPackaging)}</TableCell>
+                      <TableCell className="text-right">{rupiah(totalHppOh)}</TableCell>
+                      <TableCell className="text-right">{rupiah(totalHppTk)}</TableCell>
+                      <TableCell className="text-right">{rupiah(totalHppLain)}</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right text-destructive">{rupiah(totalHpp)}</TableCell>
+                      <TableCell className="text-right text-success">{rupiah(totalPendapatan)}</TableCell>
+                      <TableCell className={`text-right ${totalMargin >= 0 ? "text-success" : "text-destructive"}`}>
+                        {rupiah(totalMargin)} ({totalMarginPersen.toFixed(1)}%)
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Perbandingan dengan Jurnal HPP */}
+          {hppAktualPerAkun.size > 0 && (
+            <div className="mt-4">
+              <h3 className="font-semibold mb-2">Perbandingan HPP (Jurnal Aktual vs Master Data)</h3>
+              <div className="rounded-2xl border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Kode</TableHead>
+                        <TableHead>Akun HPP</TableHead>
+                        <TableHead className="text-right">Dari Jurnal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Array.from(hppAktualPerAkun.entries()).map(([kode, val]) => {
+                        const a = akunHpp.get(kode);
+                        return (
+                          <TableRow key={kode}>
+                            <TableCell className="font-mono">{kode}</TableCell>
+                            <TableCell>{a?.nama ?? kode}</TableCell>
+                            <TableCell className="text-right">{rupiah(val)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      <TableRow className="font-bold bg-muted/50">
+                        <TableCell colSpan={2}>Total HPP dari Jurnal</TableCell>
+                        <TableCell className="text-right">{rupiah(totalHppAktual)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground mt-2">
+                Selisih: <span className={totalHpp - totalHppAktual >= 0 ? "text-success" : "text-destructive"}>
+                  {rupiah(totalHpp - totalHppAktual)}
+                </span> (Master Data: {rupiah(totalHpp)} vs Jurnal: {rupiah(totalHppAktual)})
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

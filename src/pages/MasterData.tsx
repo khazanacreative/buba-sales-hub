@@ -23,13 +23,14 @@ import { db, useDB, getBubaSettings, saveAppSettings } from "@/lib/store";
 import { DEFAULT_LOCK_DEADLINE } from "@/lib/produksi-utils";
 import { rupiah } from "@/lib/format";
 
-import { Plus, Trash2, RotateCcw, Pencil, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Pencil, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users, AlertTriangle, Calculator, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/TablePagination";
 import ConfirmDeleteButton from "@/components/ConfirmDeleteButton";
+import { HppConfigSection } from "@/components/HppConfigSection";
 
 // GPS Location parsing helper
 const parseLokasi = (lokasiStr: string) => {
@@ -49,7 +50,7 @@ const parseLokasi = (lokasiStr: string) => {
 
 export default function MasterData() {
   const { user } = useAuth();
-  const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [] } = useDB();
+  const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [], hppConfig = [] } = useDB();
 
   const [outletSearch, setOutletSearch] = useState("");
   const [produkSearch, setProdukSearch] = useState("");
@@ -550,6 +551,25 @@ export default function MasterData() {
                   </div>
                 </CardContent>
               </Card>
+            </AccordionContent>
+          </AccordionItem>
+          {/* HPP CONFIG (Master Data Perhitungan HPP per Produk) */}
+          <AccordionItem value="hpp-config" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <Calculator className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">HPP per Produk</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {hppConfig.length} dikonfigurasi
+                  </div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <HppConfigSection produk={produk} hppConfig={hppConfig} />
             </AccordionContent>
           </AccordionItem>
           {/* KARYAWAN */}

@@ -71,6 +71,23 @@ export interface KodeBantu {
   createdAt?: string;     // ISO date string
 }
 
+// === HPP Config (Master Data Perhitungan HPP per Produk) ===
+// Setiap produk punya konfigurasi HPP per cup yang dipakai untuk
+// menghitung total HPP pada Laporan HPP. Nilai disimpan sebagai
+// rupiah per CUP (satuan terkecil produk).
+export interface HppConfig {
+  id: string;
+  produkId: string;        // FK ke produk.id (1:1)
+  hppBahanPerCup: number;   // HPP bahan utama per cup (akun 541000 HPP Bahan Utama)
+  hppPackagingPerCup: number; // HPP pendukung per cup (akun 542000 HPP Pendukung)
+  hppOhPerCup: number;      // Overhead per cup (akun 543000 OH)
+  biayaTenagaKerjaPerCup: number; // TK langsung per cup (akun 520001 GAJI)
+  biayaLainPerCup: number;  // Biaya lain per cup (default 0)
+  marginPersen: number;     // Target margin % untuk laporan
+  aktif: boolean;           // enable/disable
+  updatedAt?: string;
+}
+
 export type Role = 'admin' | 'outlet' | 'produksi' | 'gudang' | 'tl';
 
 export interface UserAccount {

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_LOCK_DEADLINE } from "./produksi-utils";
-import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu } from "./types";
+import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu, HppConfig } from "./types";
 import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN, SEED_JURNAL, SEED_USERS } from "./seed";
 
 // =============================================================================
@@ -150,6 +150,7 @@ interface DB {
   permohonanStok: PermohonanStok[];
   users: UserAccount[];
   kodeBantu: KodeBantu[];
+  hppConfig: HppConfig[];
   settings: BubaSettings;
 }
 
@@ -167,6 +168,7 @@ const initial = (): DB => ({
   permohonanStok: [],
   users: SEED_USERS,
   kodeBantu: [],
+  hppConfig: [],
   settings: getBubaSettings(),
 });
 
@@ -367,6 +369,18 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       keterangan: k.keterangan === null ? undefined : k.keterangan,
       createdAt: k.created_at
     })),
+    hppConfig: (raw.hppConfig || []).map((h: any) => ({
+      id: h.id,
+      produkId: h.produk_id,
+      hppBahanPerCup: Number(h.hpp_bahan_per_cup),
+      hppPackagingPerCup: Number(h.hpp_packaging_per_cup),
+      hppOhPerCup: Number(h.hpp_oh_per_cup),
+      biayaTenagaKerjaPerCup: Number(h.biaya_tenaga_kerja_per_cup),
+      biayaLainPerCup: Number(h.biaya_lain_per_cup),
+      marginPersen: Number(h.margin_persen),
+      aktif: !!h.aktif,
+      updatedAt: h.updated_at
+    })),
     coa: raw.coa || [],
     bahan: (raw.bahan || []).map((b: any) => ({
       id: b.id,
@@ -465,7 +479,8 @@ export async function fetchFromSupabase() {
     absensiRes,
     permohonanRes,
     usersRes,
-    kodeBantuRes
+    kodeBantuRes,
+    hppConfigRes
   ] = await Promise.all([
     safeFetch("outlets"),
     safeFetch("produk"),
@@ -479,7 +494,8 @@ export async function fetchFromSupabase() {
     safeFetchFiltered("absensi", "tanggal", range.from, range.to),
     safeFetchFiltered("permohonan_stok", "tanggal_kirim", range.from, range.to),
     safeFetch("users"),
-    safeFetch("kode_bantu")
+    safeFetch("kode_bantu"),
+    safeFetch("hpp_config")
   ]);
 
   // Merge with existing state to preserve historical data already loaded
@@ -581,6 +597,7 @@ export async function fetchHistoricalData(from: string, to: string) {
     }))),
     users: state.users,
     kodeBantu: state.kodeBantu,
+    hppConfig: state.hppConfig,
     settings: state.settings
   };
 
@@ -913,6 +930,52 @@ export const db = {
     const { error } = await supabase.from("kode_bantu").delete().eq("id", id);
     if (error) {
       console.error(`deleteKodeBantu error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+
+  // ==================== HPP CONFIG CRUD ====================
+  async addHppConfig(h: Omit<HppConfig, "id" | "updatedAt"> & { id?: string }) {
+    const id = h.id ?? uid();
+    const { error } = await supabase.from("hpp_config").insert([{
+      id,
+      produk_id: h.produkId,
+      hpp_bahan_per_cup: h.hppBahanPerCup,
+      hpp_packaging_per_cup: h.hppPackagingPerCup,
+      hpp_oh_per_cup: h.hppOhPerCup,
+      biaya_tenaga_kerja_per_cup: h.biayaTenagaKerjaPerCup,
+      biaya_lain_per_cup: h.biayaLainPerCup,
+      margin_persen: h.marginPersen,
+      aktif: h.aktif
+    }]);
+    if (error) {
+      console.error(`addHppConfig error (produk=${h.produkId}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async updateHppConfig(id: string, h: Partial<Omit<HppConfig, "id" | "updatedAt">>) {
+    const mapped: any = {};
+    if (h.produkId !== undefined) mapped.produk_id = h.produkId;
+    if (h.hppBahanPerCup !== undefined) mapped.hpp_bahan_per_cup = h.hppBahanPerCup;
+    if (h.hppPackagingPerCup !== undefined) mapped.hpp_packaging_per_cup = h.hppPackagingPerCup;
+    if (h.hppOhPerCup !== undefined) mapped.hpp_oh_per_cup = h.hppOhPerCup;
+    if (h.biayaTenagaKerjaPerCup !== undefined) mapped.biaya_tenaga_kerja_per_cup = h.biayaTenagaKerjaPerCup;
+    if (h.biayaLainPerCup !== undefined) mapped.biaya_lain_per_cup = h.biayaLainPerCup;
+    if (h.marginPersen !== undefined) mapped.margin_persen = h.marginPersen;
+    if (h.aktif !== undefined) mapped.aktif = h.aktif;
+    const { error } = await supabase.from("hpp_config").update(mapped).eq("id", id);
+    if (error) {
+      console.error(`updateHppConfig error (id=${id}):`, error);
+      throw error;
+    }
+    await fetchFromSupabase();
+  },
+  async deleteHppConfig(id: string) {
+    const { error } = await supabase.from("hpp_config").delete().eq("id", id);
+    if (error) {
+      console.error(`deleteHppConfig error (id=${id}):`, error);
       throw error;
     }
     await fetchFromSupabase();

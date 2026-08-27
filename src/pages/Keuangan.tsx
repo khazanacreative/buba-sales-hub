@@ -151,6 +151,16 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
   };
 
   const findPair = (j: Jurnal): Jurnal | null => {
+    // Prioritize exact match: same tanggal + jumlah + keterangan + tipe berlawanan
+    const exact = jurnal.find((other) =>
+      other.id !== j.id &&
+      other.tanggal === j.tanggal &&
+      other.jumlah === j.jumlah &&
+      other.tipe !== j.tipe &&
+      other.keterangan === j.keterangan
+    );
+    if (exact) return exact;
+    // Fallback: match by tanggal + jumlah + tipe only (for old entries without matching keterangan)
     return jurnal.find((other) =>
       other.id !== j.id &&
       other.tanggal === j.tanggal &&
@@ -231,17 +241,28 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
 
   const pairRows = useMemo(() => {
     const seen = new Set<string>();
+    const used = new Set<string>();
     const rows: { deb: Jurnal; kre: Jurnal; pairKey: string }[] = [];
     for (const j of paged) {
-      const counter = paged.find(
-        (o) => o.id !== j.id && o.tanggal === j.tanggal && o.jumlah === j.jumlah && o.tipe !== j.tipe
+      if (used.has(j.id)) continue;
+      // Prioritize exact match: same tanggal + jumlah + keterangan + tipe berlawanan
+      let counter = paged.find(
+        (o) => o.id !== j.id && !used.has(o.id) && o.tanggal === j.tanggal && o.jumlah === j.jumlah && o.tipe !== j.tipe && o.keterangan === j.keterangan
       );
+      // Fallback: match by tanggal + jumlah + tipe only (for old entries without matching keterangan)
+      if (!counter) {
+        counter = paged.find(
+          (o) => o.id !== j.id && !used.has(o.id) && o.tanggal === j.tanggal && o.jumlah === j.jumlah && o.tipe !== j.tipe
+        );
+      }
       if (!counter) continue;
       const deb = j.tipe === "Debit" ? j : counter;
       const kre = j.tipe === "Kredit" ? j : counter;
       const pairKey = `${deb.id}|${kre.id}`;
       if (seen.has(pairKey)) continue;
       seen.add(pairKey);
+      used.add(deb.id);
+      used.add(kre.id);
       rows.push({ deb, kre, pairKey });
     }
     return rows;

@@ -88,13 +88,17 @@ export default function Keuangan() {
 function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
   jurnal: Jurnal[]; coa: AkunCOA[]; kodeBantu: KodeBantu[]; range: DateRange;
 }) {
-  // Form state
+  // Form state - 2 baris dengan keterangan debit & kredit terpisah
   const [tanggal, setTanggal] = useState(todayISO());
-  const [keterangan, setKeterangan] = useState("");
   const [debitKodeAkun, setDebitKodeAkun] = useState(coa[0]?.kode ?? "");
+  const [debitKeterangan, setDebitKeterangan] = useState("");
+  const [debitJumlah, setDebitJumlah] = useState("");
   const [kreditKodeAkun, setKreditKodeAkun] = useState("");
-  const [jumlah, setJumlah] = useState("");
+  const [kreditKeterangan, setKreditKeterangan] = useState("");
+  const [kreditJumlah, setKreditJumlah] = useState("");
   const [kodeBantuId, setKodeBantuId] = useState<string>("");
+  // Keterangan bersama (opsional) - akan di-prefill ke kedua baris jika diisi
+  const [keteranganUmum, setKeteranganUmum] = useState("");
 
   // Reset kode bantu selection when neither account is 210000/130000/131000
   useEffect(() => {
@@ -115,7 +119,12 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
 
   const debitObj = coa.find((a) => a.kode === debitKodeAkun);
   const kreditObj = coa.find((a) => a.kode === kreditKodeAkun);
-  const balance = Number(jumlah);
+  const debitAmount = Number(debitJumlah);
+  const kreditAmount = Number(kreditJumlah);
+  // Jika user isi keteranganUmum, gunakan itu untuk keduanya
+  const finalDebitKet = debitKeterangan.trim() || keteranganUmum.trim();
+  const finalKreditKet = kreditKeterangan.trim() || keteranganUmum.trim();
+  const isBalanced = debitAmount > 0 && debitAmount === kreditAmount;
   const isKodeBantuApplicable =
     KODE_BANTU_KODE_AKUN.includes(debitKodeAkun as any) ||
     KODE_BANTU_KODE_AKUN.includes(kreditKodeAkun as any);
@@ -125,24 +134,50 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
     return kodeBantu.filter((k) => k.kodeAkun === activeAkun);
   }, [isKodeBantuApplicable, debitKodeAkun, kreditKodeAkun, kodeBantu]);
 
+  // Auto-fill keterangan jika salah satu sisi kosong (keterangan umum / mirror)
+  useEffect(() => {
+    if (keteranganUmum) {
+      if (!debitKeterangan) setDebitKeterangan(keteranganUmum);
+      if (!kreditKeterangan) setKreditKeterangan(keteranganUmum);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keteranganUmum]);
+
+  // Auto-sync jumlah: jika salah satu diisi, mirror ke sisi lain (untuk double-entry)
+  const handleDebitJumlahChange = (val: string) => {
+    setDebitJumlah(val);
+    if (!kreditJumlah) setKreditJumlah(val);
+  };
+  const handleKreditJumlahChange = (val: string) => {
+    setKreditJumlah(val);
+    if (!debitJumlah) setDebitJumlah(val);
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!debitObj || !kreditObj || balance <= 0 || debitKodeAkun === kreditKodeAkun) return toast.error("Input tidak valid");
+    if (!debitObj || !kreditObj) return toast.error("Pilih akun debit dan kredit");
+    if (debitKodeAkun === kreditKodeAkun) return toast.error("Akun debit dan kredit tidak boleh sama");
+    if (debitAmount <= 0 || kreditAmount <= 0) return toast.error("Jumlah harus lebih dari 0");
+    if (debitAmount !== kreditAmount) return toast.error("Jumlah debit dan kredit harus sama (double-entry)");
+    if (!finalDebitKet && !finalKreditKet) return toast.error("Keterangan wajib diisi (minimal salah satu baris)");
     // kodeBantuId required when applicable
     if (isKodeBantuApplicable && !kodeBantuId) {
       return toast.error("Pilih kode bantu (H-XXX / C-XXX) untuk akun Hutang/Piutang");
     }
     db.addJurnalBulk([{
-      tanggal, keterangan, kodeAkun: debitObj.kode, akun: debitObj.nama, tipe: "Debit", jumlah: balance, kategori: debitObj.kategori,
+      tanggal, keterangan: finalDebitKet, kodeAkun: debitObj.kode, akun: debitObj.nama, tipe: "Debit", jumlah: debitAmount, kategori: debitObj.kategori,
       kodeBantuId: kodeBantuId || undefined,
     }, {
-      tanggal, keterangan, kodeAkun: kreditObj.kode, akun: kreditObj.nama, tipe: "Kredit", jumlah: balance, kategori: kreditObj.kategori,
+      tanggal, keterangan: finalKreditKet, kodeAkun: kreditObj.kode, akun: kreditObj.nama, tipe: "Kredit", jumlah: kreditAmount, kategori: kreditObj.kategori,
       kodeBantuId: kodeBantuId || undefined,
     }] as any);
-    toast.success("Jurnal ditambahkan");
+    toast.success("Jurnal ditambahkan (2 baris: Debit & Kredit)");
     // Reset
-    setKeterangan("");
-    setJumlah("");
+    setDebitKeterangan("");
+    setKreditKeterangan("");
+    setKeteranganUmum("");
+    setDebitJumlah("");
+    setKreditJumlah("");
     setKodeBantuId("");
   };
 
@@ -268,26 +303,78 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader><CardTitle>Input Jurnal (Double-Entry)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Input Jurnal (Double-Entry - 2 Baris)</CardTitle>
+          <div className="text-sm text-muted-foreground">
+            Isi baris Debit dan Kredit. Keterangan Debit & Kredit bisa berbeda (misal: Debit = "Beli bahan baku", Kredit = "Utang supplier").
+            Isi salah satu akan otomatis mirror ke baris lain. Submit akan sekaligus menambahkan 2 transaksi (Debit & Kredit) yang saling mengimbangi.
+          </div>
+        </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="grid gap-3 md:grid-cols-2 lg:grid-cols-7 items-end">
-            <div className="space-y-2 lg:col-span-1"><Label>Tanggal</Label><DateInput value={tanggal} onChange={setTanggal} /></div>
-            <div className="space-y-2 lg:col-span-2"><Label>Keterangan</Label><Input value={keterangan} onChange={(e) => setKeterangan(e.target.value)} /></div>
-            <div className="space-y-2 lg:col-span-1"><Label>Debit</Label><Select value={debitKodeAkun} onValueChange={setDebitKodeAkun}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{coa.map(a => <SelectItem key={a.kode} value={a.kode}>{a.kode} - {a.nama}</SelectItem>)}</SelectContent>
-            </Select></div>
-            <div className="space-y-2 lg:col-span-1"><Label>Kredit</Label><Select value={kreditKodeAkun} onValueChange={setKreditKodeAkun}>
-              <SelectTrigger><SelectValue placeholder="Pilih akun" /></SelectTrigger>
-              <SelectContent>{coa.map(a => <SelectItem key={a.kode} value={a.kode}>{a.kode} - {a.nama}</SelectItem>)}</SelectContent>
-            </Select></div>
-            <div className="space-y-2 lg:col-span-1"><Label>Jumlah</Label><Input type="number" min={0} value={jumlah} onChange={(e) => setJumlah(e.target.value)} /></div>
-            <div className="space-y-2 lg:col-span-1"><Button type="submit" disabled={!debitObj || !kreditObj || balance <= 0} className="w-full h-10"><Plus className="mr-1 h-4 w-4" /> Simpan</Button></div>
+          <form onSubmit={submit} className="space-y-4">
+            {/* Header: Tanggal + Keterangan Umum (opsional) */}
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2"><Label>Tanggal</Label><DateInput value={tanggal} onChange={setTanggal} /></div>
+              <div className="space-y-2">
+                <Label>Keterangan Umum <span className="text-muted-foreground text-xs">(opsional, akan di-mirror ke kedua baris)</span></Label>
+                <Input value={keteranganUmum} onChange={(e) => setKeteranganUmum(e.target.value)} placeholder="cth: Pembelian bahan baku tunai" />
+              </div>
+            </div>
+
+            {/* Tabel 2 baris: Debit & Kredit */}
+            <div className="rounded-2xl border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="w-24">Tipe</TableHead>
+                    <TableHead>Akun</TableHead>
+                    <TableHead>Keterangan</TableHead>
+                    <TableHead className="text-right w-40">Jumlah</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {/* Baris Debit */}
+                  <TableRow>
+                    <TableCell className="font-semibold text-primary">DEBIT</TableCell>
+                    <TableCell>
+                      <Select value={debitKodeAkun} onValueChange={setDebitKodeAkun}>
+                        <SelectTrigger><SelectValue placeholder="Pilih akun" /></SelectTrigger>
+                        <SelectContent>{coa.map(a => <SelectItem key={a.kode} value={a.kode}>{a.kode} - {a.nama}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Input value={debitKeterangan} onChange={(e) => setDebitKeterangan(e.target.value)} placeholder={keteranganUmum || "Keterangan baris debit"} />
+                    </TableCell>
+                    <TableCell>
+                      <Input type="number" min={0} value={debitJumlah} onChange={(e) => handleDebitJumlahChange(e.target.value)} placeholder="0" className="text-right" />
+                    </TableCell>
+                  </TableRow>
+                  {/* Baris Kredit */}
+                  <TableRow>
+                    <TableCell className="font-semibold text-destructive">KREDIT</TableCell>
+                    <TableCell>
+                      <Select value={kreditKodeAkun} onValueChange={setKreditKodeAkun}>
+                        <SelectTrigger><SelectValue placeholder="Pilih akun" /></SelectTrigger>
+                        <SelectContent>{coa.map(a => <SelectItem key={a.kode} value={a.kode}>{a.kode} - {a.nama}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Input value={kreditKeterangan} onChange={(e) => setKreditKeterangan(e.target.value)} placeholder={keteranganUmum || "Keterangan baris kredit"} />
+                    </TableCell>
+                    <TableCell>
+                      <Input type="number" min={0} value={kreditJumlah} onChange={(e) => handleKreditJumlahChange(e.target.value)} placeholder="0" className="text-right" />
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Kode Bantu (jika akun Hutang/Piutang) */}
             {isKodeBantuApplicable && (
-              <div className="space-y-2 lg:col-span-7">
-                <Label>Kode Bantu (Wajib untuk Hutang/Piutang)</Label>
+              <div className="space-y-2">
+                <Label>Kode Bantu (Wajib untuk akun Hutang/Piutang)</Label>
                 <Select value={kodeBantuId} onValueChange={setKodeBantuId}>
-                  <SelectTrigger><SelectValue placeholder="Pilih kode bantu" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Pilih kode bantu (H-XXX / C-XXX)" /></SelectTrigger>
                   <SelectContent>
                     {applicableKodeBantu.length === 0 ? (
                       <SelectItem value="none" disabled>Belum ada kode bantu — tambahkan di tab Kode Bantu</SelectItem>
@@ -300,6 +387,25 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
                 </Select>
               </div>
             )}
+
+            {/* Validasi status + Tombol Simpan */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-muted/30">
+              <div className="text-sm space-y-1">
+                <div>
+                  Status: {isBalanced ? (
+                    <span className="text-success font-semibold">✓ Seimbang (Debit = Kredit)</span>
+                  ) : (
+                    <span className="text-destructive font-semibold">✗ Debit ({rupiah(debitAmount)}) ≠ Kredit ({rupiah(kreditAmount)})</span>
+                  )}
+                </div>
+                {!debitObj && <div className="text-xs text-muted-foreground">Pilih akun Debit</div>}
+                {!kreditObj && <div className="text-xs text-muted-foreground">Pilih akun Kredit</div>}
+                {!finalDebitKet && !finalKreditKet && <div className="text-xs text-muted-foreground">Isi minimal salah satu keterangan</div>}
+              </div>
+              <Button type="submit" disabled={!isBalanced || !debitObj || !kreditObj || (!finalDebitKet && !finalKreditKet)} className="h-10">
+                <Plus className="mr-1 h-4 w-4" /> Simpan (2 Transaksi)
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

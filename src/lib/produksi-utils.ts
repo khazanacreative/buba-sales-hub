@@ -268,14 +268,15 @@ export function loadGridFromReqs(
 export function loadRencanaGrid(
   outlets: { id: string }[],
   permohonanStok: any[],
-  tanggal: string
+  tanggal: string,
+  statuses?: (string | null)[]
 ): OutletGrid {
   const rencanaReqs = (permohonanStok || []).map((r: any) => ({
     ...r,
     qty: r.qtyRencana != null ? r.qtyRencana : r.qty,
     catatan: r.catatanRencana || r.catatan
   }));
-  return loadGridFromReqs(outlets, rencanaReqs, tanggal);
+  return loadGridFromReqs(outlets, rencanaReqs, tanggal, statuses);
 }
 
 // Calculate totals from a grid

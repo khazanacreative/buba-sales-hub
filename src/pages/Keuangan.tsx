@@ -275,29 +275,18 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
   const { totalDebit, totalKredit } = totalDebitKredit(filtered);
   const { paged, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 25);
 
-  // Group paged entries by (tanggal, keterangan, jumlah) untuk display rows
-  // Tampilkan 1 baris per pair dengan tombol edit/hapus di sisi Debit
-  const groupedDisplay = useMemo(() => {
-    const seen = new Set<string>();
-    const result: { debit?: Jurnal; kredit?: Jurnal; key: string }[] = [];
-    for (const j of paged) {
+  // Tampilkan 1 baris per entry jurnal (flat list, bukan digabung per pair).
+  // Setiap baris menampilkan COA sesuai tipe (Debit/Kredit) dengan tombol edit & delete di sisi kanan.
+  const flatDisplay = useMemo(() => {
+    return paged.map((j) => {
       const pair = paged.find((o) =>
         o.id !== j.id &&
         o.tanggal === j.tanggal &&
-        o.keterangan === j.keterangan &&
         o.jumlah === j.jumlah &&
         o.tipe !== j.tipe
       );
-      const key = `${j.tanggal}|${j.keterangan}|${j.jumlah}|${j.tipe}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (j.tipe === "Debit") {
-        result.push({ debit: j, kredit: pair, key });
-      } else {
-        result.push({ debit: pair, kredit: j, key });
-      }
-    }
-    return result;
+      return { entry: j, pair, key: j.id };
+    });
   }, [paged]);
 
   return (
@@ -411,55 +400,66 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Daftar Jurnal</CardTitle><div className="text-sm text-muted-foreground">{filtered.length} entri · D: {rupiah(totalDebit)} K: {rupiah(totalKredit)}</div></CardHeader>
+        <CardHeader>
+          <CardTitle>Daftar Jurnal</CardTitle>
+          <div className="text-sm text-muted-foreground">{filtered.length} entri · D: {rupiah(totalDebit)} K: {rupiah(totalKredit)}</div>
+        </CardHeader>
         <CardContent>
           <div className="rounded-2xl border overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Tgl</TableHead>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Akun</TableHead>
-                  <TableHead>Kode Bantu</TableHead>
-                  <TableHead>Keterangan</TableHead>
-                  <TableHead className="text-right">Debit</TableHead>
-                  <TableHead className="text-right">Kredit</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tgl</TableHead>
+                    <TableHead>Tipe</TableHead>
+                    <TableHead>Kode</TableHead>
+                    <TableHead>Akun</TableHead>
+                    <TableHead>Kode Bantu</TableHead>
+                    <TableHead>Keterangan</TableHead>
+                    <TableHead className="text-right">Jumlah</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
-                  {groupedDisplay.length === 0 && (<TableRow><TableCell colSpan={8} className="text-center">Belum ada jurnal</TableCell></TableRow>)}
-                  {groupedDisplay.map((g) => {
-                    const debit = g.debit;
-                    const kredit = g.kredit;
-                    const kb = debit?.kodeBantuId ? kodeBantu.find((k) => k.id === debit.kodeBantuId) : null;
+                  {flatDisplay.length === 0 && (
+                    <TableRow><TableCell colSpan={8} className="text-center">Belum ada jurnal</TableCell></TableRow>
+                  )}
+                  {flatDisplay.map((row) => {
+                    const j = row.entry;
+                    const kb = j.kodeBantuId ? kodeBantu.find((k) => k.id === j.kodeBantuId) : null;
+                    const isDebit = j.tipe === "Debit";
                     return (
-                      <TableRow key={g.key}>
-                        <TableCell>{debit?.tanggal ?? kredit?.tanggal}</TableCell>
-                        <TableCell className="font-mono">{debit?.kodeAkun ?? kredit?.kodeAkun}</TableCell>
-                        <TableCell>{debit ? `${debit.akun}` : kredit ? `${kredit.akun} (Kredit)` : ""}</TableCell>
+                      <TableRow key={row.key} className={isDebit ? "bg-primary/5" : "bg-destructive/5"}>
+                        <TableCell className="whitespace-nowrap">{j.tanggal}</TableCell>
+                        <TableCell>
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${isDebit ? "bg-primary/15 text-primary" : "bg-destructive/15 text-destructive"}`}>
+                            {j.tipe}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono">{j.kodeAkun ?? "-"}</TableCell>
+                        <TableCell className="max-w-[180px] truncate">{j.akun}</TableCell>
                         <TableCell className="font-mono text-xs">{kb ? `${kb.kode} (${kb.nama})` : "-"}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{debit?.keterangan ?? kredit?.keterangan}</TableCell>
-                        <TableCell className="text-right">{debit ? rupiah(debit.jumlah) : "-"}</TableCell>
-                        <TableCell className="text-right">{kredit ? rupiah(kredit.jumlah) : "-"}</TableCell>
+                        <TableCell className="max-w-[220px] truncate">{j.keterangan}</TableCell>
+                        <TableCell className={`text-right font-medium ${isDebit ? "text-primary" : "text-destructive"}`}>
+                          {rupiah(j.jumlah)}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => debit && handleEdit(debit)}
+                              onClick={() => handleEdit(j)}
                               title="Edit jurnal"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            {debit && (
-                              <ConfirmDeleteButton
-                                onConfirm={() => handleDelete(debit)}
-                                title="Hapus jurnal ini?"
-                                description="Seluruh entri debit & kredit terkait akan dihapus."
-                                className="h-7 w-7"
-                              />
-                            )}
+                            <ConfirmDeleteButton
+                              onConfirm={() => handleDelete(j)}
+                              title="Hapus jurnal ini?"
+                              description="Seluruh entri debit & kredit terkait akan dihapus."
+                              className="h-7 w-7"
+                            />
                           </div>
                         </TableCell>
                       </TableRow>

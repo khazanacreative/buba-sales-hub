@@ -1,0 +1,9 @@
+docs(sql): add combined setup script for Kode Bantu + HPP 3-tabel
+
+- Single file untuk dijalankan di Supabase SQL Editor
+- Idempotent (aman dijalankan berulang)
+- Include DROP old hpp_config CASCADE
+- Verifikasi akhir dengan RAISE NOTICE
+
+Jalankan SEKALI di Supabase SQL Editor untuk setup semua fitur
+keuangan baru: Kode Bantu, HPP Config 3-tabel, jurnal.kode_bantu_id.

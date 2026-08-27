@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { db, useDB, getDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
+import { db, useDB, getDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN, fetchHistoricalData, useHistoricalLoading } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { todayISO, DateRange, inRange, rupiah } from "@/lib/format";
 import { Plus, Trash2, AlertTriangle, CheckCircle2, Check, X, Clock, ArrowRight, ArrowLeft, ClipboardList, Send, RotateCcw, ShoppingBag, Calculator, ChevronDown, ChevronUp, Copy, Package, LockOpen, Banknote, Loader2 } from "lucide-react";
@@ -80,6 +80,7 @@ export default function Produksi() {
   const dbState = useDB();
   const { user } = useAuth();
   const { produk = [], produksi = [], penjualan = [], bahan = [], permohonanStok = [], outlets = [], stokMov = [] } = dbState;
+  const histLoading = useHistoricalLoading();
 
   const [tanggal, setTanggal] = useState(todayISO());
   const [bubur1Variant, setBubur1Variant] = useState("b-ay01"); // default AYAM
@@ -100,6 +101,33 @@ export default function Produksi() {
     // Reset status auto-konfirmasi OH abon saat ganti tanggal siklus
     setOhAbonApplied(false);
     setOhAbonAutoConfirmed(false);
+  }, [tanggal]);
+
+  // Auto-fetch historical data when user selects a date outside the loaded range (±7 days).
+  // Debounced 500ms to avoid fetching on rapid date changes.
+  const histTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const histCacheRef = useRef<string[]>([]);
+  useEffect(() => {
+    if (histTimerRef.current) clearTimeout(histTimerRef.current);
+    if (!tanggal) return;
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const fmt = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const loadedFrom = fmt(sevenDaysAgo);
+    const loadedTo = fmt(tomorrow);
+    if (tanggal >= loadedFrom && tanggal <= loadedTo) return;
+    const cacheKey = `${tanggal}|${tanggal}`;
+    if (histCacheRef.current.includes(cacheKey)) return;
+    histTimerRef.current = setTimeout(() => {
+      histCacheRef.current.push(cacheKey);
+      fetchHistoricalData(tanggal, tanggal).catch(() => {
+        histCacheRef.current = histCacheRef.current.filter(k => k !== cacheKey);
+      });
+    }, 500);
+    return () => { if (histTimerRef.current) clearTimeout(histTimerRef.current); };
   }, [tanggal]);
 
   const [step, setStep] = useState(1);
@@ -1928,6 +1956,12 @@ export default function Produksi() {
             <div className="space-y-1">
               <CardTitle>Langkah 1: Rencana Pra-Produksi</CardTitle>
               <p className="text-xs text-muted-foreground mt-1">Gunakan tabel/form di bawah untuk mengisi rencana target produksi tiap outlet secara langsung.</p>
+              {histLoading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30 rounded-lg px-3 py-1.5 mt-1">
+                  <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                  <span>Memuat data historis...</span>
+                </div>
+              )}
             </div>
             {/* 2-Day Plan Toggle */}
             <div className="flex items-center gap-3 shrink-0">

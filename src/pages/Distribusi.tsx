@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { db, useDB, getDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN } from "@/lib/store";
+import { db, useDB, getDB, fetchFromSupabase, saldoBahan, getBubaSettings, GRAM_EXCLUDED_BAHAN, fetchHistoricalData } from "@/lib/store";
 import { supabase } from "@/lib/supabaseClient";
 import { DateInput } from "@/components/DateInput";
 import { todayISO, rupiah } from "@/lib/format";
@@ -33,6 +33,32 @@ export default function Distribusi() {
   useEffect(() => {
     hasUserModifiedGrids.current = false;
     hasManualReturEdits.current = false;
+  }, [tanggal]);
+
+  // Auto-fetch historical data when user selects a date outside the loaded range (±7 days)
+  const distHistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const distHistCacheRef = useRef<string[]>([]);
+  useEffect(() => {
+    if (distHistTimerRef.current) clearTimeout(distHistTimerRef.current);
+    if (!tanggal) return;
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const fmt = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const loadedFrom = fmt(sevenDaysAgo);
+    const loadedTo = fmt(tomorrow);
+    if (tanggal >= loadedFrom && tanggal <= loadedTo) return;
+    const cacheKey = `${tanggal}|${tanggal}`;
+    if (distHistCacheRef.current.includes(cacheKey)) return;
+    distHistTimerRef.current = setTimeout(() => {
+      distHistCacheRef.current.push(cacheKey);
+      fetchHistoricalData(tanggal, tanggal).catch(() => {
+        distHistCacheRef.current = distHistCacheRef.current.filter(k => k !== cacheKey);
+      });
+    }, 500);
+    return () => { if (distHistTimerRef.current) clearTimeout(distHistTimerRef.current); };
   }, [tanggal]);
 
   const [step, setStep] = useState(3);

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import React, { useSyncExternalStore } from "react";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_LOCK_DEADLINE } from "./produksi-utils";
 import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu, HppProduk, HppBahan, HppConsumable } from "./types";
@@ -233,9 +233,111 @@ export function useHistoricalLoading() {
 // automatically when the result hits the limit, ensuring ALL records are loaded.
 const SUPABASE_PAGE_SIZE = 1000;
 
+// ── Retry logic with exponential backoff ─────────────────────────────────────
+// Protects against transient Supabase failures (PostgREST unhealthy, connection
+// pool exhausted, etc.). If all retries fail, returns { data: null, error }.
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000; // 1s, 2s, 4s
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Determines if an error is retryable (transient). */
+function isRetryable(err: any): boolean {
+  if (!err) return false;
+  const msg = String(err.message || err.code || "").toLowerCase();
+  // PostgREST schema cache / connection errors
+  if (msg.includes("pgrst002") || msg.includes("pgrst000") || msg.includes("pgrst001")) return true;
+  // HTTP 503 / 502 / 504 (service unavailable / gateway timeout)
+  if (err.status === 503 || err.status === 502 || err.status === 504) return true;
+  // Network / timeout errors
+  if (msg.includes("timeout") || msg.includes("network") || msg.includes("fetch") || msg.includes("econnrefused")) return true;
+  return false;
+}
+
+/** Retry wrapper with exponential backoff. Only retries on transient errors. */
+async function retryWithBackoff<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < MAX_RETRIES && isRetryable(err)) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`[retry] ${label} attempt ${attempt + 1}/${MAX_RETRIES + 1} failed: ${err.message || err}. Retrying in ${delay}ms...`);
+        await sleep(delay);
+      } else {
+        break;
+      }
+    }
+  }
+  throw lastError;
+}
+
+// ── Connection status tracking ───────────────────────────────────────────────
+// Exposed via useConnectionStatus() hook so UI can show a banner when DB is down.
+let _connectionOk = true;
+let _lastError: string | null = null;
+let _downSince: number | null = null;
+const _connListeners = new Set<() => void>();
+
+function setConnectionStatus(ok: boolean, error?: string) {
+  const changed = _connectionOk !== ok;
+  _connectionOk = ok;
+  _lastError = ok ? null : (error || null);
+  if (!ok && !_downSince) _downSince = Date.now();
+  if (ok) _downSince = null;
+  if (changed) _connListeners.forEach((l) => l());
+}
+
+export function useConnectionStatus() {
+  const [status, setStatus] = React.useState({ ok: _connectionOk, error: _lastError, downSince: _downSince });
+  React.useEffect(() => {
+    const handler = () => setStatus({ ok: _connectionOk, error: _lastError, downSince: _downSince });
+    _connListeners.add(handler);
+    return () => { _connListeners.delete(handler); };
+  }, []);
+  return status;
+}
+
+/** Seconds since DB went down (null if currently up). */
+export function useConnectionDownSeconds(): number | null {
+  const [secs, setSecs] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!_downSince) { setSecs(null); return; }
+    const id = setInterval(() => setSecs(_downSince ? Math.floor((Date.now() - _downSince) / 1000) : null), 1000);
+    return () => clearInterval(id);
+  }, [_connectionOk]);
+  return secs;
+}
+
+// ── Column selection: fetch only columns the app actually uses ──────────────
+// Reduces network payload and Postgres I/O vs select("*").
+const TABLE_COLUMNS: Record<string, string> = {
+  outlets:          "id, nama, lokasi",
+  produk:           "id, nama, harga, satuan",
+  penjualan:        "id, tanggal, outlet_id, produk_id, qty, harga, total, sisa_gram, variant",
+  produksi:         "id, tanggal, produk_id, qty_rencana, qty_realisasi",
+  jurnal:           "id, tanggal, ref, keterangan, kode_akun, akun, tipe, jumlah, kategori, kode_bantu_id",
+  coa:              "kode, nama, tipe, kategori",
+  bahan_baku:       "id, kode, nama, satuan, stok_min, stok_awal, harga_beli, konversi_gram",
+  stok_movement:    "id, tanggal, bahan_id, tipe, qty, keterangan, produksi_id",
+  karyawan:         "id, nama, posisi, role, outlet_id, gaji_pokok, bonus_omset, bonus_ulasan, bonus_oh, tunjangan_harian, overtime_rate, jam_masuk, jam_pulang",
+  absensi:          "id, tanggal, karyawan_id, jam_masuk, jam_pulang, status, catatan, bonus, tunjangan, overtime",
+  permohonan_stok:  "id, tanggal, tanggal_kirim, outlet_id, produk_id, qty, status, catatan, qty_rencana, catatan_rencana",
+  users:            "username, password, nama, role, outlet_id, karyawan_id",
+  kode_bantu:       "id, kode, kode_akun, nama, keterangan, created_at",
+  hpp_produk:       "id, produk_id, harga_jual, catatan, aktif, updated_at",
+  hpp_bahan:        "id, hpp_produk_id, nama_item, satuan, berat, harga, jadi, urutan",
+  hpp_consumable:   "id, hpp_produk_id, nama_item, satuan, berat, harga, jumlah, urutan",
+};
+
 /** Build a Supabase query with optional date range filter. */
 function buildQuery(table: string, dateCol?: string, from?: string, to?: string) {
-  let q = supabase.from(table).select("*");
+  const cols = TABLE_COLUMNS[table] || "*";
+  let q = supabase.from(table).select(cols);
   if (dateCol && from) q = q.gte(dateCol, from);
   if (dateCol && to) q = q.lte(dateCol, to);
   return q;
@@ -243,28 +345,27 @@ function buildQuery(table: string, dateCol?: string, from?: string, to?: string)
 
 async function safeFetch(table: string) {
   try {
-    const first = await buildQuery(table).range(0, SUPABASE_PAGE_SIZE - 1);
-    if (first.error) {
-      console.warn(`safeFetch(${table}):`, first.error);
-      return { data: null, error: first.error };
-    }
-    // If fewer than PAGE_SIZE rows returned, we have everything
-    if (!first.data || first.data.length < SUPABASE_PAGE_SIZE) {
-      return { data: first.data, error: null };
-    }
-    // Paginate: fetch remaining pages
-    let allData = [...first.data];
-    let offset = SUPABASE_PAGE_SIZE;
-    while (true) {
-      const page = await buildQuery(table).range(offset, offset + SUPABASE_PAGE_SIZE - 1);
-      if (page.error || !page.data || page.data.length === 0) break;
-      allData = allData.concat(page.data);
-      if (page.data.length < SUPABASE_PAGE_SIZE) break;
-      offset += SUPABASE_PAGE_SIZE;
-    }
-    return { data: allData, error: null };
-  } catch (err) {
-    console.warn(`safeFetch(${table}) exception:`, err);
+    return await retryWithBackoff(async () => {
+      const first = await buildQuery(table).range(0, SUPABASE_PAGE_SIZE - 1);
+      if (first.error) throw first.error;
+      // If fewer than PAGE_SIZE rows returned, we have everything
+      if (!first.data || first.data.length < SUPABASE_PAGE_SIZE) {
+        return { data: first.data, error: null };
+      }
+      // Paginate: fetch remaining pages
+      let allData = [...first.data];
+      let offset = SUPABASE_PAGE_SIZE;
+      while (true) {
+        const page = await buildQuery(table).range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+        if (page.error || !page.data || page.data.length === 0) break;
+        allData = allData.concat(page.data);
+        if (page.data.length < SUPABASE_PAGE_SIZE) break;
+        offset += SUPABASE_PAGE_SIZE;
+      }
+      return { data: allData, error: null };
+    }, `safeFetch(${table})`);
+  } catch (err: any) {
+    console.warn(`safeFetch(${table}) failed after retries:`, err?.message || err);
     return { data: null, error: err };
   }
 }
@@ -273,26 +374,25 @@ async function safeFetch(table: string) {
  *  permohonan_stok, etc.) to avoid loading all historical data at once. */
 async function safeFetchFiltered(table: string, dateCol: string, from: string, to: string) {
   try {
-    const first = await buildQuery(table, dateCol, from, to).range(0, SUPABASE_PAGE_SIZE - 1);
-    if (first.error) {
-      console.warn(`safeFetchFiltered(${table}):`, first.error);
-      return { data: null, error: first.error };
-    }
-    if (!first.data || first.data.length < SUPABASE_PAGE_SIZE) {
-      return { data: first.data, error: null };
-    }
-    let allData = [...first.data];
-    let offset = SUPABASE_PAGE_SIZE;
-    while (true) {
-      const page = await buildQuery(table, dateCol, from, to).range(offset, offset + SUPABASE_PAGE_SIZE - 1);
-      if (page.error || !page.data || page.data.length === 0) break;
-      allData = allData.concat(page.data);
-      if (page.data.length < SUPABASE_PAGE_SIZE) break;
-      offset += SUPABASE_PAGE_SIZE;
-    }
-    return { data: allData, error: null };
-  } catch (err) {
-    console.warn(`safeFetchFiltered(${table}) exception:`, err);
+    return await retryWithBackoff(async () => {
+      const first = await buildQuery(table, dateCol, from, to).range(0, SUPABASE_PAGE_SIZE - 1);
+      if (first.error) throw first.error;
+      if (!first.data || first.data.length < SUPABASE_PAGE_SIZE) {
+        return { data: first.data, error: null };
+      }
+      let allData = [...first.data];
+      let offset = SUPABASE_PAGE_SIZE;
+      while (true) {
+        const page = await buildQuery(table, dateCol, from, to).range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+        if (page.error || !page.data || page.data.length === 0) break;
+        allData = allData.concat(page.data);
+        if (page.data.length < SUPABASE_PAGE_SIZE) break;
+        offset += SUPABASE_PAGE_SIZE;
+      }
+      return { data: allData, error: null };
+    }, `safeFetchFiltered(${table})`);
+  } catch (err: any) {
+    console.warn(`safeFetchFiltered(${table}) failed after retries:`, err?.message || err);
     return { data: null, error: err };
   }
 }
@@ -353,25 +453,29 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       qtyRencana: p.qty_rencana,
       qtyRealisasi: p.qty_realisasi
     })),
-     jurnal: (raw.jurnal || []).map((j: any) => {
-       // Migrasi entry lama: jika field wajib kosong, lengkapi dari COA
-       const coaMatch = (raw.coa || []).find((c: any) => c.kode === j.kode_akun);
-       const kodeAkun = j.kode_akun ?? coaMatch?.kode ?? "";
-       const akun = j.akun ?? coaMatch?.nama ?? "(Akun tidak dikenal)";
-       const kategori = j.kategori ?? coaMatch?.kategori ?? "";
-       return {
-         id: j.id,
-         tanggal: j.tanggal,
-         ref: j.ref,
-         keterangan: j.keterangan ?? "",
-         kodeAkun,
-         akun,
-         tipe: j.tipe,
-         jumlah: Number(j.jumlah),
-         kategori,
-         kodeBantuId: j.kode_bantu_id === null ? undefined : j.kode_bantu_id
-       };
-     }),
+     jurnal: (() => {
+       // O(n+m) lookup via Map instead of O(n*m) find()
+       const coaByKode = new Map<string, any>();
+       (raw.coa || []).forEach((c: any) => coaByKode.set(c.kode, c));
+       return (raw.jurnal || []).map((j: any) => {
+         const coaMatch = coaByKode.get(j.kode_akun);
+         const kodeAkun = j.kode_akun ?? coaMatch?.kode ?? "";
+         const akun = j.akun ?? coaMatch?.nama ?? "(Akun tidak dikenal)";
+         const kategori = j.kategori ?? coaMatch?.kategori ?? "";
+         return {
+           id: j.id,
+           tanggal: j.tanggal,
+           ref: j.ref,
+           keterangan: j.keterangan ?? "",
+           kodeAkun,
+           akun,
+           tipe: j.tipe,
+           jumlah: Number(j.jumlah),
+           kategori,
+           kodeBantuId: j.kode_bantu_id === null ? undefined : j.kode_bantu_id
+         };
+       });
+     })(),
     kodeBantu: (raw.kodeBantu || []).map((k: any) => ({
       id: k.id,
       kode: k.kode,
@@ -428,26 +532,33 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       keterangan: m.keterangan,
       produksiId: m.produksi_id
     })),
-    karyawan: (raw.karyawan || []).map((k: any) => {
-      const linkedUser = (usersData || []).find((u: any) => u.karyawan_id === k.id);
-      return {
-        id: k.id,
-        nama: k.nama,
-        posisi: k.posisi,
-        role: k.role || linkedUser?.role || "outlet",
-        outletId: k.outlet_id,
-        gajiPokok: Number(k.gaji_pokok),
-        bonusOmset: Number(k.bonus_omset),
-        bonusUlasan: Number(k.bonus_ulasan),
-        bonusOH: Number(k.bonus_oh ?? 0),
-        tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
-        overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
-        jamMasuk: k.jam_masuk || undefined,
-        jamPulang: k.jam_pulang || undefined,
-        username: linkedUser?.username || undefined,
-        password: linkedUser?.password || undefined
-      };
-    }),
+    karyawan: (() => {
+      // O(n+m) lookup via Map instead of O(n*m) find()
+      const userByKaryawanId = new Map<string, any>();
+      (usersData || []).forEach((u: any) => {
+        if (u.karyawan_id) userByKaryawanId.set(u.karyawan_id, u);
+      });
+      return (raw.karyawan || []).map((k: any) => {
+        const linkedUser = userByKaryawanId.get(k.id);
+        return {
+          id: k.id,
+          nama: k.nama,
+          posisi: k.posisi,
+          role: k.role || linkedUser?.role || "outlet",
+          outletId: k.outlet_id,
+          gajiPokok: Number(k.gaji_pokok),
+          bonusOmset: Number(k.bonus_omset),
+          bonusUlasan: Number(k.bonus_ulasan),
+          bonusOH: Number(k.bonus_oh ?? 0),
+          tunjanganHarian: k.tunjangan_harian ? Number(k.tunjangan_harian) : 0,
+          overtimeRate: k.overtime_rate ? Number(k.overtime_rate) : 0,
+          jamMasuk: k.jam_masuk || undefined,
+          jamPulang: k.jam_pulang || undefined,
+          username: linkedUser?.username || undefined,
+          password: linkedUser?.password || undefined
+        };
+      });
+    })(),
     absensi: (raw.absensi || []).map((a: any) => ({
       id: a.id,
       tanggal: a.tanggal,
@@ -492,6 +603,7 @@ export async function fetchFromSupabase() {
   // Skip polling/realtime refresh while historical data is being fetched
   // to prevent race condition that overwrites historical data
   if (_historicalLoading) return;
+  try {
   const range = PRODUCTION_RANGE();
   const [
     outletsRes,
@@ -558,6 +670,12 @@ export async function fetchFromSupabase() {
   }, usersRes.data || []);
   state = raw;
   notify();
+  setConnectionStatus(true);
+  } catch (err: any) {
+    // All retries exhausted — mark connection as down
+    console.error("[store] fetchFromSupabase failed:", err?.message || err);
+    setConnectionStatus(false, err?.message || String(err));
+  }
 }
 
 // Fetch historical data for a specific date range. Used by Laporan, Keuangan,
@@ -639,26 +757,45 @@ export async function fetchHistoricalData(from: string, to: string) {
 
   state = raw;
   notify();
+  setConnectionStatus(true);
+  } catch (err: any) {
+    console.error("[store] fetchHistoricalData failed:", err?.message || err);
+    setConnectionStatus(false, err?.message || String(err));
   } finally {
     setHistoricalLoading(false);
   }
 }
 
+// ── Debounced fetch: prevents rapid-fire realtime/polling from overwhelming DB ─
+let _fetchTimer: ReturnType<typeof setTimeout> | null = null;
+let _fetchPending = false;
+const DEBOUNCE_MS = 2000; // coalesce multiple events within 2s into one fetch
+
+function debouncedFetch() {
+  if (_fetchPending) return; // already scheduled
+  _fetchPending = true;
+  _fetchTimer = setTimeout(() => {
+    _fetchPending = false;
+    _fetchTimer = null;
+    fetchFromSupabase();
+  }, DEBOUNCE_MS);
+}
+
 // Initial fetch when module loads
 fetchFromSupabase();
 
-// Setup Supabase Real-time listener for database sync
+// Setup Supabase Real-time listener for database sync (debounced)
 supabase
   .channel("db-realtime-channel")
   .on("postgres_changes", { event: "*", schema: "public" }, () => {
-    fetchFromSupabase();
+    debouncedFetch();
   })
   .subscribe();
 
-// Periodic polling fallback (every 30s) in case Realtime connection drops
+// Periodic polling fallback (every 60s) in case Realtime connection drops
 setInterval(() => {
   fetchFromSupabase();
-}, 30_000);
+}, 60_000);
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 

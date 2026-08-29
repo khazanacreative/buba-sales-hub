@@ -405,7 +405,10 @@ export default function Produksi() {
       // Sertakan "Pending" agar rencana Langkah 1 (belum didistribusikan) tetap
       // tampil sebagai nilai default distribusi saat refresh. tanpa ini, grid
       // distGrid kosong karena saveStep1 menyimpan status "Pending".
-      const dayReqs = permohonanStok.filter((r: any) =>
+      // Gunakan getDB() untuk data terkini — permohonanStok dari closure bisa
+      // stale jika fetchFromSupabase belum selesai (race condition antar halaman).
+      const freshPermohonanForDist = getDB().permohonanStok;
+      const dayReqs = freshPermohonanForDist.filter((r: any) =>
         r.tanggalKirim === tanggal && (r.status == null || r.status === "Pending" || r.status === "Disetujui")
       );
       const dGrid: Record<string, Record<string, number>> = {};
@@ -521,7 +524,8 @@ export default function Produksi() {
     const existingSales = freshPenjualan.filter((p: any) => p.tanggal === tanggal);
     if (existingSales.length === 0) return;
     // Selalu load fresh dari permohonanStok — tidak bergantung distGrid state
-    const freshDistGrid = loadGridFromReqs(outlets, permohonanStok, tanggal);
+    const freshPermohonanStok = getDB().permohonanStok;
+    const freshDistGrid = loadGridFromReqs(outlets, freshPermohonanStok, tanggal);
     const rGrid: Record<string, Record<string, number>> = {};
     outlets.forEach(o => {
       rGrid[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
@@ -829,16 +833,12 @@ export default function Produksi() {
 
       toast.success("Rencana Pra-Produksi berhasil disimpan!");
 
-      // Prefill distribusi (Langkah 3) dari rencana — aktual masak = total distribusi,
-      // jadi tabel input per outlet langsung terisi angka rencana agar kapro tinggal
-      // menyesuaikan yang berbeda saja sesuai aktual masak di lapangan.
-      // (useEffect load tidak jalan di sini karena guard hasUserModifiedGrids aktif
-      // sejak kapro mengisi rencana di Langkah 1.)
-      const distPrefill: Record<string, Record<string, number>> = {};
-      Object.entries(planGrid).forEach(([outletId, vals]) => {
-        distPrefill[outletId] = { ...vals };
-      });
-      setDistGrid(distPrefill);
+      // Reload distGrid dari database terkini (bukan dari planGrid yang mungkin
+      // berbeda dari data DB jika ada record "Disetujui" dari siklus sebelumnya).
+      // Guard hasUserModifiedGrids mencegah useEffect load, jadi kita load manual.
+      const freshPermohonan = getDB().permohonanStok;
+      const freshDistGrid = loadGridFromReqs(outlets, freshPermohonan, tanggal);
+      setDistGrid(freshDistGrid);
       setStep(2);
     } catch (err: any) {
       console.error("saveStep1 error:", err);
@@ -1160,7 +1160,11 @@ export default function Produksi() {
 
       // Hanya record produksi (p-*) — request/retur perlengkapan (b-*) jangan
       // diubah status/qty-nya oleh simpanan distribusi.
-      const dayReqs = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal && r.produkId?.startsWith("p-"));
+      // Gunakan getDB() untuk data terkini — permohonanStok dari closure bisa
+      // stale jika fetchFromSupabase belum selesai (race condition antar halaman).
+      const freshPermohonanStok = getDB().permohonanStok;
+      const dayReqs = freshPermohonanStok.filter((r: any) => r.tanggalKirim === tanggal && r.produkId?.startsWith("p-"));
+      const staleWarnings: string[] = [];
       await Promise.all(dayReqs.map(async (r: any) => {
         const outletAlloc = grid[r.outletId] || {};
         let sentQty = 0;
@@ -1187,12 +1191,32 @@ export default function Produksi() {
           sentQty = outletAlloc.abon || 0;
         }
 
+        // Validasi: cek apakah data di DB masih sama dengan yang di-load ke grid.
+        // Jika berbeda (stale), tampilkan warning tapi tetap lanjutkan save.
+        const currentRec = freshPermohonanStok.find((x: any) => x.id === r.id);
+        if (currentRec && currentRec.qty !== r.qty && currentRec.qty !== sentQty) {
+          console.warn(          `[performSaveStep3] Stale data detected for ${r.produkId} (${r.outletId}): ` +
+            `DB qty=${currentRec.qty}, grid qty=${r.qty}, saving qty=${sentQty}. ` +
+            `Data mungkin sudah diubah oleh proses lain.`
+          );
+          staleWarnings.push(`${r.produkId} (${r.outletId}): DB=${currentRec.qty}, grid=${r.qty}`);
+        }
+
         await db.updatePermohonanStok(r.id, {
           qty: sentQty,
           status: "Disetujui",
           catatan: notes
         });
       }));
+
+      // Tampilkan warning jika ada data stale
+      if (staleWarnings.length > 0) {
+        toast.warning(
+          `Data sudah berubah di database untuk ${staleWarnings.length} record sebelum disimpan. ` +
+          `Nilai yang disimpan mungkin tidak sesuai harapan.`,
+          { duration: 8000 }
+        );
+      }
 
       toast.success("Hasil produksi & distribusi berhasil disimpan — barang terkirim ke outlet!");
 

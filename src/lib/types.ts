@@ -206,3 +206,18 @@ export interface PermohonanStok {
   qtyRencana?: number;
   catatanRencana?: string;
 }
+
+// === Log Aktivitas ===
+// Mencatat semua operasi CRUD untuk audit trail.
+export interface LogAktivitas {
+  id: string;
+  createdAt: string;       // ISO timestamp
+  username: string;        // username pelaku
+  namaUser?: string;       // nama lengkap pelaku
+  aksi: 'CREATE' | 'UPDATE' | 'DELETE';
+  modul: string;           // 'Outlet', 'Produk', 'BahanBaku', 'Karyawan', 'User', dll
+  recordId?: string;       // ID record yang diubah
+  detail?: string;         // deskripsi perubahan
+  nilaiLama?: string;      // JSON snapshot sebelum diubah
+  nilaiBaru?: string;      // JSON snapshot sesudah diubah
+}

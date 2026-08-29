@@ -1,7 +1,7 @@
 import React, { useSyncExternalStore } from "react";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_LOCK_DEADLINE } from "./produksi-utils";
-import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu, HppProduk, HppBahan, HppConsumable } from "./types";
+import { Outlet, Produk, Penjualan, Produksi, Jurnal, AkunCOA, BahanBaku, StokMovement, Karyawan, Absensi, PermohonanStok, PermohonanStokStatus, UserAccount, KodeBantu, HppProduk, HppBahan, HppConsumable, LogAktivitas } from "./types";
 import { SEED_OUTLETS, SEED_PRODUK, SEED_COA, SEED_BAHAN, SEED_KARYAWAN, SEED_JURNAL, SEED_USERS } from "./seed";
 
 // =============================================================================
@@ -153,6 +153,7 @@ interface DB {
   hppProduk: HppProduk[];
   hppBahan: HppBahan[];
   hppConsumable: HppConsumable[];
+  logAktivitas: LogAktivitas[];
   settings: BubaSettings;
 }
 
@@ -173,6 +174,7 @@ const initial = (): DB => ({
   hppProduk: [],
   hppBahan: [],
   hppConsumable: [],
+  logAktivitas: [],
   settings: getBubaSettings(),
 });
 
@@ -332,6 +334,7 @@ const TABLE_COLUMNS: Record<string, string> = {
   hpp_produk:       "id, produk_id, harga_jual, catatan, aktif, updated_at",
   hpp_bahan:        "id, hpp_produk_id, nama_item, satuan, berat, harga, jadi, urutan",
   hpp_consumable:   "id, hpp_produk_id, nama_item, satuan, berat, harga, jumlah, urutan",
+  log_aktivitas:    "id, created_at, username, nama_user, aksi, modul, record_id, detail, nilai_lama, nilai_baru",
 };
 
 /** Build a Supabase query with optional date range filter. */
@@ -591,6 +594,18 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       outletId: u.outlet_id,
       karyawanId: u.karyawan_id
     })),
+    logAktivitas: (raw.logAktivitas || []).map((l: any) => ({
+      id: l.id,
+      createdAt: l.created_at,
+      username: l.username,
+      namaUser: l.nama_user === null ? undefined : l.nama_user,
+      aksi: l.aksi,
+      modul: l.modul,
+      recordId: l.record_id === null ? undefined : l.record_id,
+      detail: l.detail === null ? undefined : l.detail,
+      nilaiLama: l.nilai_lama === null ? undefined : l.nilai_lama,
+      nilaiBaru: l.nilai_baru === null ? undefined : l.nilai_baru
+    })),
     settings: getBubaSettings()
   };
 }
@@ -621,7 +636,8 @@ export async function fetchFromSupabase() {
     kodeBantuRes,
     hppProdukRes,
     hppBahanRes,
-    hppConsumableRes
+    hppConsumableRes,
+    logAktivitasRes
   ] = await Promise.all([
     safeFetch("outlets"),
     safeFetch("produk"),
@@ -638,7 +654,8 @@ export async function fetchFromSupabase() {
     safeFetch("kode_bantu"),
     safeFetch("hpp_produk"),
     safeFetch("hpp_bahan"),
-    safeFetch("hpp_consumable")
+    safeFetch("hpp_consumable"),
+    safeFetch("log_aktivitas")
   ]);
 
   // Merge with existing state to preserve historical data already loaded
@@ -666,7 +683,19 @@ export async function fetchFromSupabase() {
     kodeBantu: kodeBantuRes.data || [],
     hppProduk: hppProdukRes.data || [],
     hppBahan: hppBahanRes.data || [],
-    hppConsumable: hppConsumableRes.data || []
+    hppConsumable: hppConsumableRes.data || [],
+    logAktivitas: (logAktivitasRes.data || []).map((l: any) => ({
+      id: l.id,
+      createdAt: l.created_at,
+      username: l.username,
+      namaUser: l.nama_user === null ? undefined : l.nama_user,
+      aksi: l.aksi,
+      modul: l.modul,
+      recordId: l.record_id === null ? undefined : l.record_id,
+      detail: l.detail === null ? undefined : l.detail,
+      nilaiLama: l.nilai_lama === null ? undefined : l.nilai_lama,
+      nilaiBaru: l.nilai_baru === null ? undefined : l.nilai_baru
+    }))
   }, usersRes.data || []);
   state = raw;
   notify();
@@ -869,28 +898,38 @@ export const db = {
     const id = uid();
     await supabase.from("outlets").insert([{ ...o, id }]);
     fetchFromSupabase();
+    logActivity({ aksi: 'CREATE', modul: 'Outlet', recordId: id, detail: `Outlet "${o.nama}" ditambahkan`, nilaiBaru: o });
   },
   async updateOutlet(id: string, o: Partial<Outlet>) {
+    const old = state.outlets.find((x) => x.id === id);
     await supabase.from("outlets").update(o).eq("id", id);
     fetchFromSupabase();
+    logActivity({ aksi: 'UPDATE', modul: 'Outlet', recordId: id, detail: `Outlet "${o.nama || old?.nama}" diperbarui`, nilaiLama: old, nilaiBaru: o });
   },
   async deleteOutlet(id: string) {
+    const old = state.outlets.find((x) => x.id === id);
     await supabase.from("outlets").delete().eq("id", id);
     fetchFromSupabase();
+    logActivity({ aksi: 'DELETE', modul: 'Outlet', recordId: id, detail: `Outlet "${old?.nama}" dihapus`, nilaiLama: old });
   },
 
   async addProduk(p: Omit<Produk, "id">) {
     const id = uid();
     await supabase.from("produk").insert([{ ...p, id }]);
     fetchFromSupabase();
+    logActivity({ aksi: 'CREATE', modul: 'Produk', recordId: id, detail: `Produk "${p.nama}" ditambahkan`, nilaiBaru: p });
   },
   async updateProduk(id: string, p: Partial<Produk>) {
+    const old = state.produk.find((x) => x.id === id);
     await supabase.from("produk").update(p).eq("id", id);
     fetchFromSupabase();
+    logActivity({ aksi: 'UPDATE', modul: 'Produk', recordId: id, detail: `Produk "${p.nama || old?.nama}" diperbarui`, nilaiLama: old, nilaiBaru: p });
   },
   async deleteProduk(id: string) {
+    const old = state.produk.find((x) => x.id === id);
     await supabase.from("produk").delete().eq("id", id);
     fetchFromSupabase();
+    logActivity({ aksi: 'DELETE', modul: 'Produk', recordId: id, detail: `Produk "${old?.nama}" dihapus`, nilaiLama: old });
   },
 
   async addPenjualan(p: Omit<Penjualan, "id" | "total"> & { sisaGram?: number; variant?: string }) {
@@ -1257,6 +1296,7 @@ export const db = {
       throw error;
     }
     await fetchFromSupabase();
+    logActivity({ aksi: 'CREATE', modul: 'BahanBaku', recordId: id, detail: `Bahan "${b.kode} — ${b.nama}" ditambahkan`, nilaiBaru: b });
   },
   async updateBahan(id: string, b: Partial<BahanBaku>) {
     const mapped: any = {};
@@ -1273,14 +1313,17 @@ export const db = {
       throw error;
     }
     await fetchFromSupabase();
+    logActivity({ aksi: 'UPDATE', modul: 'BahanBaku', recordId: id, detail: `Bahan "${b.nama || state.bahan.find((x) => x.id === id)?.nama}" diperbarui`, nilaiBaru: b });
   },
   async deleteBahan(id: string) {
+    const old = state.bahan.find((x) => x.id === id);
     const { error } = await supabase.from("bahan_baku").delete().eq("id", id);
     if (error) {
       console.error(`deleteBahan error (id=${id}):`, error);
       throw error;
     }
     await fetchFromSupabase();
+    logActivity({ aksi: 'DELETE', modul: 'BahanBaku', recordId: id, detail: `Bahan "${old?.kode} — ${old?.nama}" dihapus`, nilaiLama: old });
   },
 
   async addStokMov(m: Omit<StokMovement, "id">) {
@@ -1416,6 +1459,7 @@ export const db = {
     await fetchFromSupabase();
   },
   async deleteKaryawan(id: string) {
+    const old = state.karyawan.find((x) => x.id === id);
     // Auto-backup sebelum hapus karyawan (+ user terkait)
     await preDeleteBackup(`deleteKaryawan(${id})`);
     // Delete associated user account first, then karyawan
@@ -1424,6 +1468,7 @@ export const db = {
     const { error: errK } = await supabase.from("karyawan").delete().eq("id", id);
     if (errK) throw errK;
     await fetchFromSupabase();
+    logActivity({ aksi: 'DELETE', modul: 'Karyawan', recordId: id, detail: `Karyawan "${old?.nama}" dihapus`, nilaiLama: old });
   },
 
   async addAbsensi(a: Omit<Absensi, "id">) {
@@ -1541,8 +1586,10 @@ export const db = {
       outlet_id: u.outletId === "none" || !u.outletId ? null : u.outletId
     }]);
     fetchFromSupabase();
+    logActivity({ aksi: 'CREATE', modul: 'User', detail: `Akun "${u.username}" (${u.nama}) ditambahkan`, nilaiBaru: { username: u.username, nama: u.nama, role: u.role } });
   },
   async updateUser(username: string, u: Partial<UserAccount>) {
+    const old = state.users.find((x) => x.username === username);
     const mapped: any = {};
     if (u.password !== undefined) mapped.password = u.password;
     if (u.nama !== undefined) mapped.nama = u.nama;
@@ -1550,12 +1597,34 @@ export const db = {
     if (u.outletId !== undefined) mapped.outlet_id = u.outletId === "none" || !u.outletId ? null : u.outletId;
     await supabase.from("users").update(mapped).eq("username", username);
     fetchFromSupabase();
+    logActivity({ aksi: 'UPDATE', modul: 'User', detail: `Akun "${username}" diperbarui`, nilaiLama: old ? { username: old.username, nama: old.nama, role: old.role } : undefined, nilaiBaru: { username, nama: u.nama, role: u.role } });
   },
   async deleteUser(username: string) {
+    const old = state.users.find((x) => x.username === username);
     // Auto-backup sebelum hapus user
     await preDeleteBackup(`deleteUser(${username})`);
     await supabase.from("users").delete().eq("username", username);
     fetchFromSupabase();
+    logActivity({ aksi: 'DELETE', modul: 'User', detail: `Akun "${username}" dihapus`, nilaiLama: old ? { username: old.username, nama: old.nama, role: old.role } : undefined });
+  },
+
+  // ==================== LOG AKTIVITAS ====================
+  async addLogAktivitas(log: Omit<LogAktivitas, 'id' | 'createdAt'>) {
+    const id = uid();
+    const { error } = await supabase.from("log_aktivitas").insert([{
+      id,
+      username: log.username,
+      nama_user: log.namaUser ?? null,
+      aksi: log.aksi,
+      modul: log.modul,
+      record_id: log.recordId ?? null,
+      detail: log.detail ?? null,
+      nilai_lama: log.nilaiLama ?? null,
+      nilai_baru: log.nilaiBaru ?? null
+    }]);
+    if (error) {
+      console.warn("[log] Failed to write activity log:", error.message);
+    }
   },
 
   async reset() {
@@ -1653,6 +1722,49 @@ export const db = {
     }
   }
 };
+
+/**
+ * Log aktivitas ke database. Dipanggil setelah operasi CRUD untuk audit trail.
+ * Tidak melempar error — log failure hanya dicatat di console.
+ *
+ * @example
+ * await logActivity({ aksi: 'CREATE', modul: 'Outlet', detail: 'Outlet Baru ditambahkan', nilaiBaru: { nama: 'MCA' } });
+ */
+export async function logActivity(params: {
+  aksi: 'CREATE' | 'UPDATE' | 'DELETE';
+  modul: string;
+  recordId?: string;
+  detail?: string;
+  nilaiLama?: Record<string, any>;
+  nilaiBaru?: Record<string, any>;
+}) {
+  try {
+    // Ambil username dari auth state (via localStorage)
+    let username = 'system';
+    let namaUser = 'System';
+    try {
+      const authRaw = localStorage.getItem('buba_auth');
+      if (authRaw) {
+        const auth = JSON.parse(authRaw);
+        if (auth?.user?.username) username = auth.user.username;
+        if (auth?.user?.nama) namaUser = auth.user.nama;
+      }
+    } catch { /* ignore */ }
+
+    await db.addLogAktivitas({
+      username,
+      namaUser,
+      aksi: params.aksi,
+      modul: params.modul,
+      recordId: params.recordId,
+      detail: params.detail,
+      nilaiLama: params.nilaiLama ? JSON.stringify(params.nilaiLama) : undefined,
+      nilaiBaru: params.nilaiBaru ? JSON.stringify(params.nilaiBaru) : undefined
+    });
+  } catch (err) {
+    console.warn('[logActivity] Failed:', err);
+  }
+}
 
 // Bahan yang punya konversiGram tapi tetap dihitung dalam satuan utuh (pcs/sachet),
 // karena produksi selalu menghabiskan per satuan utuh, tidak pernah ada sisa gram.

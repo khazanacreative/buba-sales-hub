@@ -23,7 +23,7 @@ import { db, useDB, getBubaSettings, saveAppSettings } from "@/lib/store";
 import { DEFAULT_LOCK_DEADLINE } from "@/lib/produksi-utils";
 import { rupiah } from "@/lib/format";
 
-import { Plus, Trash2, RotateCcw, Pencil, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users, AlertTriangle, Calculator, DollarSign } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Pencil, Sliders, Warehouse, Store, ShoppingCart, BookOpen, UserCheck, Users, AlertTriangle, Calculator, DollarSign, FileText, Clock, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 
@@ -50,7 +50,7 @@ const parseLokasi = (lokasiStr: string) => {
 
 export default function MasterData() {
   const { user } = useAuth();
-  const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [], hppProduk = [], hppBahan = [], hppConsumable = [] } = useDB();
+  const { outlets = [], produk = [], coa = [], karyawan = [], users = [], bahan = [], hppProduk = [], hppBahan = [], hppConsumable = [], logAktivitas = [] } = useDB();
 
   const [outletSearch, setOutletSearch] = useState("");
   const [produkSearch, setProdukSearch] = useState("");
@@ -815,6 +815,23 @@ export default function MasterData() {
               </form>
             </AccordionContent>
           </AccordionItem>
+          {/* LOG AKTIVITAS */}
+          <AccordionItem value="log" className="rounded-xl border bg-card overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                  <FileText className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Log Aktivitas</div>
+                  <div className="text-[11px] text-muted-foreground">{logAktivitas.length} aktivitas tercatat</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <LogAktivitasSection logAktivitas={logAktivitas} outlets={outlets} produk={produk} karyawan={karyawan} bahan={bahan} />
+            </AccordionContent>
+          </AccordionItem>
         </Accordion>
       </div>
     </div>
@@ -1569,5 +1586,199 @@ function EditUserDialog({ userAccount, outlets }: { userAccount: any; outlets: a
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/* ================= LOG AKTIVITAS SECTION ================= */
+
+function LogAktivitasSection({ logAktivitas, outlets, produk, karyawan, bahan }: {
+  logAktivitas: any[];
+  outlets: any[];
+  produk: any[];
+  karyawan: any[];
+  bahan: any[];
+}) {
+  const [search, setSearch] = useState("");
+  const [filterModul, setFilterModul] = useState("all");
+  const [filterAksi, setFilterAksi] = useState("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Get unique modules for filter
+  const modulOptions = useMemo(() => {
+    const mods = new Set(logAktivitas.map((l: any) => l.modul));
+    return Array.from(mods).sort();
+  }, [logAktivitas]);
+
+  // Filter and sort logs (newest first)
+  const filteredLogs = useMemo(() => {
+    let logs = [...logAktivitas].sort((a: any, b: any) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    if (filterModul !== "all") {
+      logs = logs.filter((l: any) => l.modul === filterModul);
+    }
+    if (filterAksi !== "all") {
+      logs = logs.filter((l: any) => l.aksi === filterAksi);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      logs = logs.filter((l: any) =>
+        (l.username || "").toLowerCase().includes(q) ||
+        (l.namaUser || "").toLowerCase().includes(q) ||
+        (l.modul || "").toLowerCase().includes(q) ||
+        (l.detail || "").toLowerCase().includes(q)
+      );
+    }
+    return logs;
+  }, [logAktivitas, filterModul, filterAksi, search]);
+
+  const formatDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) +
+        " " + d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch {
+      return iso;
+    }
+  };
+
+  const aksiBadge = (aksi: string) => {
+    const colors: Record<string, string> = {
+      CREATE: "bg-emerald-100 text-emerald-700",
+      UPDATE: "bg-amber-100 text-amber-700",
+      DELETE: "bg-red-100 text-red-700",
+    };
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${colors[aksi] || "bg-gray-100 text-gray-700"}`}>
+        {aksi}
+      </span>
+    );
+  };
+
+  const parseJsonSafe = (str?: string) => {
+    if (!str) return null;
+    try { return JSON.parse(str); } catch { return null; }
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Cari log..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+        <Select value={filterModul} onValueChange={setFilterModul}>
+          <SelectTrigger className="h-8 w-36 text-xs">
+            <SelectValue placeholder="Semua Modul" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Modul</SelectItem>
+            {modulOptions.map((m: string) => (
+              <SelectItem key={m} value={m}>{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterAksi} onValueChange={setFilterAksi}>
+          <SelectTrigger className="h-8 w-32 text-xs">
+            <SelectValue placeholder="Semua Aksi" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Aksi</SelectItem>
+            <SelectItem value="CREATE">CREATE</SelectItem>
+            <SelectItem value="UPDATE">UPDATE</SelectItem>
+            <SelectItem value="DELETE">DELETE</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Log List */}
+      <div className="space-y-1.5 max-h-[500px] overflow-y-auto">
+        {filteredLogs.length === 0 && (
+          <div className="text-center text-muted-foreground py-8 text-sm">
+            {logAktivitas.length === 0 ? "Belum ada aktivitas tercatat" : "Tidak ada log yang cocok"}
+          </div>
+        )}
+        {filteredLogs.map((log: any) => {
+          const isExpanded = expandedId === log.id;
+          const oldData = parseJsonSafe(log.nilaiLama);
+          const newData = parseJsonSafe(log.nilaiBaru);
+          const hasDetail = oldData || newData || log.detail;
+
+          return (
+            <div
+              key={log.id}
+              className="rounded-lg border text-sm hover:bg-muted/30 transition-colors"
+            >
+              <div
+                className={`flex items-center gap-2 px-3 py-2 ${hasDetail ? "cursor-pointer" : ""}`}
+                onClick={() => hasDetail && setExpandedId(isExpanded ? null : log.id)}
+              >
+                <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {aksiBadge(log.aksi)}
+                    <span className="font-semibold text-xs">{log.modul}</span>
+                    {log.detail && (
+                      <span className="text-xs text-muted-foreground truncate">— {log.detail}</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {formatDate(log.createdAt)} • {log.namaUser || log.username}
+                  </div>
+                </div>
+                {hasDetail && (
+                  <div className="shrink-0">
+                    {isExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Expanded Detail */}
+              {isExpanded && hasDetail && (
+                <div className="px-3 pb-2 border-t">
+                  {log.detail && !oldData && !newData && (
+                    <div className="mt-2 text-xs text-muted-foreground">{log.detail}</div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    {oldData && (
+                      <div className="rounded bg-red-50 p-2">
+                        <div className="text-[10px] font-bold text-red-600 mb-1">Data Lama</div>
+                        <pre className="text-[10px] text-red-800 whitespace-pre-wrap font-mono">
+                          {JSON.stringify(oldData, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                    {newData && (
+                      <div className="rounded bg-emerald-50 p-2">
+                        <div className="text-[10px] font-bold text-emerald-600 mb-1">Data Baru</div>
+                        <pre className="text-[10px] text-emerald-800 whitespace-pre-wrap font-mono">
+                          {JSON.stringify(newData, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Summary */}
+      <div className="text-[10px] text-muted-foreground text-right">
+        Menampilkan {filteredLogs.length} dari {logAktivitas.length} aktivitas
+      </div>
+    </div>
   );
 }

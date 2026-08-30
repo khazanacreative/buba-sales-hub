@@ -890,8 +890,8 @@ export default function Produksi() {
   };
 
   // Combined totals — digunakan untuk materialReqs (Langkah 2) DAN tampilan
-  // di Langkah 2. Hanya record "Disetujui" (approvedPlanGrid) agar material
-  // baku hanya dihitung dari distribusi yang sudah disetujui outlet.
+  // di Langkah 2. Menggunakan planGrid (semua rencana) agar material baku
+  // langsung terhitung setelah saveStep1 menyimpan rencana sebagai "Pending".
   const combinedTotals = useMemo(() => {
     let buburD = 0, buburI = 0, timD = 0, timI = 0;
     let oatmeal = 0, puding = 0, abon = 0;
@@ -908,9 +908,9 @@ export default function Produksi() {
       });
     };
 
-    sumGrid(approvedPlanGrid);
+    sumGrid(planGrid);
     if (isTwoDayPlan) {
-      sumGrid(approvedPlanGrid2);
+      sumGrid(planGrid2);
     }
 
     const totalBubur = buburD + buburI;
@@ -921,7 +921,7 @@ export default function Produksi() {
       timD, timI, totalTim,
       oatmeal, puding, abon
     };
-  }, [approvedPlanGrid, approvedPlanGrid2, isTwoDayPlan]);
+  }, [planGrid, planGrid2, isTwoDayPlan]);
 
   const distTotals = useMemo(() => {
     let buburD = 0, buburI = 0, timD = 0, timI = 0;

@@ -1076,8 +1076,12 @@ export const db = {
       kategori: j.kategori,
       kode_bantu_id: j.kodeBantuId ?? null
     }));
-    await supabase.from("jurnal").insert(records);
-    fetchFromSupabase();
+    const { error } = await supabase.from("jurnal").insert(records);
+    if (error) {
+      console.error("addJurnalBulk error:", error);
+      throw error;
+    }
+    await fetchFromSupabase();
   },
   async deleteJurnal(id: string) {
     await supabase.from("jurnal").delete().eq("id", id);

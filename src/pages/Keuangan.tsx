@@ -550,13 +550,17 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     const saldoAwal = parseFloat(addSaldoAwal) || 0;
     const penambahan = parseFloat(addPenambahan) || 0;
     const pengurangan = parseFloat(addPengurangan) || 0;
+    let kbId: string | null = null;
     try {
-      // 1. Simpan kode bantu — addKodeBantu return ID baru
-      const kbId = await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama, keterangan, saldoAwal });
-      // 2. Buat jurnal (non-fatal: gagal jurnal tidak batalkan kode bantu)
-      const jurnalEntries: Omit<Jurnal, "id">[] = [];
-      if (penambahan > 0) {
-        jurnalEntries.push({
+      kbId = await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama, keterangan, saldoAwal });
+    } catch (err: any) {
+      toast.error("Gagal menambah kode bantu: " + (err?.message ?? String(err)));
+      return;
+    }
+    // Kode bantu sudah tersimpan — jurnal bersifat non-fatal
+    if (penambahan > 0) {
+      try {
+        await db.addJurnal({
           tanggal: todayISO(), ref: "",
           keterangan: `Saldo awal ${nama} (${nextKode})`,
           kodeAkun: akun, akun: akunLabel,
@@ -564,9 +568,11 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
           jumlah: penambahan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: kbId,
         });
-      }
-      if (pengurangan > 0) {
-        jurnalEntries.push({
+      } catch (e) { console.warn("Jurnal penambahan gagal:", e); }
+    }
+    if (pengurangan > 0) {
+      try {
+        await db.addJurnal({
           tanggal: todayISO(), ref: "",
           keterangan: `Saldo awal ${nama} (${nextKode})`,
           kodeAkun: akun, akun: akunLabel,
@@ -574,17 +580,10 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
           jumlah: pengurangan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: kbId,
         });
-      }
-      if (jurnalEntries.length > 0) {
-        try { await db.addJurnalBulk(jurnalEntries); } catch (e) {
-          console.warn("Jurnal gagal dibuat, tapi kode bantu sudah tersimpan:", e);
-        }
-      }
-      toast.success(`Kode bantu ${nextKode} berhasil ditambahkan`);
-      resetAddForm();
-    } catch (err: any) {
-      toast.error("Gagal menambah kode bantu: " + (err?.message ?? String(err)));
+      } catch (e) { console.warn("Jurnal pengurangan gagal:", e); }
     }
+    toast.success(`Kode bantu ${nextKode} berhasil ditambahkan`);
+    resetAddForm();
   };
 
   const resetAddForm = () => {
@@ -609,10 +608,14 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     const pengurangan = parseFloat(editPengurangan) || 0;
     try {
       await db.updateKodeBantu(editing.id, { nama: editNama.trim(), keterangan: editKeterangan.trim() || undefined, saldoAwal });
-      // Buat jurnal untuk penambahan/pengurangan baru (non-fatal)
-      const jurnalEntries: Omit<Jurnal, "id">[] = [];
-      if (penambahan > 0) {
-        jurnalEntries.push({
+    } catch (err: any) {
+      toast.error("Gagal update: " + (err?.message ?? String(err)));
+      return;
+    }
+    // Update berhasil — jurnal bersifat non-fatal
+    if (penambahan > 0) {
+      try {
+        await db.addJurnal({
           tanggal: todayISO(), ref: "",
           keterangan: `Penambahan ${editing.nama} (${editing.kode})`,
           kodeAkun: editing.kodeAkun, akun: akunLabel,
@@ -620,9 +623,11 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
           jumlah: penambahan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
         });
-      }
-      if (pengurangan > 0) {
-        jurnalEntries.push({
+      } catch (e) { console.warn("Jurnal penambahan gagal:", e); }
+    }
+    if (pengurangan > 0) {
+      try {
+        await db.addJurnal({
           tanggal: todayISO(), ref: "",
           keterangan: `Pengurangan ${editing.nama} (${editing.kode})`,
           kodeAkun: editing.kodeAkun, akun: akunLabel,
@@ -630,14 +635,9 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
           jumlah: pengurangan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
         });
-      }
-      if (jurnalEntries.length > 0) {
-        try { await db.addJurnalBulk(jurnalEntries); } catch (e) {
-          console.warn("Jurnal gagal dibuat, tapi kode bantu sudah diupdate:", e);
-        }
-      }
-      toast.success("Kode bantu diperbarui"); setEditing(null);
-    } catch (err: any) { toast.error("Gagal update: " + (err?.message ?? String(err))); }
+      } catch (e) { console.warn("Jurnal pengurangan gagal:", e); }
+    }
+    toast.success("Kode bantu diperbarui"); setEditing(null);
   };
 
   const handleDelete = async (k: KodeBantu) => {

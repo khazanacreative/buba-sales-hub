@@ -59,8 +59,8 @@ export interface AkunCOA {
 }
 
 // === Kode Bantu (Sub-account / Person tracking) ===
-// Digunakan untuk akun Hutang Usaha (210000) → "H-XXX" dan
-// Piutang Karyawan/Usaha (130000/131000) → "C-XXX".
+// Digunakan untuk akun Hutang Usaha (210000) → "H-001" dan
+// Piutang Karyawan/Usaha (130000/131000) → "C-001".
 // Setiap kode bantu mewakili satu person/kreditur/debitur.
 export interface KodeBantu {
   id: string;

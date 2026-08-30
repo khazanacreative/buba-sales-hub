@@ -135,7 +135,7 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
     if (debitAmount !== kreditAmount) return toast.error("Jumlah debit dan kredit harus sama (double-entry)");
     if (!finalDebitKet && !finalKreditKet) return toast.error("Keterangan wajib diisi (minimal salah satu baris)");
     if (isKodeBantuApplicable && !kodeBantuId) {
-      return toast.error("Pilih kode bantu (H-XXX / C-XXX) untuk akun Hutang/Piutang");
+      return toast.error("Pilih kode bantu untuk akun Hutang/Piutang (contoh: H-001 atau C-001)");
     }
     db.addJurnalBulk([{
       tanggal, keterangan: finalDebitKet, kodeAkun: debitObj.kode, akun: debitObj.nama, tipe: "Debit", jumlah: debitAmount, kategori: debitObj.kategori,
@@ -324,7 +324,7 @@ function JurnalUmumTab({ jurnal, coa, kodeBantu, range }: {
               <div className="space-y-2">
                 <Label>Kode Bantu (Wajib untuk akun Hutang/Piutang)</Label>
                 <Select value={kodeBantuId} onValueChange={setKodeBantuId}>
-                  <SelectTrigger><SelectValue placeholder="Pilih kode bantu (H-XXX / C-XXX)" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Contoh: H-001 (Hutang) / C-001 (Piutang)" /></SelectTrigger>
                   <SelectContent>
                     {applicableKodeBantu.length === 0 ? (
                       <SelectItem value="none" disabled>Belum ada kode bantu</SelectItem>
@@ -558,8 +558,8 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-md border overflow-hidden">
-            <Button variant={tipe === "Hutang" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Hutang")}>Hutang (H-XXX)</Button>
-            <Button variant={tipe === "Piutang" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Piutang")}>Piutang (C-XXX)</Button>
+            <Button variant={tipe === "Hutang" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Hutang")}>Hutang (H-001)</Button>
+            <Button variant={tipe === "Piutang" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Piutang")}>Piutang (C-001)</Button>
           </div>
           <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -611,7 +611,7 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Tambah Kode Bantu {tipe}</DialogTitle>
-            <DialogDescription>{tipe === "Hutang" ? "Akun: Hutang Usaha (210000). Kode di-generate otomatis (H-XXX)." : "Akun: Piutang Karyawan (130000). Kode di-generate otomatis (C-XXX)."}</DialogDescription>
+            <DialogDescription>{tipe === "Hutang" ? "Akun: Hutang Usaha (210000). Kode di-generate otomatis (contoh: H-001)." : "Akun: Piutang Karyawan (130000). Kode di-generate otomatis (contoh: C-001)."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2"><Label>Nama Person *</Label><Input placeholder={tipe === "Hutang" ? "cth: Pak Ahmad" : "cth: Budi Santoso"} value={addNama} onChange={(e) => setAddNama(e.target.value)} /></div>
@@ -820,7 +820,7 @@ function BukuPembantuTab({ jurnal, coa, kodeBantu, range }: {
       <div className="space-y-2">
         <Label>Pilih Kode Bantu</Label>
         <Select value={selectedKodeBantuId} onValueChange={setSelectedKodeBantuId}>
-          <SelectTrigger className="w-full"><SelectValue placeholder="Pilih kode bantu (H-XXX / C-XXX)" /></SelectTrigger>
+          <SelectTrigger className="w-full"><SelectValue placeholder="Contoh: H-001 (Hutang) / C-001 (Piutang)" /></SelectTrigger>
           <SelectContent>
             {pembantuList.length === 0 ? (
               <SelectItem value="none" disabled>Belum ada kode bantu</SelectItem>

@@ -478,19 +478,29 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
   const [tipe, setTipe] = useState<"Hutang" | "Piutang">("Hutang");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<KodeBantu | null>(null);
-  const [editNama, setEditNama] = useState("");
-  const [editKeterangan, setEditKeterangan] = useState("");
-  const [editSaldoAwal, setEditSaldoAwal] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+
+  // Add form state
   const [addNama, setAddNama] = useState("");
   const [addKeterangan, setAddKeterangan] = useState("");
   const [addSaldoAwal, setAddSaldoAwal] = useState("");
+  const [addPenambahan, setAddPenambahan] = useState("");
+  const [addPengurangan, setAddPengurangan] = useState("");
+
+  // Edit form state
+  const [editNama, setEditNama] = useState("");
+  const [editKeterangan, setEditKeterangan] = useState("");
+  const [editSaldoAwal, setEditSaldoAwal] = useState("");
+  const [editPenambahan, setEditPenambahan] = useState("");
+  const [editPengurangan, setEditPengurangan] = useState("");
 
   const hutangAkun = "210000";
   const piutangAkun = "130000";
+  const isHutang = tipe === "Hutang";
+  const akunLabel = isHutang ? "Hutang Usaha (210000)" : "Piutang Karyawan (130000)";
 
   const filtered = useMemo(() => {
-    const akun = tipe === "Hutang" ? hutangAkun : piutangAkun;
+    const akun = isHutang ? hutangAkun : piutangAkun;
     return kodeBantu
       .filter((k) => k.kodeAkun === akun)
       .filter((k) => {
@@ -499,7 +509,7 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
         return k.kode.toLowerCase().includes(s) || k.nama.toLowerCase().includes(s) || (k.keterangan?.toLowerCase().includes(s) ?? false);
       })
       .sort((a, b) => a.kode.localeCompare(b.kode));
-  }, [kodeBantu, tipe, search]);
+  }, [kodeBantu, isHutang, search]);
 
   // Hitung debit & kredit per kode bantu dari jurnal
   const saldoMap = useMemo(() => {
@@ -514,31 +524,121 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     return map;
   }, [jurnal]);
 
+  // Preview saldo di form add
+  const addPreviewSaldo = useMemo(() => {
+    const sa = parseFloat(addSaldoAwal) || 0;
+    const pen = parseFloat(addPenambahan) || 0;
+    const pgw = parseFloat(addPengurangan) || 0;
+    return sa + pen - pgw;
+  }, [addSaldoAwal, addPenambahan, addPengurangan]);
+
+  // Preview saldo di form edit
+  const editPreviewSaldo = useMemo(() => {
+    const sa = parseFloat(editSaldoAwal) || 0;
+    const pen = parseFloat(editPenambahan) || 0;
+    const pgw = parseFloat(editPengurangan) || 0;
+    return sa + pen - pgw;
+  }, [editSaldoAwal, editPenambahan, editPengurangan]);
+
   const handleAdd = async () => {
     if (!addNama.trim()) return toast.error("Nama wajib diisi");
-    const akun = tipe === "Hutang" ? hutangAkun : piutangAkun;
-    const prefix = tipe === "Hutang" ? "H" : "C";
+    const prefix = isHutang ? "H" : "C";
     const nextKode = db.generateKodeBantuNext(prefix);
+    const akun = isHutang ? hutangAkun : piutangAkun;
+    const nama = addNama.trim();
+    const keterangan = addKeterangan.trim() || undefined;
     const saldoAwal = parseFloat(addSaldoAwal) || 0;
+    const penambahan = parseFloat(addPenambahan) || 0;
+    const pengurangan = parseFloat(addPengurangan) || 0;
     try {
-      await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama: addNama.trim(), keterangan: addKeterangan.trim() || undefined, saldoAwal });
+      // 1. Simpan kode bantu
+      await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama, keterangan, saldoAwal });
+      // Fetch untuk dapat ID baru
+      const freshKb = (await import("@/lib/store")).state.kodeBantu.find((k) => k.kode === nextKode);
+      const kbId = freshKb?.id;
+      if (kbId) {
+        // 2. Buat jurnal untuk penambahan
+        if (penambahan > 0) {
+          const tipeJurnal = isHutang ? "Kredit" : "Debit";
+          await db.addJurnal({
+            tanggal: todayISO(),
+            ref: "",
+            keterangan: `Saldo awal ${nama} (${nextKode})`,
+            kodeAkun: akun,
+            akun: akunLabel,
+            tipe: tipeJurnal,
+            jumlah: penambahan,
+            kategori: isHutang ? "Kewajiban" : "Aset",
+            kodeBantuId: kbId,
+          });
+        }
+        // 3. Buat jurnal untuk pengurangan
+        if (pengurangan > 0) {
+          const tipeJurnal = isHutang ? "Debit" : "Kredit";
+          await db.addJurnal({
+            tanggal: todayISO(),
+            ref: "",
+            keterangan: `Saldo awal ${nama} (${nextKode})`,
+            kodeAkun: akun,
+            akun: akunLabel,
+            tipe: tipeJurnal,
+            jumlah: pengurangan,
+            kategori: isHutang ? "Kewajiban" : "Aset",
+            kodeBantuId: kbId,
+          });
+        }
+      }
       toast.success(`Kode bantu ${nextKode} berhasil ditambahkan`);
-      setAddOpen(false); setAddNama(""); setAddKeterangan(""); setAddSaldoAwal("");
+      resetAddForm();
     } catch (err: any) {
       toast.error("Gagal menambah kode bantu: " + (err?.message ?? String(err)));
     }
   };
 
+  const resetAddForm = () => {
+    setAddOpen(false); setAddNama(""); setAddKeterangan("");
+    setAddSaldoAwal(""); setAddPenambahan(""); setAddPengurangan("");
+  };
+
   const handleEditClick = (k: KodeBantu) => {
-    setEditing(k); setEditNama(k.nama); setEditKeterangan(k.keterangan ?? ""); setEditSaldoAwal(String(k.saldoAwal ?? 0));
+    setEditing(k);
+    setEditNama(k.nama);
+    setEditKeterangan(k.keterangan ?? "");
+    setEditSaldoAwal(String(k.saldoAwal ?? 0));
+    setEditPenambahan("");
+    setEditPengurangan("");
   };
 
   const saveEdit = async () => {
     if (!editing) return;
     if (!editNama.trim()) return toast.error("Nama wajib diisi");
     const saldoAwal = parseFloat(editSaldoAwal) || 0;
+    const penambahan = parseFloat(editPenambahan) || 0;
+    const pengurangan = parseFloat(editPengurangan) || 0;
     try {
       await db.updateKodeBantu(editing.id, { nama: editNama.trim(), keterangan: editKeterangan.trim() || undefined, saldoAwal });
+      // Buat jurnal untuk penambahan/pengurangan baru
+      const akun = editing.kodeAkun;
+      if (penambahan > 0) {
+        const tipeJurnal = isHutang ? "Kredit" : "Debit";
+        await db.addJurnal({
+          tanggal: todayISO(), ref: "",
+          keterangan: `Penambahan ${editing.nama} (${editing.kode})`,
+          kodeAkun: akun, akun: akunLabel,
+          tipe: tipeJurnal, jumlah: penambahan,
+          kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
+        });
+      }
+      if (pengurangan > 0) {
+        const tipeJurnal = isHutang ? "Debit" : "Kredit";
+        await db.addJurnal({
+          tanggal: todayISO(), ref: "",
+          keterangan: `Pengurangan ${editing.nama} (${editing.kode})`,
+          kodeAkun: akun, akun: akunLabel,
+          tipe: tipeJurnal, jumlah: pengurangan,
+          kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
+        });
+      }
       toast.success("Kode bantu diperbarui"); setEditing(null);
     } catch (err: any) { toast.error("Gagal update: " + (err?.message ?? String(err))); }
   };
@@ -553,8 +653,6 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     try { await db.deleteKodeBantu(k.id); toast.success("Kode bantu dihapus"); }
     catch (err: any) { toast.error("Gagal hapus: " + (err?.message ?? String(err))); }
   };
-
-  const isHutang = tipe === "Hutang";
 
   return (
     <div className="space-y-4">
@@ -597,8 +695,6 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
                   const debit = rec?.debit ?? 0;
                   const kredit = rec?.kredit ?? 0;
                   const saldoAwal = k.saldoAwal ?? 0;
-                  // Hutang: penambahan = kredit, pengurangan = debit
-                  // Piutang: penambahan = debit, pengurangan = kredit
                   const penambahan = isHutang ? kredit : debit;
                   const pengurangan = isHutang ? debit : kredit;
                   const saldo = saldoAwal + penambahan - pengurangan;
@@ -625,28 +721,76 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog Tambah */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Tambah Kode Bantu {tipe}</DialogTitle>
-            <DialogDescription>{isHutang ? "Akun: Hutang Usaha (210000)." : "Akun: Piutang Karyawan (130000)."} Kode di-generate otomatis.</DialogDescription>
+            <DialogDescription>{akunLabel}. Kode di-generate otomatis.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2"><Label>Keterangan (Nama) *</Label><Input placeholder={isHutang ? "cth: Pak Ahmad" : "cth: Budi Santoso"} value={addNama} onChange={(e) => setAddNama(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Saldo Awal</Label><Input type="number" placeholder="0" value={addSaldoAwal} onChange={(e) => setAddSaldoAwal(e.target.value)} /></div>
+            <div className="space-y-2">
+              <Label>Keterangan (Nama) *</Label>
+              <Input placeholder={isHutang ? "cth: Pak Ahmad" : "cth: Budi Santoso"} value={addNama} onChange={(e) => setAddNama(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Saldo Awal</Label>
+              <Input type="number" placeholder="0" value={addSaldoAwal} onChange={(e) => setAddSaldoAwal(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-success">Penambahan</Label>
+                <Input type="number" placeholder="0" value={addPenambahan} onChange={(e) => setAddPenambahan(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-destructive">Pengurangan</Label>
+                <Input type="number" placeholder="0" value={addPengurangan} onChange={(e) => setAddPengurangan(e.target.value)} />
+              </div>
+            </div>
+            {(addSaldoAwal || addPenambahan || addPengurangan) && (
+              <div className="p-2 rounded-lg bg-muted/50 text-sm">
+                <span className="text-muted-foreground">Saldo: </span>
+                <span className={`font-bold ${addPreviewSaldo > 0 ? "text-success" : addPreviewSaldo < 0 ? "text-destructive" : ""}`}>{rupiah(addPreviewSaldo)}</span>
+              </div>
+            )}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setAddOpen(false)}>Batal</Button><Button onClick={handleAdd}>Simpan</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={resetAddForm}>Batal</Button><Button onClick={handleAdd}>Simpan</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Edit */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Kode Bantu {editing?.kode}</DialogTitle>
-            <DialogDescription>Ubah data kode bantu.</DialogDescription>
+            <DialogTitle>Edit {editing?.kode} — {editing?.nama}</DialogTitle>
+            <DialogDescription>Ubah data atau tambah transaksi awal.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2"><Label>Keterangan (Nama) *</Label><Input value={editNama} onChange={(e) => setEditNama(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Saldo Awal</Label><Input type="number" value={editSaldoAwal} onChange={(e) => setEditSaldoAwal(e.target.value)} /></div>
+            <div className="space-y-2">
+              <Label>Keterangan (Nama) *</Label>
+              <Input value={editNama} onChange={(e) => setEditNama(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Saldo Awal</Label>
+              <Input type="number" value={editSaldoAwal} onChange={(e) => setEditSaldoAwal(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-success">Penambahan</Label>
+                <Input type="number" placeholder="0" value={editPenambahan} onChange={(e) => setEditPenambahan(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-destructive">Pengurangan</Label>
+                <Input type="number" placeholder="0" value={editPengurangan} onChange={(e) => setEditPengurangan(e.target.value)} />
+              </div>
+            </div>
+            {(editSaldoAwal || editPenambahan || editPengurangan) && (
+              <div className="p-2 rounded-lg bg-muted/50 text-sm">
+                <span className="text-muted-foreground">Saldo: </span>
+                <span className={`font-bold ${editPreviewSaldo > 0 ? "text-success" : editPreviewSaldo < 0 ? "text-destructive" : ""}`}>{rupiah(editPreviewSaldo)}</span>
+              </div>
+            )}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Batal</Button><Button onClick={saveEdit}>Simpan</Button></DialogFooter>
         </DialogContent>

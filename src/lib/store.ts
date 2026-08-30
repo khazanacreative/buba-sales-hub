@@ -1110,7 +1110,7 @@ export const db = {
     const maxN = existing.length > 0 ? Math.max(...existing) : 0;
     return `${prefix}-${String(maxN + 1).padStart(3, "0")}`;
   },
-  async addKodeBantu(k: Omit<KodeBantu, "id" | "createdAt"> & { id?: string }) {
+  async addKodeBantu(k: Omit<KodeBantu, "id" | "createdAt"> & { id?: string }): Promise<string> {
     const id = k.id ?? uid();
     const { error } = await supabase.from("kode_bantu").insert([{
       id,
@@ -1125,6 +1125,7 @@ export const db = {
       throw error;
     }
     await fetchFromSupabase();
+    return id;
   },
   async updateKodeBantu(id: string, k: Partial<Omit<KodeBantu, "id" | "createdAt">>) {
     const mapped: any = {};

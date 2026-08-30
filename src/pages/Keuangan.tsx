@@ -550,32 +550,35 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     const saldoAwal = parseFloat(addSaldoAwal) || 0;
     const penambahan = parseFloat(addPenambahan) || 0;
     const pengurangan = parseFloat(addPengurangan) || 0;
-    // Generate ID di awal supaya bisa dipakai untuk jurnal
-    const kbId = crypto.randomUUID();
     try {
-      // 1. Simpan kode bantu
-      await db.addKodeBantu({ id: kbId, kode: nextKode, kodeAkun: akun, nama, keterangan, saldoAwal });
-      // 2. Buat jurnal untuk penambahan
+      // 1. Simpan kode bantu — addKodeBantu return ID baru
+      const kbId = await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama, keterangan, saldoAwal });
+      // 2. Buat jurnal (non-fatal: gagal jurnal tidak batalkan kode bantu)
+      const jurnalEntries: Omit<Jurnal, "id">[] = [];
       if (penambahan > 0) {
-        const tipeJurnal = isHutang ? "Kredit" : "Debit";
-        await db.addJurnal({
+        jurnalEntries.push({
           tanggal: todayISO(), ref: "",
           keterangan: `Saldo awal ${nama} (${nextKode})`,
           kodeAkun: akun, akun: akunLabel,
-          tipe: tipeJurnal, jumlah: penambahan,
+          tipe: isHutang ? "Kredit" : "Debit",
+          jumlah: penambahan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: kbId,
         });
       }
-      // 3. Buat jurnal untuk pengurangan
       if (pengurangan > 0) {
-        const tipeJurnal = isHutang ? "Debit" : "Kredit";
-        await db.addJurnal({
+        jurnalEntries.push({
           tanggal: todayISO(), ref: "",
           keterangan: `Saldo awal ${nama} (${nextKode})`,
           kodeAkun: akun, akun: akunLabel,
-          tipe: tipeJurnal, jumlah: pengurangan,
+          tipe: isHutang ? "Debit" : "Kredit",
+          jumlah: pengurangan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: kbId,
         });
+      }
+      if (jurnalEntries.length > 0) {
+        try { await db.addJurnalBulk(jurnalEntries); } catch (e) {
+          console.warn("Jurnal gagal dibuat, tapi kode bantu sudah tersimpan:", e);
+        }
       }
       toast.success(`Kode bantu ${nextKode} berhasil ditambahkan`);
       resetAddForm();
@@ -606,27 +609,32 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     const pengurangan = parseFloat(editPengurangan) || 0;
     try {
       await db.updateKodeBantu(editing.id, { nama: editNama.trim(), keterangan: editKeterangan.trim() || undefined, saldoAwal });
-      // Buat jurnal untuk penambahan/pengurangan baru
-      const akun = editing.kodeAkun;
+      // Buat jurnal untuk penambahan/pengurangan baru (non-fatal)
+      const jurnalEntries: Omit<Jurnal, "id">[] = [];
       if (penambahan > 0) {
-        const tipeJurnal = isHutang ? "Kredit" : "Debit";
-        await db.addJurnal({
+        jurnalEntries.push({
           tanggal: todayISO(), ref: "",
           keterangan: `Penambahan ${editing.nama} (${editing.kode})`,
-          kodeAkun: akun, akun: akunLabel,
-          tipe: tipeJurnal, jumlah: penambahan,
+          kodeAkun: editing.kodeAkun, akun: akunLabel,
+          tipe: isHutang ? "Kredit" : "Debit",
+          jumlah: penambahan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
         });
       }
       if (pengurangan > 0) {
-        const tipeJurnal = isHutang ? "Debit" : "Kredit";
-        await db.addJurnal({
+        jurnalEntries.push({
           tanggal: todayISO(), ref: "",
           keterangan: `Pengurangan ${editing.nama} (${editing.kode})`,
-          kodeAkun: akun, akun: akunLabel,
-          tipe: tipeJurnal, jumlah: pengurangan,
+          kodeAkun: editing.kodeAkun, akun: akunLabel,
+          tipe: isHutang ? "Debit" : "Kredit",
+          jumlah: pengurangan,
           kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
         });
+      }
+      if (jurnalEntries.length > 0) {
+        try { await db.addJurnalBulk(jurnalEntries); } catch (e) {
+          console.warn("Jurnal gagal dibuat, tapi kode bantu sudah diupdate:", e);
+        }
       }
       toast.success("Kode bantu diperbarui"); setEditing(null);
     } catch (err: any) { toast.error("Gagal update: " + (err?.message ?? String(err))); }

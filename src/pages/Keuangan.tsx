@@ -480,9 +480,11 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
   const [editing, setEditing] = useState<KodeBantu | null>(null);
   const [editNama, setEditNama] = useState("");
   const [editKeterangan, setEditKeterangan] = useState("");
+  const [editSaldoAwal, setEditSaldoAwal] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addNama, setAddNama] = useState("");
   const [addKeterangan, setAddKeterangan] = useState("");
+  const [addSaldoAwal, setAddSaldoAwal] = useState("");
 
   const hutangAkun = "210000";
   const piutangAkun = "130000";
@@ -499,13 +501,14 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
       .sort((a, b) => a.kode.localeCompare(b.kode));
   }, [kodeBantu, tipe, search]);
 
+  // Hitung debit & kredit per kode bantu dari jurnal
   const saldoMap = useMemo(() => {
-    const map = new Map<string, { debit: number; kredit: number; saldo: number }>();
+    const map = new Map<string, { debit: number; kredit: number }>();
     for (const j of jurnal) {
       if (!j.kodeBantuId) continue;
-      const rec = map.get(j.kodeBantuId) ?? { debit: 0, kredit: 0, saldo: 0 };
-      if (j.tipe === "Debit") { rec.debit += j.jumlah; rec.saldo += j.jumlah; }
-      else { rec.kredit += j.jumlah; rec.saldo -= j.jumlah; }
+      const rec = map.get(j.kodeBantuId) ?? { debit: 0, kredit: 0 };
+      if (j.tipe === "Debit") rec.debit += j.jumlah;
+      else rec.kredit += j.jumlah;
       map.set(j.kodeBantuId, rec);
     }
     return map;
@@ -516,24 +519,26 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     const akun = tipe === "Hutang" ? hutangAkun : piutangAkun;
     const prefix = tipe === "Hutang" ? "H" : "C";
     const nextKode = db.generateKodeBantuNext(prefix);
+    const saldoAwal = parseFloat(addSaldoAwal) || 0;
     try {
-      await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama: addNama.trim(), keterangan: addKeterangan.trim() || undefined });
+      await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama: addNama.trim(), keterangan: addKeterangan.trim() || undefined, saldoAwal });
       toast.success(`Kode bantu ${nextKode} berhasil ditambahkan`);
-      setAddOpen(false); setAddNama(""); setAddKeterangan("");
+      setAddOpen(false); setAddNama(""); setAddKeterangan(""); setAddSaldoAwal("");
     } catch (err: any) {
       toast.error("Gagal menambah kode bantu: " + (err?.message ?? String(err)));
     }
   };
 
   const handleEditClick = (k: KodeBantu) => {
-    setEditing(k); setEditNama(k.nama); setEditKeterangan(k.keterangan ?? "");
+    setEditing(k); setEditNama(k.nama); setEditKeterangan(k.keterangan ?? ""); setEditSaldoAwal(String(k.saldoAwal ?? 0));
   };
 
   const saveEdit = async () => {
     if (!editing) return;
     if (!editNama.trim()) return toast.error("Nama wajib diisi");
+    const saldoAwal = parseFloat(editSaldoAwal) || 0;
     try {
-      await db.updateKodeBantu(editing.id, { nama: editNama.trim(), keterangan: editKeterangan.trim() || undefined });
+      await db.updateKodeBantu(editing.id, { nama: editNama.trim(), keterangan: editKeterangan.trim() || undefined, saldoAwal });
       toast.success("Kode bantu diperbarui"); setEditing(null);
     } catch (err: any) { toast.error("Gagal update: " + (err?.message ?? String(err))); }
   };
@@ -549,54 +554,67 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     catch (err: any) { toast.error("Gagal hapus: " + (err?.message ?? String(err))); }
   };
 
+  const isHutang = tipe === "Hutang";
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Kode Bantu (Sub-Akun Hutang & Piutang)</CardTitle>
-        <div className="text-sm text-muted-foreground">Setiap person yang terlibat dalam Hutang Usaha (210000) atau Piutang Karyawan/Usaha (130000/131000) didaftarkan di sini.</div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-md border overflow-hidden">
-            <Button variant={tipe === "Hutang" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Hutang")}>Hutang (H-001)</Button>
-            <Button variant={tipe === "Piutang" ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Piutang")}>Piutang (C-001)</Button>
-          </div>
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input placeholder="Cari kode / nama..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-7 h-9" />
-          </div>
-          <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Tambah {tipe}</Button>
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Kode Bantu</h3>
+        <p className="text-sm text-muted-foreground">Sub-akun untuk tracking Hutang & Piutang per person.</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-md border overflow-hidden">
+          <Button variant={isHutang ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Hutang")}>Hutang</Button>
+          <Button variant={!isHutang ? "default" : "ghost"} size="sm" className="rounded-none" onClick={() => setTipe("Piutang")}>Piutang</Button>
         </div>
-        <div className="rounded-2xl border overflow-hidden">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Cari kode / nama..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-7 h-9" />
+        </div>
+        <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Tambah {tipe}</Button>
+      </div>
+      <Card>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Kode</TableHead>
-                  <TableHead>Akun Induk</TableHead>
-                  <TableHead>Nama Person</TableHead>
                   <TableHead>Keterangan</TableHead>
+                  <TableHead>Jenis</TableHead>
+                  <TableHead className="text-right">Saldo Awal</TableHead>
+                  <TableHead className="text-right">Penambahan</TableHead>
+                  <TableHead className="text-right">Pengurangan</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Belum ada kode bantu {tipe.toLowerCase()}.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Belum ada kode bantu {tipe.toLowerCase()}.</TableCell></TableRow>
                 ) : filtered.map((k) => {
-                  const saldo = saldoMap.get(k.id);
-                  const saldoVal = saldo?.saldo ?? 0;
+                  const rec = saldoMap.get(k.id);
+                  const debit = rec?.debit ?? 0;
+                  const kredit = rec?.kredit ?? 0;
+                  const saldoAwal = k.saldoAwal ?? 0;
+                  // Hutang: penambahan = kredit, pengurangan = debit
+                  // Piutang: penambahan = debit, pengurangan = kredit
+                  const penambahan = isHutang ? kredit : debit;
+                  const pengurangan = isHutang ? debit : kredit;
+                  const saldo = saldoAwal + penambahan - pengurangan;
                   return (
                     <TableRow key={k.id}>
                       <TableCell className="font-mono font-semibold">{k.kode}</TableCell>
-                      <TableCell className="font-mono text-xs">{k.kodeAkun}</TableCell>
-                      <TableCell>{k.nama}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{k.keterangan ?? "-"}</TableCell>
-                      <TableCell className={`text-right font-medium ${saldoVal > 0 ? "text-success" : saldoVal < 0 ? "text-destructive" : ""}`}>{rupiah(saldoVal)}</TableCell>
+                      <TableCell>{k.nama}{k.keterangan ? <span className="text-muted-foreground text-xs ml-1">— {k.keterangan}</span> : null}</TableCell>
+                      <TableCell><span className="text-xs px-2 py-0.5 rounded-full bg-muted capitalize">{tipe}</span></TableCell>
+                      <TableCell className="text-right">{rupiah(saldoAwal)}</TableCell>
+                      <TableCell className="text-right text-success">{rupiah(penambahan)}</TableCell>
+                      <TableCell className="text-right text-destructive">{rupiah(pengurangan)}</TableCell>
+                      <TableCell className={`text-right font-bold ${saldo > 0 ? "text-success" : saldo < 0 ? "text-destructive" : ""}`}>{rupiah(saldo)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(k)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
-                          <ConfirmDeleteButton onConfirm={() => handleDelete(k)} title={`Hapus kode bantu ${k.kode}?`} description={saldo && (saldo.debit > 0 || saldo.kredit > 0) ? "Kode bantu ini memiliki transaksi terkait." : "Tindakan ini tidak dapat dibatalkan."} className="h-7 w-7" />
+                          <ConfirmDeleteButton onConfirm={() => handleDelete(k)} title={`Hapus kode bantu ${k.kode}?`} description={saldo !== 0 ? "Kode bantu ini memiliki transaksi terkait." : "Tindakan ini tidak dapat dibatalkan."} className="h-7 w-7" />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -605,17 +623,17 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
               </TableBody>
             </Table>
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
+      </Card>
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Tambah Kode Bantu {tipe}</DialogTitle>
-            <DialogDescription>{tipe === "Hutang" ? "Akun: Hutang Usaha (210000). Kode di-generate otomatis (contoh: H-001)." : "Akun: Piutang Karyawan (130000). Kode di-generate otomatis (contoh: C-001)."}</DialogDescription>
+            <DialogDescription>{isHutang ? "Akun: Hutang Usaha (210000)." : "Akun: Piutang Karyawan (130000)."} Kode di-generate otomatis.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2"><Label>Nama Person *</Label><Input placeholder={tipe === "Hutang" ? "cth: Pak Ahmad" : "cth: Budi Santoso"} value={addNama} onChange={(e) => setAddNama(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Keterangan</Label><Input placeholder="cth: Supplier bahan baku utama" value={addKeterangan} onChange={(e) => setAddKeterangan(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Keterangan (Nama) *</Label><Input placeholder={isHutang ? "cth: Pak Ahmad" : "cth: Budi Santoso"} value={addNama} onChange={(e) => setAddNama(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Saldo Awal</Label><Input type="number" placeholder="0" value={addSaldoAwal} onChange={(e) => setAddSaldoAwal(e.target.value)} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setAddOpen(false)}>Batal</Button><Button onClick={handleAdd}>Simpan</Button></DialogFooter>
         </DialogContent>
@@ -624,16 +642,16 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Kode Bantu {editing?.kode}</DialogTitle>
-            <DialogDescription>Ubah nama atau keterangan person.</DialogDescription>
+            <DialogDescription>Ubah data kode bantu.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2"><Label>Nama Person *</Label><Input value={editNama} onChange={(e) => setEditNama(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Keterangan</Label><Input value={editKeterangan} onChange={(e) => setEditKeterangan(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Keterangan (Nama) *</Label><Input value={editNama} onChange={(e) => setEditNama(e.target.value)} /></div>
+            <div className="space-y-2"><Label>Saldo Awal</Label><Input type="number" value={editSaldoAwal} onChange={(e) => setEditSaldoAwal(e.target.value)} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Batal</Button><Button onClick={saveEdit}>Simpan</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 }
 

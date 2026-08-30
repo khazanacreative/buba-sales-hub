@@ -330,7 +330,7 @@ const TABLE_COLUMNS: Record<string, string> = {
   absensi:          "id, tanggal, karyawan_id, jam_masuk, jam_pulang, status, catatan, bonus, tunjangan, overtime",
   permohonan_stok:  "id, tanggal, tanggal_kirim, outlet_id, produk_id, qty, status, catatan, qty_rencana, catatan_rencana",
   users:            "username, password, nama, role, outlet_id, karyawan_id",
-  kode_bantu:       "id, kode, kode_akun, nama, keterangan, created_at",
+  kode_bantu:       "id, kode, kode_akun, nama, keterangan, saldo_awal, created_at",
   hpp_produk:       "id, produk_id, harga_jual, catatan, aktif, updated_at",
   hpp_bahan:        "id, hpp_produk_id, nama_item, satuan, berat, harga, jadi, urutan",
   hpp_consumable:   "id, hpp_produk_id, nama_item, satuan, berat, harga, jumlah, urutan",
@@ -485,6 +485,7 @@ function mapState(raw: Record<string, any[]>, usersData: any[]) {
       kodeAkun: k.kode_akun,
       nama: k.nama,
       keterangan: k.keterangan === null ? undefined : k.keterangan,
+      saldoAwal: k.saldo_awal ?? 0,
       createdAt: k.created_at
     })),
     hppProduk: (raw.hppProduk || []).map((h: any) => ({
@@ -1116,7 +1117,8 @@ export const db = {
       kode: k.kode,
       kode_akun: k.kodeAkun,
       nama: k.nama,
-      keterangan: k.keterangan ?? null
+      keterangan: k.keterangan ?? null,
+      saldo_awal: k.saldoAwal ?? 0
     }]);
     if (error) {
       console.error(`addKodeBantu error (kode=${k.kode}):`, error);
@@ -1130,6 +1132,7 @@ export const db = {
     if (k.kodeAkun !== undefined) mapped.kode_akun = k.kodeAkun;
     if (k.nama !== undefined) mapped.nama = k.nama;
     if (k.keterangan !== undefined) mapped.keterangan = k.keterangan ?? null;
+    if (k.saldoAwal !== undefined) mapped.saldo_awal = k.saldoAwal;
     const { error } = await supabase.from("kode_bantu").update(mapped).eq("id", id);
     if (error) {
       console.error(`updateKodeBantu error (id=${id}):`, error);

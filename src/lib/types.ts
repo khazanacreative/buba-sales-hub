@@ -68,6 +68,7 @@ export interface KodeBantu {
   kodeAkun: string;       // "210000" (Hutang Usaha) atau "130000"/"131000" (Piutang)
   nama: string;           // Nama person / kreditur / debitur
   keterangan?: string;    // Catatan tambahan (alamat, no HP, dll)
+  saldoAwal?: number;     // Saldo awal kode bantu
   createdAt?: string;     // ISO date string
 }
 

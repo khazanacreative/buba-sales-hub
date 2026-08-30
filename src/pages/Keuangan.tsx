@@ -550,43 +550,32 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     const saldoAwal = parseFloat(addSaldoAwal) || 0;
     const penambahan = parseFloat(addPenambahan) || 0;
     const pengurangan = parseFloat(addPengurangan) || 0;
+    // Generate ID di awal supaya bisa dipakai untuk jurnal
+    const kbId = crypto.randomUUID();
     try {
       // 1. Simpan kode bantu
-      await db.addKodeBantu({ kode: nextKode, kodeAkun: akun, nama, keterangan, saldoAwal });
-      // Fetch untuk dapat ID baru
-      const freshKb = (await import("@/lib/store")).state.kodeBantu.find((k) => k.kode === nextKode);
-      const kbId = freshKb?.id;
-      if (kbId) {
-        // 2. Buat jurnal untuk penambahan
-        if (penambahan > 0) {
-          const tipeJurnal = isHutang ? "Kredit" : "Debit";
-          await db.addJurnal({
-            tanggal: todayISO(),
-            ref: "",
-            keterangan: `Saldo awal ${nama} (${nextKode})`,
-            kodeAkun: akun,
-            akun: akunLabel,
-            tipe: tipeJurnal,
-            jumlah: penambahan,
-            kategori: isHutang ? "Kewajiban" : "Aset",
-            kodeBantuId: kbId,
-          });
-        }
-        // 3. Buat jurnal untuk pengurangan
-        if (pengurangan > 0) {
-          const tipeJurnal = isHutang ? "Debit" : "Kredit";
-          await db.addJurnal({
-            tanggal: todayISO(),
-            ref: "",
-            keterangan: `Saldo awal ${nama} (${nextKode})`,
-            kodeAkun: akun,
-            akun: akunLabel,
-            tipe: tipeJurnal,
-            jumlah: pengurangan,
-            kategori: isHutang ? "Kewajiban" : "Aset",
-            kodeBantuId: kbId,
-          });
-        }
+      await db.addKodeBantu({ id: kbId, kode: nextKode, kodeAkun: akun, nama, keterangan, saldoAwal });
+      // 2. Buat jurnal untuk penambahan
+      if (penambahan > 0) {
+        const tipeJurnal = isHutang ? "Kredit" : "Debit";
+        await db.addJurnal({
+          tanggal: todayISO(), ref: "",
+          keterangan: `Saldo awal ${nama} (${nextKode})`,
+          kodeAkun: akun, akun: akunLabel,
+          tipe: tipeJurnal, jumlah: penambahan,
+          kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: kbId,
+        });
+      }
+      // 3. Buat jurnal untuk pengurangan
+      if (pengurangan > 0) {
+        const tipeJurnal = isHutang ? "Debit" : "Kredit";
+        await db.addJurnal({
+          tanggal: todayISO(), ref: "",
+          keterangan: `Saldo awal ${nama} (${nextKode})`,
+          kodeAkun: akun, akun: akunLabel,
+          tipe: tipeJurnal, jumlah: pengurangan,
+          kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: kbId,
+        });
       }
       toast.success(`Kode bantu ${nextKode} berhasil ditambahkan`);
       resetAddForm();

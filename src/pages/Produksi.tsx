@@ -221,16 +221,12 @@ export default function Produksi() {
 
   // STEP 1 STATES
   const [planGrid, setPlanGrid] = useState<Record<string, Record<string, number>>>({});
-  // Grid khusus record "Disetujui" — dipakai untuk materialReqs (kebutuhan bahan
-  // baku). TIDAK termasuk "Pending" agar material hanya dihitung dari distribusi
-  // yang sudah disetujui, bukan dari rencana yang belum dikirim.
-  const [approvedPlanGrid, setApprovedPlanGrid] = useState<Record<string, Record<string, number>>>({});
+
   const [outletFilterId, setOutletFilterId] = useState("");
   const [tanggal2, setTanggal2] = useState("");
   const [isTwoDayPlan, setIsTwoDayPlan] = useState(false);
   const [activePlanDate, setActivePlanDate] = useState<"date1" | "date2">("date1");
   const [planGrid2, setPlanGrid2] = useState<Record<string, Record<string, number>>>({});
-  const [approvedPlanGrid2, setApprovedPlanGrid2] = useState<Record<string, Record<string, number>>>({});
 
   // STEP 3 STATES (Distribusi ke outlet)
   // Aktual masak (actualCups) TIDAK diinput manual lagi — diturunkan otomatis dari
@@ -334,11 +330,9 @@ export default function Produksi() {
         empty[o.id] = { bubur_d: 0, bubur_i: 0, tim_d: 0, tim_i: 0, oatmeal: 0, puding: 0, abon: 0 };
       });
       setPlanGrid2(empty);
-      setApprovedPlanGrid2(empty);
       return;
     }
     loadPlanForDate(tanggal2, (grid) => setPlanGrid2(grid));
-    setApprovedPlanGrid2(loadRencanaGrid(outlets, permohonanStok, tanggal2, ["Disetujui"]));
   };
 
   // Load grids from DB on date change or initial outlet load.
@@ -352,9 +346,7 @@ export default function Produksi() {
     if (hasUserModifiedGrids.current) return;
     if (tanggal && outlets.length > 0) {
       loadPlanForDate(tanggal);
-      // Grid khusus "Disetujui" untuk materialReqs — hanya distribusi yang sudah
-      // disetujui outlet yang dihitung kebutuhan bahan bakunya.
-      setApprovedPlanGrid(loadRencanaGrid(outlets, permohonanStok, tanggal, ["Disetujui"]));
+
 
       // Load variant selections from database
       const dayReqsForVariant = permohonanStok.filter((r: any) => r.tanggalKirim === tanggal);

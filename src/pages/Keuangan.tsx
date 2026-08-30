@@ -807,63 +807,91 @@ function BukuPembantuTab({ jurnal, coa, kodeBantu, range }: {
   const selected = pembantuList.find((k) => k.id === selectedKodeBantuId);
   const akunInduk = selected ? coa.find((a) => a.kode === selected.kodeAkun) : null;
 
+  const totalDebit = transaksi.filter((j) => j.tipe === "Debit").reduce((s, j) => s + j.jumlah, 0);
+  const totalKredit = transaksi.filter((j) => j.tipe === "Kredit").reduce((s, j) => s + j.jumlah, 0);
+  const saldoAkhir = balance.length > 0 ? balance[balance.length - 1].saldo : 0;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Buku Pembantu (Per Kode Bantu)</CardTitle>
-        <div className="text-sm text-muted-foreground">Pilih kode bantu untuk menampilkan transaksi per person (Hutang/Piutang).</div>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4 space-y-2">
-          <Label>Pilih Kode Bantu</Label>
-          <Select value={selectedKodeBantuId} onValueChange={setSelectedKodeBantuId}>
-            <SelectTrigger><SelectValue placeholder="Pilih kode bantu (H-XXX / C-XXX)" /></SelectTrigger>
-            <SelectContent>
-              {pembantuList.length === 0 ? (
-                <SelectItem value="none" disabled>Belum ada kode bantu</SelectItem>
-              ) : pembantuList.map((k) => {
-                const akun = coa.find((a) => a.kode === k.kodeAkun);
-                return <SelectItem key={k.id} value={k.id}>{k.kode} — {k.nama} ({akun?.nama ?? k.kodeAkun})</SelectItem>;
-              })}
-            </SelectContent>
-          </Select>
-        </div>
-        {selected && akunInduk && (
-          <div className="mb-4 p-3 rounded-lg bg-muted/50">
-            <div className="text-sm text-muted-foreground">Akun Induk</div>
-            <div className="font-semibold">{akunInduk.kode} — {akunInduk.nama}</div>
-            <div className="text-sm text-muted-foreground mt-1">Kode Bantu</div>
-            <div className="font-mono font-semibold">{selected.kode} — {selected.nama}</div>
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tgl</TableHead>
-                <TableHead>Keterangan</TableHead>
-                <TableHead className="text-right">Debit</TableHead>
-                <TableHead className="text-right">Kredit</TableHead>
-                <TableHead className="text-right">Saldo</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transaksi.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">{selectedKodeBantuId ? "Tidak ada transaksi" : "Pilih kode bantu"}</TableCell></TableRow>
-              ) : balance.map((item) => (
-                <TableRow key={item.jurnal.id}>
-                  <TableCell>{item.jurnal.tanggal}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{item.jurnal.keterangan}</TableCell>
-                  <TableCell className="text-right">{item.jurnal.tipe === "Debit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
-                  <TableCell className="text-right">{item.jurnal.tipe === "Kredit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
-                  <TableCell className={`text-right font-medium ${item.saldo > 0 ? "text-success" : item.saldo < 0 ? "text-destructive" : ""}`}>{rupiah(item.saldo)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Buku Pembantu</h3>
+        <p className="text-sm text-muted-foreground">Pilih kode bantu untuk menampilkan transaksi per person (Hutang/Piutang).</p>
+      </div>
+      <div className="space-y-2">
+        <Label>Pilih Kode Bantu</Label>
+        <Select value={selectedKodeBantuId} onValueChange={setSelectedKodeBantuId}>
+          <SelectTrigger className="w-full"><SelectValue placeholder="Pilih kode bantu (H-XXX / C-XXX)" /></SelectTrigger>
+          <SelectContent>
+            {pembantuList.length === 0 ? (
+              <SelectItem value="none" disabled>Belum ada kode bantu</SelectItem>
+            ) : pembantuList.map((k) => {
+              const akun = coa.find((a) => a.kode === k.kodeAkun);
+              return <SelectItem key={k.id} value={k.id}>{k.kode} — {k.nama} ({akun?.nama ?? k.kodeAkun})</SelectItem>;
+            })}
+          </SelectContent>
+        </Select>
+      </div>
+      {selected && akunInduk && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <div>
+                <div className="text-xs text-muted-foreground">Akun Induk</div>
+                <div className="font-semibold">{akunInduk.kode} — {akunInduk.nama}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Kode Bantu</div>
+                <div className="font-mono font-semibold">{selected.kode} — {selected.nama}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Total Debit</div>
+                <div className="font-semibold text-success">{rupiah(totalDebit)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Total Kredit</div>
+                <div className="font-semibold text-destructive">{rupiah(totalKredit)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Saldo Akhir</div>
+                <div className={`font-bold ${saldoAkhir > 0 ? "text-success" : saldoAkhir < 0 ? "text-destructive" : ""}`}>{rupiah(saldoAkhir)}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {selected && (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tgl</TableHead>
+                    <TableHead>Keterangan</TableHead>
+                    <TableHead className="text-right">Debit</TableHead>
+                    <TableHead className="text-right">Kredit</TableHead>
+                    <TableHead className="text-right">Saldo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {balance.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Tidak ada transaksi</TableCell></TableRow>
+                  ) : balance.map((item) => (
+                    <TableRow key={item.jurnal.id}>
+                      <TableCell>{item.jurnal.tanggal}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{item.jurnal.keterangan}</TableCell>
+                      <TableCell className="text-right">{item.jurnal.tipe === "Debit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                      <TableCell className="text-right">{item.jurnal.tipe === "Kredit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                      <TableCell className={`text-right font-medium ${item.saldo > 0 ? "text-success" : item.saldo < 0 ? "text-destructive" : ""}`}>{rupiah(item.saldo)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -886,28 +914,27 @@ function BukuBesarTab({ jurnal, coa, range }: { jurnal: Jurnal[]; coa: AkunCOA[]
   const saldoAkhir = balance.length > 0 ? balance[balance.length - 1].saldo : 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Buku Besar</CardTitle>
-        <div className="text-sm text-muted-foreground">Pilih akun COA untuk melihat detail transaksi dan saldo berjalan.</div>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4 space-y-2">
-          <Label>Pilih Akun COA</Label>
-          <Select value={selectedKodeAkun} onValueChange={setSelectedKodeAkun}>
-            <SelectTrigger><SelectValue placeholder="Pilih akun COA (kode - nama)" /></SelectTrigger>
-            <SelectContent>
-              {coaSorted.length === 0 ? (
-                <SelectItem value="none" disabled>Belum ada akun COA</SelectItem>
-              ) : coaSorted.map((a) => (
-                <SelectItem key={a.kode} value={a.kode}>{a.kode} — {a.nama}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {selected && (
-          <div className="mb-4 p-3 rounded-lg bg-muted/50">
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Buku Besar</h3>
+        <p className="text-sm text-muted-foreground">Pilih akun COA untuk melihat detail transaksi dan saldo berjalan.</p>
+      </div>
+      <div className="space-y-2">
+        <Label>Pilih Akun COA</Label>
+        <Select value={selectedKodeAkun} onValueChange={setSelectedKodeAkun}>
+          <SelectTrigger className="w-full"><SelectValue placeholder="Pilih akun COA (kode - nama)" /></SelectTrigger>
+          <SelectContent>
+            {coaSorted.length === 0 ? (
+              <SelectItem value="none" disabled>Belum ada akun COA</SelectItem>
+            ) : coaSorted.map((a) => (
+              <SelectItem key={a.kode} value={a.kode}>{a.kode} — {a.nama}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {selected && (
+        <Card>
+          <CardContent className="p-4">
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               <div>
                 <div className="text-xs text-muted-foreground">Akun</div>
@@ -919,48 +946,53 @@ function BukuBesarTab({ jurnal, coa, range }: { jurnal: Jurnal[]; coa: AkunCOA[]
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Total Debit</div>
-                <div className="font-semibold text-green-600">{rupiah(totalDebit)}</div>
+                <div className="font-semibold text-success">{rupiah(totalDebit)}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Total Kredit</div>
-                <div className="font-semibold text-red-600">{rupiah(totalKredit)}</div>
+                <div className="font-semibold text-destructive">{rupiah(totalKredit)}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Saldo Akhir</div>
-                <div className={`font-bold ${saldoAkhir > 0 ? "text-green-600" : saldoAkhir < 0 ? "text-red-600" : ""}`}>{rupiah(saldoAkhir)}</div>
+                <div className={`font-bold ${saldoAkhir > 0 ? "text-success" : saldoAkhir < 0 ? "text-destructive" : ""}`}>{rupiah(saldoAkhir)}</div>
               </div>
             </div>
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tgl</TableHead>
-                <TableHead>Keterangan</TableHead>
-                <TableHead className="text-right">Debit</TableHead>
-                <TableHead className="text-right">Kredit</TableHead>
-                <TableHead className="text-right">Saldo</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transaksi.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">{selectedKodeAkun ? "Tidak ada transaksi" : "Pilih akun COA"}</TableCell></TableRow>
-              ) : balance.map((item) => (
-                <TableRow key={item.jurnal.id}>
-                  <TableCell>{item.jurnal.tanggal}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{item.jurnal.keterangan}</TableCell>
-                  <TableCell className="text-right">{item.jurnal.tipe === "Debit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
-                  <TableCell className="text-right">{item.jurnal.tipe === "Kredit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
-                  <TableCell className={`text-right font-medium ${item.saldo > 0 ? "text-green-600" : item.saldo < 0 ? "text-red-600" : ""}`}>{rupiah(item.saldo)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      )}
+      {selected && (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tgl</TableHead>
+                    <TableHead>Keterangan</TableHead>
+                    <TableHead className="text-right">Debit</TableHead>
+                    <TableHead className="text-right">Kredit</TableHead>
+                    <TableHead className="text-right">Saldo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {balance.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Tidak ada transaksi</TableCell></TableRow>
+                  ) : balance.map((item) => (
+                    <TableRow key={item.jurnal.id}>
+                      <TableCell>{item.jurnal.tanggal}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{item.jurnal.keterangan}</TableCell>
+                      <TableCell className="text-right">{item.jurnal.tipe === "Debit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                      <TableCell className="text-right">{item.jurnal.tipe === "Kredit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                      <TableCell className={`text-right font-medium ${item.saldo > 0 ? "text-success" : item.saldo < 0 ? "text-destructive" : ""}`}>{rupiah(item.saldo)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

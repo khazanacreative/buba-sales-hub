@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useDB, db } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
@@ -870,29 +869,96 @@ function BukuPembantuTab({ jurnal, coa, kodeBantu, range }: {
 
 function BukuBesarTab({ jurnal, coa, range }: { jurnal: Jurnal[]; coa: AkunCOA[]; range: DateRange }) {
   const filtered = useMemo(() => jurnal.filter((j) => (!range.from || j.tanggal >= range.from) && (!range.to || j.tanggal <= range.to)), [jurnal, range]);
-  const aggregated = aggregateByAkun(filtered, coa);
+  const [selectedKodeAkun, setSelectedKodeAkun] = useState<string>("");
+
+  const coaSorted = useMemo(() => [...coa].sort((a, b) => a.kode.localeCompare(b.kode)), [coa]);
+
+  const transaksi = useMemo(() => {
+    if (!selectedKodeAkun) return [];
+    return getTransaksiPerAkun(filtered, selectedKodeAkun);
+  }, [filtered, selectedKodeAkun]);
+
+  const balance = useMemo(() => computeRunningBalance(transaksi), [transaksi]);
+  const selected = coaSorted.find((a) => a.kode === selectedKodeAkun);
+
+  const totalDebit = transaksi.filter((j) => j.tipe === "Debit").reduce((s, j) => s + j.jumlah, 0);
+  const totalKredit = transaksi.filter((j) => j.tipe === "Kredit").reduce((s, j) => s + j.jumlah, 0);
+  const saldoAkhir = balance.length > 0 ? balance[balance.length - 1].saldo : 0;
+
   return (
-    <Card><CardHeader><CardTitle>Buku Besar</CardTitle></CardHeader>
+    <Card>
+      <CardHeader>
+        <CardTitle>Buku Besar</CardTitle>
+        <div className="text-sm text-muted-foreground">Pilih akun COA untuk melihat detail transaksi dan saldo berjalan.</div>
+      </CardHeader>
       <CardContent>
-        <Accordion type="multiple" className="w-full">
-          {aggregated.map((akun) => (
-            <AccordionItem key={akun.kode} value={akun.kode}>
-              <AccordionTrigger><div className="flex justify-between w-full"><span>{akun.kode} - {akun.nama}</span><span className="font-bold">{rupiah(akun.saldo)}</span></div></AccordionTrigger>
-              <AccordionContent>
-                <div className="overflow-x-auto"><Table>
-                  <TableHeader><TableRow><TableHead>Tgl</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Debit</TableHead><TableHead className="text-right">Kredit</TableHead></TableRow></TableHeader>
-                  <TableBody>{getTransaksiPerAkun(filtered, akun.kode).map((j) => (
-                    <TableRow key={j.id}>
-                      <TableCell>{j.tanggal}</TableCell><TableCell>{j.keterangan}</TableCell>
-                      <TableCell className="text-right">{j.tipe === "Debit" ? rupiah(j.jumlah) : "-"}</TableCell>
-                      <TableCell className="text-right">{j.tipe === "Kredit" ? rupiah(j.jumlah) : "-"}</TableCell>
-                    </TableRow>
-                  ))}</TableBody>
-                </Table></div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <div className="mb-4 space-y-2">
+          <Label>Pilih Akun COA</Label>
+          <Select value={selectedKodeAkun} onValueChange={setSelectedKodeAkun}>
+            <SelectTrigger><SelectValue placeholder="Pilih akun COA (kode - nama)" /></SelectTrigger>
+            <SelectContent>
+              {coaSorted.length === 0 ? (
+                <SelectItem value="none" disabled>Belum ada akun COA</SelectItem>
+              ) : coaSorted.map((a) => (
+                <SelectItem key={a.kode} value={a.kode}>{a.kode} — {a.nama}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selected && (
+          <div className="mb-4 p-3 rounded-lg bg-muted/50">
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <div>
+                <div className="text-xs text-muted-foreground">Akun</div>
+                <div className="font-semibold">{selected.kode} — {selected.nama}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Kategori</div>
+                <div className="font-semibold capitalize">{selected.kategori}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Total Debit</div>
+                <div className="font-semibold text-green-600">{rupiah(totalDebit)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Total Kredit</div>
+                <div className="font-semibold text-red-600">{rupiah(totalKredit)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Saldo Akhir</div>
+                <div className={`font-bold ${saldoAkhir > 0 ? "text-green-600" : saldoAkhir < 0 ? "text-red-600" : ""}`}>{rupiah(saldoAkhir)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tgl</TableHead>
+                <TableHead>Keterangan</TableHead>
+                <TableHead className="text-right">Debit</TableHead>
+                <TableHead className="text-right">Kredit</TableHead>
+                <TableHead className="text-right">Saldo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transaksi.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">{selectedKodeAkun ? "Tidak ada transaksi" : "Pilih akun COA"}</TableCell></TableRow>
+              ) : balance.map((item) => (
+                <TableRow key={item.jurnal.id}>
+                  <TableCell>{item.jurnal.tanggal}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{item.jurnal.keterangan}</TableCell>
+                  <TableCell className="text-right">{item.jurnal.tipe === "Debit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                  <TableCell className="text-right">{item.jurnal.tipe === "Kredit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                  <TableCell className={`text-right font-medium ${item.saldo > 0 ? "text-green-600" : item.saldo < 0 ? "text-red-600" : ""}`}>{rupiah(item.saldo)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

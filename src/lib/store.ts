@@ -1087,6 +1087,11 @@ export const db = {
     await supabase.from("jurnal").delete().eq("id", id);
     fetchFromSupabase();
   },
+  async deleteJurnalByKodeBantu(kodeBantuId: string) {
+    const { error } = await supabase.from("jurnal").delete().eq("kode_bantu_id", kodeBantuId);
+    if (error) throw error;
+    await fetchFromSupabase();
+  },
   async updateJurnal(id: string, j: Partial<Omit<Jurnal, "id">>) {
     const mapped: any = {};
     if (j.tanggal !== undefined) mapped.tanggal = j.tanggal;

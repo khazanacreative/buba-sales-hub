@@ -491,6 +491,8 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
   const [editNama, setEditNama] = useState("");
   const [editKeterangan, setEditKeterangan] = useState("");
   const [editSaldoAwal, setEditSaldoAwal] = useState("");
+  const [editPenambahan, setEditPenambahan] = useState("");
+  const [editPengurangan, setEditPengurangan] = useState("");
 
   const hutangAkun = "210000";
   const piutangAkun = "130000";
@@ -588,16 +590,58 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
     setEditNama(k.nama);
     setEditKeterangan(k.keterangan ?? "");
     setEditSaldoAwal(String(k.saldoAwal ?? 0));
+    // Hitung penambahan/pengurangan dari jurnal existing
+    const rec = saldoMap.get(k.id);
+    const debit = rec?.debit ?? 0;
+    const kredit = rec?.kredit ?? 0;
+    if (isHutang) {
+      setEditPenambahan(kredit > 0 ? String(kredit) : "");
+      setEditPengurangan(debit > 0 ? String(debit) : "");
+    } else {
+      setEditPenambahan(debit > 0 ? String(debit) : "");
+      setEditPengurangan(kredit > 0 ? String(kredit) : "");
+    }
   };
 
   const saveEdit = async () => {
     if (!editing) return;
     if (!editNama.trim()) return toast.error("Nama wajib diisi");
     const saldoAwal = parseFloat(editSaldoAwal) || 0;
+    const penambahan = parseFloat(editPenambahan) || 0;
+    const pengurangan = parseFloat(editPengurangan) || 0;
     try {
       await db.updateKodeBantu(editing.id, { nama: editNama.trim(), keterangan: editKeterangan.trim() || undefined, saldoAwal });
-      toast.success("Kode bantu diperbarui"); setEditing(null);
-    } catch (err: any) { toast.error("Gagal update: " + (err?.message ?? String(err))); }
+    } catch (err: any) {
+      toast.error("Gagal update: " + (err?.message ?? String(err)));
+      return;
+    }
+    // Replace jurnal: hapus yang lama, buat yang baru (bukan akumulasi)
+    try {
+      await db.deleteJurnalByKodeBantu(editing.id);
+      const entries: Omit<Jurnal, "id">[] = [];
+      if (penambahan > 0) {
+        entries.push({
+          tanggal: todayISO(), ref: "",
+          keterangan: `Transaksi ${editing.nama} (${editing.kode})`,
+          kodeAkun: editing.kodeAkun, akun: akunLabel,
+          tipe: isHutang ? "Kredit" : "Debit",
+          jumlah: penambahan,
+          kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
+        });
+      }
+      if (pengurangan > 0) {
+        entries.push({
+          tanggal: todayISO(), ref: "",
+          keterangan: `Transaksi ${editing.nama} (${editing.kode})`,
+          kodeAkun: editing.kodeAkun, akun: akunLabel,
+          tipe: isHutang ? "Debit" : "Kredit",
+          jumlah: pengurangan,
+          kategori: isHutang ? "Kewajiban" : "Aset", kodeBantuId: editing.id,
+        });
+      }
+      if (entries.length > 0) await db.addJurnalBulk(entries);
+    } catch (e) { console.warn("Jurnal replace gagal:", e); }
+    toast.success("Kode bantu diperbarui"); setEditing(null);
   };
 
   const handleDelete = async (k: KodeBantu) => {
@@ -721,7 +765,7 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit {editing?.kode} — {editing?.nama}</DialogTitle>
-            <DialogDescription>Ubah nama atau saldo awal. Tidak menambah jurnal baru.</DialogDescription>
+            <DialogDescription>Update data. Jurnal lama akan diganti, bukan diakumulasi.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
@@ -731,6 +775,16 @@ function KodeBantuTab({ kodeBantu, jurnal }: { kodeBantu: KodeBantu[]; jurnal: J
             <div className="space-y-2">
               <Label>Saldo Awal</Label>
               <Input type="number" value={editSaldoAwal} onChange={(e) => setEditSaldoAwal(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-success">Penambahan</Label>
+                <Input type="number" placeholder="0" value={editPenambahan} onChange={(e) => setEditPenambahan(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-destructive">Pengurangan</Label>
+                <Input type="number" placeholder="0" value={editPengurangan} onChange={(e) => setEditPengurangan(e.target.value)} />
+              </div>
             </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Batal</Button><Button onClick={saveEdit}>Simpan</Button></DialogFooter>

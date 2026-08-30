@@ -955,24 +955,29 @@ function BukuPembantuTab({ jurnal, coa, kodeBantu, range }: {
     return kodeBantu.filter((k) => KODE_BANTU_KODE_AKUN.includes(k.kodeAkun as any)).sort((a, b) => a.kode.localeCompare(b.kode));
   }, [kodeBantu]);
 
+  const selected = pembantuList.find((k) => k.id === selectedKodeBantuId);
+  const akunInduk = selected ? coa.find((a) => a.kode === selected.kodeAkun) : null;
+  const isHutang = selected?.kodeAkun === "210000";
+
   const transaksi = useMemo(() => {
     if (!selectedKodeBantuId) return [];
     return filtered.filter((j) => j.kodeBantuId === selectedKodeBantuId).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   }, [filtered, selectedKodeBantuId]);
 
   const balance = useMemo(() => computeRunningBalance(transaksi), [transaksi]);
-  const selected = pembantuList.find((k) => k.id === selectedKodeBantuId);
-  const akunInduk = selected ? coa.find((a) => a.kode === selected.kodeAkun) : null;
 
+  const saldoAwal = selected?.saldoAwal ?? 0;
   const totalDebit = transaksi.filter((j) => j.tipe === "Debit").reduce((s, j) => s + j.jumlah, 0);
   const totalKredit = transaksi.filter((j) => j.tipe === "Kredit").reduce((s, j) => s + j.jumlah, 0);
-  const saldoAkhir = balance.length > 0 ? balance[balance.length - 1].saldo : 0;
+  // Hutang: saldo = saldoAwal + kredit - debit
+  // Piutang: saldo = saldoAwal + debit - kredit
+  const saldoAkhir = saldoAwal + (isHutang ? totalKredit - totalDebit : totalDebit - totalKredit);
 
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-lg font-semibold">Buku Pembantu</h3>
-        <p className="text-sm text-muted-foreground">Pilih kode bantu untuk menampilkan transaksi per person (Hutang/Piutang).</p>
+        <p className="text-sm text-muted-foreground">Pilih kode bantu untuk menampilkan semua aktivitas transaksi.</p>
       </div>
       <div className="space-y-2">
         <Label>Pilih Kode Bantu</Label>
@@ -991,26 +996,26 @@ function BukuPembantuTab({ jurnal, coa, kodeBantu, range }: {
       {selected && akunInduk && (
         <Card>
           <CardContent className="p-4">
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              <div>
-                <div className="text-xs text-muted-foreground">Akun Induk</div>
-                <div className="font-semibold">{akunInduk.kode} — {akunInduk.nama}</div>
+            <div className="flex flex-wrap justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">KODE</span>
+                  <span className="font-mono font-bold text-lg">{selected.kode}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">NAMA AKUN</span>
+                  <span className="font-semibold">{akunInduk.nama}</span>
+                </div>
               </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Kode Bantu</div>
-                <div className="font-mono font-semibold">{selected.kode} — {selected.nama}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Total Debit</div>
-                <div className="font-semibold text-success">{rupiah(totalDebit)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Total Kredit</div>
-                <div className="font-semibold text-destructive">{rupiah(totalKredit)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Saldo Akhir</div>
-                <div className={`font-bold ${saldoAkhir > 0 ? "text-success" : saldoAkhir < 0 ? "text-destructive" : ""}`}>{rupiah(saldoAkhir)}</div>
+              <div className="space-y-1 text-right">
+                <div>
+                  <span className="text-xs text-muted-foreground">SALDO AWAL</span>
+                  <div className="font-semibold">{rupiah(saldoAwal)}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">SALDO AKHIR</span>
+                  <div className={`font-bold text-lg ${saldoAkhir > 0 ? "text-success" : saldoAkhir < 0 ? "text-destructive" : ""}`}>{rupiah(saldoAkhir)}</div>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1033,15 +1038,21 @@ function BukuPembantuTab({ jurnal, coa, kodeBantu, range }: {
                 <TableBody>
                   {balance.length === 0 ? (
                     <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Tidak ada transaksi</TableCell></TableRow>
-                  ) : balance.map((item) => (
-                    <TableRow key={item.jurnal.id}>
-                      <TableCell>{item.jurnal.tanggal}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{item.jurnal.keterangan}</TableCell>
-                      <TableCell className="text-right">{item.jurnal.tipe === "Debit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
-                      <TableCell className="text-right">{item.jurnal.tipe === "Kredit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
-                      <TableCell className={`text-right font-medium ${item.saldo > 0 ? "text-success" : item.saldo < 0 ? "text-destructive" : ""}`}>{rupiah(item.saldo)}</TableCell>
-                    </TableRow>
-                  ))}
+                  ) : balance.map((item, idx) => {
+                    // Saldo berjalan = saldoAwal + akumulasi sampai baris ini
+                    const debitSampai = transaksi.slice(0, idx + 1).filter((j) => j.tipe === "Debit").reduce((s, j) => s + j.jumlah, 0);
+                    const kreditSampai = transaksi.slice(0, idx + 1).filter((j) => j.tipe === "Kredit").reduce((s, j) => s + j.jumlah, 0);
+                    const runningSaldo = saldoAwal + (isHutang ? kreditSampai - debitSampai : debitSampai - kreditSampai);
+                    return (
+                      <TableRow key={item.jurnal.id}>
+                        <TableCell>{item.jurnal.tanggal}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{item.jurnal.keterangan}</TableCell>
+                        <TableCell className="text-right">{item.jurnal.tipe === "Debit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                        <TableCell className="text-right">{item.jurnal.tipe === "Kredit" ? rupiah(item.jurnal.jumlah) : "-"}</TableCell>
+                        <TableCell className={`text-right font-medium ${runningSaldo > 0 ? "text-success" : runningSaldo < 0 ? "text-destructive" : ""}`}>{rupiah(runningSaldo)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

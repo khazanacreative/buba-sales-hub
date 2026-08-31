@@ -58,10 +58,11 @@ const FULL_SHEETS: { key: string; label: string; columns: string[]; mapper: (r: 
 ];
 
 const MONTHLY_SHEETS: { key: string; label: string; columns: string[]; mapper: (r: any) => any[] }[] = [
-  { key: "penjualan",  label: "Penjualan",      columns: ["id","tanggal","outlet_id","produk_id","qty","harga","total","sisa_gram","variant"], mapper: (r) => [r.id, r.tanggal, r.outletId, r.produkId, r.qty, r.harga, r.total, r.sisaGram, r.variant] },
-  { key: "produksi",   label: "Produksi",        columns: ["id","tanggal","produk_id","qty_rencana","qty_realisasi"],   mapper: (r) => [r.id, r.tanggal, r.produkId, r.qtyRencana, r.qtyRealisasi] },
-  { key: "stokMov",    label: "Stok Movement",   columns: ["id","tanggal","bahan_id","tipe","qty","keterangan","produksi_id"], mapper: (r) => [r.id, r.tanggal, r.bahanId, r.tipe, r.qty, r.keterangan, r.produksiId] },
-  { key: "absensi",    label: "Absensi",         columns: ["id","tanggal","karyawan_id","jam_masuk","jam_pulang","status","catatan","bonus","tunjangan","overtime"], mapper: (r) => [r.id, r.tanggal, r.karyawanId, r.jamMasuk, r.jamPulang, r.status, r.catatan, r.bonus, r.tunjangan, r.overtime] },
+  { key: "penjualan",     label: "Penjualan",       columns: ["id","tanggal","outlet_id","produk_id","qty","harga","total","sisa_gram","variant"], mapper: (r) => [r.id, r.tanggal, r.outletId, r.produkId, r.qty, r.harga, r.total, r.sisaGram, r.variant] },
+  { key: "produksi",      label: "Produksi",        columns: ["id","tanggal","produk_id","qty_rencana","qty_realisasi"],   mapper: (r) => [r.id, r.tanggal, r.produkId, r.qtyRencana, r.qtyRealisasi] },
+  { key: "stokMov",       label: "Stok Movement",   columns: ["id","tanggal","bahan_id","tipe","qty","keterangan","produksi_id"], mapper: (r) => [r.id, r.tanggal, r.bahanId, r.tipe, r.qty, r.keterangan, r.produksiId] },
+  { key: "absensi",       label: "Absensi",         columns: ["id","tanggal","karyawan_id","jam_masuk","jam_pulang","status","catatan","bonus","tunjangan","overtime"], mapper: (r) => [r.id, r.tanggal, r.karyawanId, r.jamMasuk, r.jamPulang, r.status, r.catatan, r.bonus, r.tunjangan, r.overtime] },
+  { key: "permohonanStok",label: "Permohonan Stok",  columns: ["id","tanggal","tanggal_kirim","outlet_id","produk_id","qty","status","catatan","qty_rencana","catatan_rencana"], mapper: (r) => [r.id, r.tanggal, r.tanggalKirim, r.outletId, r.produkId, r.qty, r.status, r.catatan, r.qtyRencana, r.catatanRencana] },
 ];
 
 export default function BackupRestoreSection() {
@@ -83,9 +84,10 @@ export default function BackupRestoreSection() {
     dbState.produksi.forEach((p: any) => { if (p.tanggal) years.add(Number(p.tanggal.slice(0, 4))); });
     dbState.stokMov.forEach((m: any) => { if (m.tanggal) years.add(Number(m.tanggal.slice(0, 4))); });
     dbState.absensi.forEach((a: any) => { if (a.tanggal) years.add(Number(a.tanggal.slice(0, 4))); });
+    dbState.permohonanStok.forEach((p: any) => { if (p.tanggal) years.add(Number(p.tanggal.slice(0, 4))); });
     years.add(now.getFullYear());
     return Array.from(years).sort((a, b) => b - a);
-  }, [dbState.penjualan, dbState.produksi, dbState.stokMov, dbState.absensi]);
+  }, [dbState.penjualan, dbState.produksi, dbState.stokMov, dbState.absensi, dbState.permohonanStok]);
 
   const monthlyStats = useMemo(() => {
     const prefix = `${tahun}-${String(bulan).padStart(2, "0")}`;
@@ -93,8 +95,9 @@ export default function BackupRestoreSection() {
     const produksi = dbState.produksi.filter((p: any) => p.tanggal?.startsWith(prefix)).length;
     const stokMov = dbState.stokMov.filter((m: any) => m.tanggal?.startsWith(prefix)).length;
     const absensi = dbState.absensi.filter((a: any) => a.tanggal?.startsWith(prefix)).length;
-    return { penjualan, produksi, stokMov, absensi, total: penjualan + produksi + stokMov + absensi };
-  }, [dbState.penjualan, dbState.produksi, dbState.stokMov, dbState.absensi, bulan, tahun]);
+    const permohonanStok = dbState.permohonanStok.filter((p: any) => p.tanggal?.startsWith(prefix)).length;
+    return { penjualan, produksi, stokMov, absensi, permohonanStok, total: penjualan + produksi + stokMov + absensi + permohonanStok };
+  }, [dbState.penjualan, dbState.produksi, dbState.stokMov, dbState.absensi, dbState.permohonanStok, bulan, tahun]);
 
   // ═══════════════════════════════════════════════════════════════════════════════
   // XLSX HELPER
@@ -335,6 +338,7 @@ export default function BackupRestoreSection() {
       let produksiRows: any[] = [];
       let stokRows: any[] = [];
       let absensiRows: any[] = [];
+      let permohonanStokRows: any[] = [];
 
       if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
         // XLSX monthly session format — try to detect month from filename or ask user
@@ -378,6 +382,7 @@ export default function BackupRestoreSection() {
         const sheetNameToTable: Record<string, string> = {
           "Penjualan": "penjualan", "Produksi": "produksi",
           "Stok Movement": "stokMov", "Absensi": "absensi",
+          "Permohonan Stok": "permohonanStok",
         };
 
         for (const sheetName of wb.SheetNames) {
@@ -396,6 +401,7 @@ export default function BackupRestoreSection() {
           else if (table === "produksi") produksiRows = rows;
           else if (table === "stokMov") stokRows = rows;
           else if (table === "absensi") absensiRows = rows;
+          else if (table === "permohonanStok") permohonanStokRows = rows;
         }
 
       } else if (file.name.endsWith(".json")) {
@@ -412,6 +418,7 @@ export default function BackupRestoreSection() {
           produksiRows = mb.data?.produksi || [];
           stokRows = mb.data?.stokMov || [];
           absensiRows = mb.data?.absensi || [];
+          permohonanStokRows = mb.data?.permohonanStok || [];
         } else {
           // Full backup JSON — extract by month
           const fb = backup as FullBackupData;
@@ -422,6 +429,7 @@ export default function BackupRestoreSection() {
             ...(d.produksi || []).map((p: any) => p.tanggal),
             ...(d.stokMov || []).map((m: any) => m.tanggal),
             ...(d.absensi || []).map((a: any) => a.tanggal),
+            ...(d.permohonanStok || []).map((p: any) => p.tanggal),
           ].filter(Boolean);
 
           const monthSet = new Set<string>();
@@ -457,6 +465,7 @@ export default function BackupRestoreSection() {
           produksiRows = (d.produksi || []).filter((p: any) => p.tanggal?.startsWith(chosen.prefix));
           stokRows = (d.stokMov || []).filter((m: any) => m.tanggal?.startsWith(chosen.prefix));
           absensiRows = (d.absensi || []).filter((a: any) => a.tanggal?.startsWith(chosen.prefix));
+          permohonanStokRows = (d.permohonanStok || []).filter((p: any) => p.tanggal?.startsWith(chosen.prefix));
         }
       } else {
         toast.error("File harus berformat .xlsx atau .json");
@@ -465,7 +474,7 @@ export default function BackupRestoreSection() {
       }
 
       // Confirmation
-      const total = penjualanRows.length + produksiRows.length + stokRows.length + absensiRows.length;
+      const total = penjualanRows.length + produksiRows.length + stokRows.length + absensiRows.length + permohonanStokRows.length;
       if (total === 0) {
         toast.error(`Tidak ada data untuk ${monthLabel} di file ini`);
         setRestoringMonthly(false);
@@ -478,7 +487,8 @@ export default function BackupRestoreSection() {
         `• ${penjualanRows.length} Penjualan\n` +
         `• ${produksiRows.length} Produksi\n` +
         `• ${stokRows.length} Stok Movement\n` +
-        `• ${absensiRows.length} Absensi\n\n` +
+        `• ${absensiRows.length} Absensi\n` +
+        `• ${permohonanStokRows.length} Permohonan Stok\n\n` +
         `Data bulan ${monthLabel} yang ada akan DIHAPUS lalu diganti.\n` +
         `Data bulan lain TIDAK terpengaruh.\n\nLanjutkan?`
       );
@@ -491,6 +501,7 @@ export default function BackupRestoreSection() {
         supabaseDeleteByMonth("produksi", "tanggal", monthPrefix),
         supabaseDeleteByMonth("stok_movement", "tanggal", monthPrefix),
         supabaseDeleteByMonth("absensi", "tanggal", monthPrefix),
+        supabaseDeleteByMonth("permohonan_stok", "tanggal", monthPrefix),
       ]);
 
       // Insert new data
@@ -499,6 +510,7 @@ export default function BackupRestoreSection() {
       if (produksiRows.length) await supabaseInsert("produksi", produksiRows.map(mapProduksi));
       if (stokRows.length) await supabaseInsert("stok_movement", stokRows.map(mapStokMov));
       if (absensiRows.length) await supabaseInsert("absensi", absensiRows.map(mapAbsensi));
+      if (permohonanStokRows.length) await supabaseInsert("permohonan_stok", permohonanStokRows.map(mapPermohonanStok));
 
       await fetchFromSupabase();
 
@@ -525,7 +537,7 @@ export default function BackupRestoreSection() {
             Backup & Restore Sesi Bulanan
           </h3>
           <p className="text-xs text-muted-foreground">
-            Ekspor atau impor data <strong>Penjualan, Produksi, Stok, dan Absensi</strong> per bulan tertentu.
+            Ekspor atau impor data <strong>Penjualan, Produksi, Stok, Absensi, dan Permohonan Stok</strong> per bulan tertentu.
             File output: <code className="text-[10px] bg-muted px-1 rounded">.xlsx</code> (bisa dibuka di Excel/Google Sheets).
           </p>
 
@@ -557,7 +569,7 @@ export default function BackupRestoreSection() {
           <div className="bg-muted/30 rounded-lg p-2 text-[10px] space-y-0.5">
             <div className="font-semibold text-foreground">{MONTHS[Number(bulan) - 1]} {tahun}</div>
             <div className="text-muted-foreground">
-              📊 {monthlyStats.penjualan} penjualan &bull; {monthlyStats.produksi} produksi &bull; {monthlyStats.stokMov} stok &bull; {monthlyStats.absensi} absensi
+              📊 {monthlyStats.penjualan} penjualan &bull; {monthlyStats.produksi} produksi &bull; {monthlyStats.stokMov} stok &bull; {monthlyStats.absensi} absensi &bull; {monthlyStats.permohonanStok} permohonan
             </div>
             {monthlyStats.total === 0 && (
               <div className="text-amber-600">Tidak ada data untuk bulan ini</div>
@@ -577,7 +589,7 @@ export default function BackupRestoreSection() {
             <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-start gap-1.5 mb-2">
               <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
               <span>
-                Hanya data <strong>Penjualan, Produksi, Stok, dan Absensi</strong> bulan yang dipilih akan diganti. Data bulan lain tidak terpengaruh.
+                Hanya data <strong>Penjualan, Produksi, Stok, Absensi, dan Permohonan Stok</strong> bulan yang dipilih akan diganti. Data bulan lain tidak terpengaruh.
               </span>
             </div>
             <input

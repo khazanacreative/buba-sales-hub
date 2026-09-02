@@ -883,6 +883,21 @@ function SisaProduksiOH({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <ExportButtons
+                filename={`sisa-oh-saya-${tanggal}`}
+                title={`Sisa OH Saya ${tanggal}`}
+                headers={["Menu", "Distribusi (Cup)", "Sisa (Unit)", "Sisa (Cup/Pcs)", "OH %", "Terjual", "Harga", "Omset"]}
+                rows={rows.filter((r: any) => r.distribusi > 0).map((r: any) => [
+                  r.label,
+                  r.distribusi,
+                  r.subId === "abon" ? `${r.sisaCups} pcs` : (r.subId === "oatmeal" || r.subId === "puding" ? `${r.sisaCups} cup` : `${r.sisa} g`),
+                  `${r.sisaCups} ${r.subId === "abon" ? "pcs" : "cup"}`,
+                  `${r.distribusi > 0 ? ((r.sisaCups / r.distribusi) * 100).toFixed(1) : "0"}%`,
+                  r.terjual,
+                  rupiah(r.harga),
+                  rupiah(r.omset),
+                ])}
+              />
               <Button
                 onClick={openDialog}
                 size="sm"
@@ -1488,17 +1503,37 @@ function SisaProduksiAdminView({
                 </div>
               )}
             </div>
-            {!readOnly && (
-              <Button
-                onClick={handleSubmit}
-                disabled={saving || outletRows.length === 0}
-                size="sm"
-                className="gradient-primary text-primary-foreground h-9 shrink-0"
-              >
-                <Save className="h-4 w-4 mr-1.5" />
-                {saving ? "Menyimpan..." : "Simpan Semua Outlet"}
-              </Button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              <ExportButtons
+                filename={`sisa-oh-${tanggal}`}
+                title={`Sisa OH ${tanggal}`}
+                headers={["Outlet", "Menu", "Distribusi (Cup)", "Sisa (Unit)", "Sisa (Cup/Pcs)", "OH %", "Terjual", "Harga", "Omset"]}
+                rows={outletRows.flatMap((o: any) =>
+                  o.items.filter((i: any) => i.distQty > 0).map((i: any) => [
+                    o.outlet.nama,
+                    i.label,
+                    i.distQty,
+                    i.subId === "abon" ? `${i.sisaCups} pcs` : (i.subId === "oatmeal" || i.subId === "puding" ? `${i.sisaCups} cup` : `${i.sisaGram} g`),
+                    `${i.sisaCups} ${i.subId === "abon" ? "pcs" : "cup"}`,
+                    `${i.distQty > 0 ? ((i.sisaCups / i.distQty) * 100).toFixed(1) : "0"}%`,
+                    i.terjual,
+                    rupiah(i.harga),
+                    rupiah(i.omset),
+                  ])
+                )}
+              />
+              {!readOnly && (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={saving || outletRows.length === 0}
+                  size="sm"
+                  className="gradient-primary text-primary-foreground h-9"
+                >
+                  <Save className="h-4 w-4 mr-1.5" />
+                  {saving ? "Menyimpan..." : "Simpan Semua Outlet"}
+                </Button>
+              )}
+            </div>
           </div>
 
           {outletRows.length === 0 ? (
@@ -2171,6 +2206,26 @@ function RiwayatTransaksiTab({
               </Select>
             )}
             <DateRangeFilter value={range} onChange={setRange} />
+            <ExportButtons
+              filename={`riwayat-transaksi`}
+              title="Riwayat Transaksi Penjualan"
+              headers={["Tanggal", "Outlet", "Produk", "Stok Awal (Pcs)", "Stok Awal (Gram)", "Retur (Gram)", "Retur (Pcs)", "Terjual (Pcs)", "Harga", "Omset"]}
+              rows={rowsWithActuals.map((row: any) => {
+                const gramPerCupVal = GRAM_PER_CUP[row.baseId] || 100;
+                return [
+                  row.tanggal,
+                  row.outletNama,
+                  row.produkNama,
+                  row.stokAwalPcs,
+                  `${(row.stokAwalPcs * gramPerCupVal).toLocaleString()} g`,
+                  row.belumInput ? "-" : (row.displayReturGr > 0 ? `${row.displayReturGr} g` : "-"),
+                  row.belumInput ? "-" : `${row.displayReturPcs} ${row.baseId === "p-abon" ? "pcs" : "cup"}`,
+                  row.displayTerjual,
+                  rupiah(row.harga),
+                  rupiah(row.displayTerjual * row.harga),
+                ];
+              })}
+            />
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

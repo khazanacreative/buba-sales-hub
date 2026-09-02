@@ -229,20 +229,12 @@ export default function Laporan() {
           <Card className="glass border-0 shadow-card">
             <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4 pb-2">
               <div>
-                <CardTitle>Filter & Ekspor Rekap</CardTitle>
+                <CardTitle>Rekap Penjualan</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Rekapitulasi penjualan berdasarkan periode dan outlet
+                </p>
               </div>
-              <ExportButtons
-                filename={`rekap-penjualan-${periode}`}
-                title={`Rekap Penjualan (${periode})`}
-                headers={["Periode", "Produk", "Total Qty", "Total Omzet"]}
-                rows={[
-                  ...rekapRows.map((r) => [r.periode, r.produkId, r.qty, r.omzet]),
-                  ["TOTAL", "-", totalAllQty, totalAllOmzet],
-                ]}
-              />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Select value={periode} onValueChange={(v) => setPeriode(v as Periode)}>
                   <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -253,7 +245,7 @@ export default function Laporan() {
                 </Select>
                 {!isOutlet && (
                   <Select value={outletId} onValueChange={setOutletId}>
-                    <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Semua Outlet</SelectItem>
                       {outlets.map((o) => <SelectItem key={o.id} value={o.id}>{o.nama}</SelectItem>)}
@@ -261,8 +253,18 @@ export default function Laporan() {
                   </Select>
                 )}
                 <DateRangeFilter value={range} onChange={setRange} />
+                <ExportButtons
+                  filename={`rekap-penjualan-${periode}`}
+                  title={`Rekap Penjualan (${periode})`}
+                  headers={["Periode", "Produk", "Total Qty", "Total Omzet"]}
+                  rows={[
+                    ...rekapRows.map((r) => [r.periode, r.produkId, r.qty, r.omzet]),
+                    ["TOTAL", "-", totalAllQty, totalAllOmzet],
+                  ]}
+                />
               </div>
-
+            </CardHeader>
+            <CardContent className="space-y-4">
               {/* Summary Cards Per Produk */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {rekapByProduk.map((r) => (
@@ -862,63 +864,67 @@ function SisaProduksiOH({
       )}
 
       <Card className="glass border-0 shadow-card">
-        <CardContent className="p-4 md:p-6 space-y-4">
-          {/* Toolbar: Date picker + Summary + Save */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
-                <DateInput value={tanggal} onChange={setTanggal} className="text-xs" />
-              </div>
-              {summary.totalDistribusi > 0 && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted-foreground">Dist: <strong className="text-foreground">{summary.totalDistribusi}</strong> cup</span>
-                  <span className="text-warning font-medium">Sisa: <strong>{summary.totalSisa}</strong> cup</span>
-                  <span className="text-success font-medium">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
-                  <span className="text-primary font-medium">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
-                  {summary.belumInputCount > 0 && (
-                    <span className="text-amber-600 dark:text-amber-400 basis-full sm:basis-auto">{summary.belumInputCount} menu belum input — tidak dihitung</span>
-                  )}
-                </div>
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4 pb-2">
+          <div>
+            <CardTitle>Sisa Produksi (OH)</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Input sisa produksi harian outlet — Bubur & Nasi Tim (gram), Oatmeal & Puding (cup), Abon (pcs)
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
+              <DateInput value={tanggal} onChange={setTanggal} className="text-xs" />
+            </div>
+            <ExportButtons
+              filename={`sisa-oh-saya-${tanggal}`}
+              title={`Sisa OH Saya ${tanggal}`}
+              headers={["Menu", "Distribusi (Cup)", "Sisa (Unit)", "Sisa (Cup/Pcs)", "OH %", "Terjual", "Harga", "Omset"]}
+              rows={rows.filter((r: any) => r.distribusi > 0).map((r: any) => [
+                r.label,
+                r.distribusi,
+                r.subId === "abon" ? `${r.sisaCups} pcs` : (r.subId === "oatmeal" || r.subId === "puding" ? `${r.sisaCups} cup` : `${r.sisa} g`),
+                `${r.sisaCups} ${r.subId === "abon" ? "pcs" : "cup"}`,
+                `${r.distribusi > 0 ? ((r.sisaCups / r.distribusi) * 100).toFixed(1) : "0"}%`,
+                r.terjual,
+                rupiah(r.harga),
+                rupiah(r.omset),
+              ])}
+            />
+            <Button
+              onClick={openDialog}
+              size="sm"
+              variant="outline"
+              className="h-9"
+              disabled={isLocked}
+            >
+              <Edit3 className="h-4 w-4 mr-1.5" />
+              Input OH
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={saving || rows.every(r => r.distribusi <= 0) || isLocked}
+              size="sm"
+              className="gradient-primary text-primary-foreground h-9"
+            >
+              <Save className="h-4 w-4 mr-1.5" />
+              {saving ? "Menyimpan..." : "Simpan Penjualan"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Summary bar */}
+          {summary.totalDistribusi > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground border-b pb-3">
+              <span>Dist: <strong className="text-foreground">{summary.totalDistribusi}</strong> cup</span>
+              <span className="text-warning">Sisa: <strong>{summary.totalSisa}</strong> cup</span>
+              <span className="text-success">Terjual: <strong>{summary.totalTerjual}</strong> cup</span>
+              <span className="text-primary">Omset: <strong>{rupiah(summary.totalOmset)}</strong></span>
+              {summary.belumInputCount > 0 && (
+                <span className="text-amber-600 dark:text-amber-400 basis-full sm:basis-auto">{summary.belumInputCount} menu belum input — tidak dihitung</span>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <ExportButtons
-                filename={`sisa-oh-saya-${tanggal}`}
-                title={`Sisa OH Saya ${tanggal}`}
-                headers={["Menu", "Distribusi (Cup)", "Sisa (Unit)", "Sisa (Cup/Pcs)", "OH %", "Terjual", "Harga", "Omset"]}
-                rows={rows.filter((r: any) => r.distribusi > 0).map((r: any) => [
-                  r.label,
-                  r.distribusi,
-                  r.subId === "abon" ? `${r.sisaCups} pcs` : (r.subId === "oatmeal" || r.subId === "puding" ? `${r.sisaCups} cup` : `${r.sisa} g`),
-                  `${r.sisaCups} ${r.subId === "abon" ? "pcs" : "cup"}`,
-                  `${r.distribusi > 0 ? ((r.sisaCups / r.distribusi) * 100).toFixed(1) : "0"}%`,
-                  r.terjual,
-                  rupiah(r.harga),
-                  rupiah(r.omset),
-                ])}
-              />
-              <Button
-                onClick={openDialog}
-                size="sm"
-                variant="outline"
-                className="h-9"
-                disabled={isLocked}
-              >
-                <Edit3 className="h-4 w-4 mr-1.5" />
-                Input OH
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={saving || rows.every(r => r.distribusi <= 0) || isLocked}
-                size="sm"
-                className="gradient-primary text-primary-foreground h-9"
-              >
-                <Save className="h-4 w-4 mr-1.5" />
-                {saving ? "Menyimpan..." : "Simpan Penjualan"}
-              </Button>
-            </div>
-          </div>
+          )}
 
           {/* Always-visible Form Table — 7 Menu Items */}
           <div className="rounded-xl border overflow-hidden">
@@ -1483,58 +1489,62 @@ function SisaProduksiAdminView({
       )}
 
       <Card className="glass border-0 shadow-card">
-        <CardContent className="p-4 md:p-6 space-y-4">
-          {/* Toolbar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
-                <DateInput value={tanggal} onChange={setTanggal} className="text-xs" />
-              </div>
-              {grandTotal.totalDist > 0 && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted-foreground">Dist: <strong className="text-foreground">{grandTotal.totalDist}</strong> cup</span>
-                  <span className="text-warning font-medium">Sisa: <strong>{grandTotal.totalSisa}</strong> cup</span>
-                  <span className="text-success font-medium">Terjual: <strong>{grandTotal.totalTerjual}</strong> cup</span>
-                  <span className="text-primary font-medium">Omset: <strong>{rupiah(grandTotal.totalOmset)}</strong></span>
-                  {grandTotal.belumInputCount > 0 && (
-                    <span className="text-amber-600 dark:text-amber-400 basis-full sm:basis-auto">{grandTotal.belumInputCount} baris belum input — tidak dihitung</span>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <ExportButtons
-                filename={`sisa-oh-${tanggal}`}
-                title={`Sisa OH ${tanggal}`}
-                headers={["Outlet", "Menu", "Distribusi (Cup)", "Sisa (Unit)", "Sisa (Cup/Pcs)", "OH %", "Terjual", "Harga", "Omset"]}
-                rows={outletRows.flatMap((o: any) =>
-                  o.items.filter((i: any) => i.distQty > 0).map((i: any) => [
-                    o.outlet.nama,
-                    i.label,
-                    i.distQty,
-                    i.subId === "abon" ? `${i.sisaCups} pcs` : (i.subId === "oatmeal" || i.subId === "puding" ? `${i.sisaCups} cup` : `${i.sisaGram} g`),
-                    `${i.sisaCups} ${i.subId === "abon" ? "pcs" : "cup"}`,
-                    `${i.distQty > 0 ? ((i.sisaCups / i.distQty) * 100).toFixed(1) : "0"}%`,
-                    i.terjual,
-                    rupiah(i.harga),
-                    rupiah(i.omset),
-                  ])
-                )}
-              />
-              {!readOnly && (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={saving || outletRows.length === 0}
-                  size="sm"
-                  className="gradient-primary text-primary-foreground h-9"
-                >
-                  <Save className="h-4 w-4 mr-1.5" />
-                  {saving ? "Menyimpan..." : "Simpan Semua Outlet"}
-                </Button>
-              )}
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4 pb-2">
+          <div>
+            <CardTitle>Sisa Produksi (OH) — Semua Outlet</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Edit sisa produksi per menu per outlet — data sinkron ke Langkah 5 Produksi
+            </p>
           </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Tanggal:</span>
+              <DateInput value={tanggal} onChange={setTanggal} className="text-xs" />
+            </div>
+            <ExportButtons
+              filename={`sisa-oh-${tanggal}`}
+              title={`Sisa OH ${tanggal}`}
+              headers={["Outlet", "Menu", "Distribusi (Cup)", "Sisa (Unit)", "Sisa (Cup/Pcs)", "OH %", "Terjual", "Harga", "Omset"]}
+              rows={outletRows.flatMap((o: any) =>
+                o.items.filter((i: any) => i.distQty > 0).map((i: any) => [
+                  o.outlet.nama,
+                  i.label,
+                  i.distQty,
+                  i.subId === "abon" ? `${i.sisaCups} pcs` : (i.subId === "oatmeal" || i.subId === "puding" ? `${i.sisaCups} cup` : `${i.sisaGram} g`),
+                  `${i.sisaCups} ${i.subId === "abon" ? "pcs" : "cup"}`,
+                  `${i.distQty > 0 ? ((i.sisaCups / i.distQty) * 100).toFixed(1) : "0"}%`,
+                  i.terjual,
+                  rupiah(i.harga),
+                  rupiah(i.omset),
+                ])
+              )}
+            />
+            {!readOnly && (
+              <Button
+                onClick={handleSubmit}
+                disabled={saving || outletRows.length === 0}
+                size="sm"
+                className="gradient-primary text-primary-foreground h-9"
+              >
+                <Save className="h-4 w-4 mr-1.5" />
+                {saving ? "Menyimpan..." : "Simpan Semua Outlet"}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Summary bar */}
+          {grandTotal.totalDist > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground border-b pb-3">
+              <span>Dist: <strong className="text-foreground">{grandTotal.totalDist}</strong> cup</span>
+              <span className="text-warning">Sisa: <strong>{grandTotal.totalSisa}</strong> cup</span>
+              <span className="text-success">Terjual: <strong>{grandTotal.totalTerjual}</strong> cup</span>
+              <span className="text-primary">Omset: <strong>{rupiah(grandTotal.totalOmset)}</strong></span>
+              {grandTotal.belumInputCount > 0 && (
+                <span className="text-amber-600 dark:text-amber-400 basis-full sm:basis-auto">{grandTotal.belumInputCount} baris belum input — tidak dihitung</span>
+              )}
+            </div>
+          )}
 
           {outletRows.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-8">

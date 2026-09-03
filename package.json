@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "backup:sql": "npx tsx scripts/backup-sql.ts",
+    "backup:sql:schema": "npx tsx scripts/backup-sql.ts --schema-only",
+    "backup:sql:data": "npx tsx scripts/backup-sql.ts --data-only"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
